@@ -1,0 +1,48 @@
+-- Checks for bug 1577396: REDIRECT not working properly.
+--
+-- Copyright (C) 2011 Gary V. Vaughan
+-- (C) 2007 David Given
+--
+-- Luke is licensed under the MIT open source license. To get the full
+-- license text, see the COPYING file.
+
+AT_SETUP ("REDIRECT working")
+
+-- Write correct test output.
+AT_DATA ("expout", [[
+  echo fnord >> ".luke-cache/1"
+  echo fnord >> ".luke-cache/1"
+]])
+
+AT_DATA ("experr", [[
+  luke: creating new intermediate file cache in '.luke-cache'
+]])
+
+AT_DATA ("expresult", [[
+  fnord
+  fnord
+]])
+
+-- Create input files.
+AT_DATA ("DATA1", [[one]])
+
+AT_DATA ("Blueprint", [[
+  test1 = file "DATA1"
+
+  default = simple {
+    outputs = { "$(U)" },
+    command = {
+      "echo $(TESTDATA1) >> $(out)",
+      "echo $(TESTDATA2) >> $(out)",
+    },
+    install = luke.install "result",
+    TESTDATA1 = "fnord",
+    TESTDATA2 = {REDIRECT, "TESTDATA1"},
+
+    test1,
+  }
+]])
+
+LK_CHECK ("-p", 0, "expout", "experr", "expresult")
+
+AT_CLEANUP ()

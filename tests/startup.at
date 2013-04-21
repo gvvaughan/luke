@@ -1,0 +1,8 @@
+-- Tests that luke will start up and shut down.
+--
+-- (C) 2006 David Given
+--
+-- Luke is licensed under the MIT open source license. To get the full
+-- license text, see the COPYING file.
+
+os.exit()

@@ -1,0 +1,75 @@
+-- Testsuite driver for Luke.
+--
+-- Copyright (C) 2011 Gary V. Vaughan
+--
+-- This program is free software: you can redistribute it and/or modify
+-- it under the terms of the GNU General Public License as published by
+-- the Free Software Foundation; either version 3 of the License, or
+-- (at your option) any later version.
+--
+-- This program is distributed in the hope that it will be useful,
+-- but WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-- GNU General Public License for more details.
+--
+-- You should have received a copy of the GNU General Public License
+-- along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+-- Run luke with ARGS. Expect EXIT_STATUS, with output matching STDOUT
+-- and STDERR as with AT_CHECK.  If STDERR is specified, normalise the
+-- observed error output.
+
+include "share/luke/autotest.luke"
+
+local LUKE = os.path.absname "luke"
+
+-- FIXME: soft-link to $top_builddir/.luke-i386 instead of building a
+--        brand new copy in the test dir for each test group
+
+local tests = {}
+for t in os.path.dir "tests" do
+  if t ~= "testsuite.at" and t:match ".+%.at$" then
+    table.insert (tests, os.path.join ("tests", t))
+  end
+end
+
+function LK_CHECK (args, exit_status, stdout, stderr, result)
+  if args and #args then LUKE = LUKE .. " " .. args end
+
+  return AT_CHECK (LUKE, exit_status, stdout, stderr, function ()
+    local at_result = os.path.join (os.path.getcwd (), "at-result")
+
+    -- check result.
+    local content = io.open (at_result, "r")
+    if result == "ignore" then
+      pass ()
+    elseif result == "result" then
+      if content and content:read () then
+        io.stdout:write "result:\n"
+        __cat (at_result)
+        os.path.copy (at_result, "result")
+      end
+    elseif result == nil then
+      AT_FAILED (not os.diff ("/dev/null", "result"))
+    else
+      AT_FAILED (not os.diff (result, "result"))
+    end
+  end)
+end
+
+function testsuite ()
+  local r = true
+  AT_INIT ()
+
+  for _, t in ipairs (tests) do
+    local f, e = loadfile (t)
+    if f then
+      setfenv (f, getfenv (1))
+      if f () ~= true then r = false end
+    else
+      print ("unable to load '" .. t .. "': " .. e)
+    end
+  end
+
+  return r
+end

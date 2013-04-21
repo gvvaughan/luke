@@ -1,0 +1,36 @@
+-- Build a minimal C program with the C extensions
+--
+-- Copyright (C) 2011 Gary V. Vaughan
+-- (C) 2006 David Given
+--
+-- Luke is licensed under the MIT open source license. To get the full
+-- license text, see the COPYING file.
+
+AT_SETUP ("Minimal C program")
+
+-- Write correct test output.
+AT_DATA ("expout", [[
+  gcc "-g"     -c -o ".luke-cache/1-DATA.o" "DATA.c"
+  gcc "-g"   -o ".luke-cache/2-1-DATA" ".luke-cache/1-DATA.o" 
+]])
+
+AT_DATA ("experr", [[
+  luke: creating new intermediate file cache in '.luke-cache'
+]])
+
+-- Create input files
+AT_DATA ("DATA.c", [[
+  int main(int argc, char* argv[]) { return 0; }
+]])
+
+AT_DATA ("Blueprint", [[
+  include "../../../share/luke/c.luke"
+
+  default = cprogram {
+    cfile "DATA.c",
+  }
+]])
+
+LK_CHECK ("-p", 0, "expout", "experr", "ignore")
+
+AT_CLEANUP ()

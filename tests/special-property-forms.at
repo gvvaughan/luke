@@ -1,0 +1,57 @@
+-- Tests {PARENT, ...}
+--
+-- Copyright (C) 2011 Gary V. Vaughan
+-- (C) 2006 David Given
+--
+-- Luke is licensed under the MIT open source license. To get the full
+-- license text, see the COPYING file.
+
+AT_SETUP ("Special property forms")
+
+-- Write correct test output.
+AT_DATA ("expout", [[
+  echo "one" "two" >> ".luke-cache/1"
+  echo "three" >> ".luke-cache/1"
+  echo "four" >> ".luke-cache/1"
+]])
+
+AT_DATA ("experr", [[
+  luke: creating new intermediate file cache in '.luke-cache'
+]])
+
+AT_DATA ("expresult", [[
+  one two
+  three
+  four
+]])
+
+-- Create input files.
+AT_DATA ("DATA1", [[one]])
+
+AT_DATA ("Blueprint", [[
+  test1 = file "DATA1"
+
+  VAR1 = {"one"}
+  VAR2 = {}
+  VAR3 = EMPTY
+
+  default = simple {
+    outputs = {"$(U)"},
+    command = {
+      "echo $(VAR1) >> $(out)",
+      "echo $(VAR2) >> $(out)",
+      "echo $(VAR3) >> $(out)",
+    },
+    install = luke.install "result",
+	
+    VAR1 = {PARENT, "two"},
+    VAR2 = {PARENT, "three"},
+    VAR3 = {PARENT, "four"},
+	
+    test1,
+  }
+]])
+
+LK_CHECK ("-p", 0, "expout", "experr", "expresult")
+
+AT_CLEANUP ()

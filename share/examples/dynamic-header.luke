@@ -1,0 +1,26 @@
+-- (C) 2011 Gary V. Vaughan
+-- (C) 2006 David Given
+--
+-- Luke is licensed under the MIT open source license. To get the full
+-- license text, see the COPYING file.
+
+include "share/lua/c.luke"
+
+DIR = "share/examples/source"
+
+make_dynamic_h = simple {
+	command = {
+		"echo '#define DYNAMIC 4' > $(out)"
+	},
+	outputs = { "$(U)/dynamic.h" },
+}
+
+default = cprogram {
+	cfile "$(DIR)/test.c",
+	cfile {
+		"$(DIR)/includes-dynamic.c",
+		dynamicheaders = make_dynamic_h,
+	},
+	
+	install = luke.install "$(DIR)/dynamic-header",
+}

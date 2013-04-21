@@ -1,0 +1,45 @@
+-- Does a very basic test of the rule engine.
+--
+-- Copyright (C) 2011 Gary V. Vaughan
+-- (C) 2006 David Given
+--
+-- Luke is licensed under the MIT open source license. To get the full
+-- license text, see the COPYING file.
+
+-- Write correct test output.
+AT_DATA ("expout", [[
+  luke: creating new intermediate file cache in '.luke-cache'
+  echo "." "." "." > ".luke-cache/1"
+  echo "FOODATA1BAR" "FOODATA2BAR" "FOODATA3BAR" > ".luke-cache/1"
+  FOODATA1BAR FOODATA2BAR FOODATA3BAR
+]])
+
+-- Create input files.
+AT_DATA ("DATA1", [[one]])
+AT_DATA ("DATA2", [[two]])
+AT_DATA ("DATA3", [[three]])
+
+test1 = file "DATA1"
+test2 = file "DATA2"
+test3 = file "DATA3"
+
+function luke.stringmodifier.testmodifier(rule, arg)
+	local t = {}
+	for i, j in ipairs(arg) do
+		t[i] = "FOO" .. j .. "BAR"
+	end
+	return t
+end
+
+default = simple {
+	outputs = { "$(U)" },
+	command = {
+		"echo $(dirname in) > $(out)",
+		"echo $(testmodifier in) > $(out)",
+	},
+	install = luke.install "result",
+	
+	test1,
+	test2,
+	test3,
+}

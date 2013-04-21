@@ -1,0 +1,14 @@
+Luke Contributors
+=================
+
+This file lists contributors to Luke.  If you think you should be in
+this list, please file an issue on github (run `luke --help` for the
+URL).
+
+Many thanks to all users and those who have contributed bug fixes and
+suggestions.
+
+* David Given <dg@cowlark.com>:
+  Author of PrimeMover, Luke's dependency graph resolver.
+* Gary V. Vaughan <gary@gnu.org>:
+  Designed and implemented Luke.

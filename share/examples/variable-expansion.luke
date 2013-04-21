@@ -1,0 +1,25 @@
+-- (C) 2011 Gary V. Vaughan
+-- (C) 2006 David Given
+--
+-- Luke is licensed under the MIT open source license. To get the full
+-- license text, see the COPYING file.
+
+include "share/lua/c.luke"
+
+DIR = "share/examples/source"
+
+default = cprogram {
+	cfile "$(DIR)/test.c",
+	cfile "$(DIR)/test1.c",
+	cfile "$(DIR)/test2.c",
+	cfile "$(DIR)/test3.c",
+	cfile {
+		-- Demonstrates the use of ${...} to execute arbitrary chunks of Lua
+		-- code in a variable expansion.
+		
+		CEXTRAFLAGS="${return '-DNUMFILES='.. #default}",
+		"$(DIR)/test4.c",
+	},
+	
+	install = luke.install "$(DIR)/simple-c-program",
+}

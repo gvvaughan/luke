@@ -1,0 +1,47 @@
+-- Does a very basic test of the rule engine.
+--
+-- Copyright (C) 2011 Gary V. Vaughan
+-- (C) 2006 David Given
+--
+-- Luke is licensed under the MIT open source license. To get the full
+-- license text, see the COPYING file.
+
+AT_SETUP ("Group in/out")
+
+-- Write correct test output.
+AT_DATA ("expout", [[
+  cat "DATA1" > ".luke-cache/1"
+]])
+
+AT_DATA ("experr", [[
+  luke: creating new intermediate file cache in '.luke-cache'
+]])
+
+AT_DATA ("expresult", [[
+  one
+]])
+
+-- Create input files.
+AT_DATA ("DATA1", [[one]])
+
+AT_DATA ("Blueprint", [[
+  test1 = file "DATA1"
+
+  copy = simple {
+    class   = "copy",
+    outputs = { "$(U)" },
+    command = {
+      "cat $(in) > $(out)"
+    }
+  }
+
+  default = group {
+    copy { file "DATA1" },
+    copy { file "DATA1" },
+    install = luke.install ("$(out[1])", "result")
+  }
+]])
+
+LK_CHECK ("-p", 0, "expout", "experr", "expresult")
+
+AT_CLEANUP ()

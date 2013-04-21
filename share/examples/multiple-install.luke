@@ -1,0 +1,27 @@
+-- (C) 2011 Gary V. Vaughan
+-- (C) 2006 David Given
+--
+-- Luke is licensed under the MIT open source license. To get the full
+-- license text, see the COPYING file.
+
+include "share/lua/c.luke"
+
+DIR = "share/examples/source"
+
+local prog = cprogram {
+	CDEFINES = {PARENT, "BAR"},
+	cfile "$(DIR)/test.c",
+	install = luke.install "$(DIR)/$(DESTINATION)",
+}
+
+default = group {
+	group {
+		DESTINATION = "multiple-install-1",
+		prog,
+	},
+	group {
+		CDEFINES = {"FOO"},
+		DESTINATION = "multiple-install-2",
+		prog,
+	},
+}
