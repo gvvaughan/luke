@@ -53,9 +53,9 @@ Luke differs from the GNU Build System in that:
 Luke is compatible with the GNU Build System in that:
 
  * A distribution that builds with Luke supports the familiar pattern:
-   `./configure; make; make install' on the build host. This requires
+   `./configure; make; make install` on the build host. This requires
    an installed Make of course, but there's no such requirement unless
-   the `make; make install' pattern is important to you.
+   the `make; make install` pattern is important to you.
 
 Luke supports:
 
@@ -75,7 +75,7 @@ Luke supports:
 
 Here is an example Blueprint that will build a simple C program:
 
----start---
+```lua
 include "c.luke"       -- load the C rules
 
 default = cprogram {   -- build a C program
@@ -85,12 +85,12 @@ default = cprogram {   -- build a C program
 	
   install = luke.install ("myprogram") -- and installing
 }
----end---
+```
 
 If this is saved as 'Blueprint' in the current directory, it can be
 invoked by simply doing:
 
-  ./luke
+    ./luke
   
 ...and it will build.
 
