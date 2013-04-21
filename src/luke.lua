@@ -15,9 +15,9 @@ os.is_windows, os.path.is_windows = os.path.is_windows, os.is_windows
 -- =======
 
 local PACKAGE = "Luke"
-local VERSION = "0"
+local VERSION = "0.0.1α"
 local YEAR    = "2013"
-local PACKAGE_BUGREPORT = "gary@gnu.org"
+local PACKAGE_BUGREPORT = "http://github.com/gvvaughan/luke/issues"
 
 -- Fast versions of useful system variables.
 
@@ -1469,13 +1469,14 @@ Options and targets may be specified in any order.
 Unrecognized options are passed to Blueprint in the 'options' table. Any
 arguments following '--' will be treated as targets.
 
-Please report bugs to <]] .. PACKAGE_BUGREPORT .. [[>.
+Please report bugs at ]] .. PACKAGE_BUGREPORT .. [[.
 ]])
     os.exit (0)
   end
 
   local function do_version (opt)
     stdout:write (PACKAGE .. " " .. VERSION .. [[
+
 Copyright (C) ]] .. YEAR .. [[ Gary V. Vaughan et. al.
 License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>.
 This is free software: you are free to change and redistribute it.
