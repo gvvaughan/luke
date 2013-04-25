@@ -4,6 +4,7 @@
 #include <string.h>
 
 #define luaall_c
+#define LUA_USE_POSIX
 
 #include "lapi.c"
 #include "lcode.c"
