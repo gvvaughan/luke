@@ -84,7 +84,7 @@ local function check_executable_in_path(L, env, config, prog)
          return isfile(h.context) and progpath or nil
       end)
    end)
-   L.debug('found ' .. found)
+   L.debug(found and 'found ' .. found or prog .. ' not found')
    return found ~= nil
 end
 
