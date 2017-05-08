@@ -97,7 +97,7 @@ return {
 
             ['--version'] = version,
 
-            ['(.+)=(.+)'] = function(name, value)
+            ['([^=]+)=(.+)'] = function(name, value)
                clidefs[name] = value
             end,
 
