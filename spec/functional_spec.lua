@@ -1,7 +1,6 @@
 package.path = os.getenv 'LUA_PATH'
 
 require 'spec.spec_helpers'
-local list = pack
 
 
 local functional = require 'std.functional'

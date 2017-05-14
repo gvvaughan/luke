@@ -5,9 +5,13 @@ int = math.tointeger or function(x)
    end
 end
 
-pack = table.pack or function(...) return {n=select('#', ...), ...} end
+list = table.pack or function(...) return {n=select('#', ...), ...} end
 
-function set(...)
+nop = function() end
+
+pack = list
+
+set = function(...)
    local r, argu = {}, pack(...)
    for i = 1, argu.n do
       r[argu[i]] = true
@@ -15,7 +19,7 @@ function set(...)
    return r
 end
 
-function sorted(x)
+sorted = function(x)
    local r = {}
    for k, v in next, x do
       r[k] = v
