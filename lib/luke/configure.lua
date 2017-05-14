@@ -52,8 +52,8 @@ local function compile_command(L, env, config, filename)
       '$CPPFLAGS',
       filename
    )
-   --L.debug(slurp(filename))
-   L.debug(interpolate(env, concat(command, ' ')))
+   --L.log(slurp(filename))
+   L.log(interpolate(env, concat(command, ' ')))
    return unpack(command)
 end
 
@@ -70,8 +70,8 @@ local function link_command(L, env, config, a_out, source, lib)
       '$libs', CONFIGENV.libs,
       lib
    )
-   --L.debug(slurp(source))
-   L.debug(interpolate(env, concat(command, ' ')))
+   --L.log(slurp(source))
+   L.log(interpolate(env, concat(command, ' ')))
    return unpack(command)
 end
 
@@ -84,7 +84,7 @@ local function check_executable_in_path(L, env, config, prog)
          return isfile(h.context) and progpath or nil
       end)
    end)
-   L.debug(found and 'found ' .. found or prog .. ' not found')
+   L.log(found and 'found ' .. found or prog .. ' not found')
    return found ~= nil
 end
 
@@ -97,7 +97,7 @@ local function check_header_compile(L, env, config, header, extra_hdrs)
          compile_command(L, env, config, conftest.filename)
       )
       if status ~= 0 and err ~= '' then
-         L.debug(err)
+         L.log(err)
       end
       return 0 == status and 1 or 0
    end)
@@ -120,7 +120,7 @@ return %s ();
          link_command(L, env, config, a_out.filename, conftest.filename, lib)
       )
       if status ~= 0 and err ~= '' then
-         L.debug(err)
+         L.log(err)
       end
       return status
    end)
@@ -145,7 +145,7 @@ return 0;
          compile_command(L, env, config, conftest.filename)
       )
       if status ~= 0 and err ~= '' then
-         L.debug(err)
+         L.log(err)
       end
       return 0 == status and 1 or 0
    end)
@@ -193,7 +193,7 @@ return %s ();
          link_command(L, env, config, a_out.filename, conftest.filename)
       )
       if status ~= 0 and err ~= '' then
-         L.debug(err)
+         L.log(err)
       end
       return 0 == status and 1 or 0
    end)

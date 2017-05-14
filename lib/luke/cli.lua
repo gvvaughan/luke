@@ -73,12 +73,12 @@ end
 return {
    parse_arguments = function(args)
       local clidefs, fname, targets, install = {}, 'lukefile', {}, {}
-      local verbose, write, debug = nop, display, nop
+      local verbose, write, log = nop, display, nop
 
       map(args, function(opt)
          case(opt, {
             ['--debug'] = function()
-               debug = dump
+               log = dump
             end,
                
             ['--file=(.+)'] = function(optarg)
@@ -166,7 +166,7 @@ return {
       return {
          clidefs = clidefs,
          install = install,
-         debug = debug,
+         log = log,
          luke = luke,
          verbose = verbose,
          write = write,
