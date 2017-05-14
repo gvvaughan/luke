@@ -290,7 +290,7 @@ local configure = setmetatable(OrderedDict({
             return dropuntil(self, function(fname)
                if config[fname] ~= nil then
                   add_external_deps(env, config, prefix)
-                  return apply(self[fname], {L, env, config})
+                  return apply(self[fname], list(L, env, config))
                end
             end) or fatal("unable to configure with keys '%s'",
                concat(keys(config), "', '"))
