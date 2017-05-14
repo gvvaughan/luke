@@ -1,7 +1,6 @@
 package.path = os.getenv 'LUA_PATH'
 
 require 'spec.spec_helpers'
-list = pack
 
 
 local platforms = require 'luke.platforms'
