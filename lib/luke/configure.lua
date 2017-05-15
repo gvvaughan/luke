@@ -10,6 +10,15 @@ local _ENV = require 'std.normalize' {
 }
 
 
+local function logspawn(L, env, ...)
+   local status, err = spawn(env, ...)
+   if status ~= 0 and err ~= '' then
+      L.log(err)
+   end
+   return status
+end
+
+
 local function checking(L, ...)
    L.verbose('checking ', concat({...}, ' '), '... ')
 end
@@ -33,8 +42,9 @@ end
 
 
 local function found_result(L, x)
-   L.verbose(x == 1 and 'yes\n' or 'no\n')
-   return x
+   L.verbose(x == 0 and 'yes\n' or 'no\n')
+   -- non-zero exit status 'x' is a failure, so define value in 0, otherwise 1
+   return x ~= 0 and 0 or 1
 end
 
 
@@ -92,14 +102,11 @@ end
 local function check_header_compile(L, env, config, header, extra_hdrs)
    return with(CTest(), function(conftest)
       conftest:write(format('%s\n#include "%s"\n', extra_hdrs, header))
-      local status, err = spawn(
+      return logspawn(
+         L,
          env,
          compile_command(L, env, config, conftest.filename)
       )
-      if status ~= 0 and err ~= '' then
-         L.log(err)
-      end
-      return 0 == status and 1 or 0
    end)
 end
 
@@ -115,14 +122,11 @@ int main () {
 return %s ();
 }
 ]], symbol, symbol))
-      local status, err = spawn(
+      return logspawn(
+         L,
          env,
          link_command(L, env, config, a_out.filename, conftest.filename, lib)
       )
-      if status ~= 0 and err ~= '' then
-         L.log(err)
-      end
-      return status
    end)
 end
 
@@ -140,14 +144,11 @@ main()
 return 0;
 }
 ]], extra_hdrs, fname, fname))
-      local status, err = spawn(
+      return logspawn(
+         L,
          env,
          compile_command(L, env, config, conftest.filename)
       )
-      if status ~= 0 and err ~= '' then
-         L.log(err)
-      end
-      return 0 == status and 1 or 0
    end)
 end
 
@@ -188,14 +189,11 @@ int main () {
 return %s ();
 }
 ]], fname, fname, fname, fname, fname, fname, fname))
-      local status, err = spawn(
+      return logspawn(
+         L,
          env,
          link_command(L, env, config, a_out.filename, conftest.filename)
       )
-      if status ~= 0 and err ~= '' then
-         L.log(err)
-      end
-      return 0 == status and 1 or 0
    end)
 end
 
