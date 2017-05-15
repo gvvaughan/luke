@@ -210,6 +210,13 @@ local function add_external_deps(env, config, prefix)
 end
 
 
+local function format_includes(includes)
+   return map(includes or {}, function(include)
+      return format('#include "%s"', include)
+   end)
+end
+
+
 local configure = setmetatable(OrderedDict({
    checkprog = function(L, env, config)
       return dropuntil(config.progs, function(prog)
@@ -223,24 +230,20 @@ local configure = setmetatable(OrderedDict({
    checkheader = function(L, env, config)
       checking(L, 'for', config.checkheader)
 
-      local extra_hdrs = map(config.includes or {}, function(include)
-         return format('#include "%s"', include)
-      end)
+      local extra_hdrs = concat(format_includes(config.includes), '\n')
       return found_result(
          L,
-         check_header_compile(L, env, config, config.checkheader, concat(extra_hdrs, '\n'))
+         check_header_compile(L, env, config, config.checkheader, extra_hdrs)
       )
    end
 }, {
    checkdecl = function(L, env, config)
       checking(L, 'whether', config.checkdecl, 'is declared')
 
-      local extra_hdrs = map(config.includes or {}, function(include)
-         return format('#include "%s"', include)
-      end)
+      local extra_hdrs = concat(format_includes(config.includes), '\n')
       return found_result(
          L,
-         check_func_decl(L, env, config, config.checkdecl, concat(extra_hdrs, '\n'))
+         check_func_decl(L, env, config, config.checkdecl, extra_hdrs)
       )
    end
 }, {
