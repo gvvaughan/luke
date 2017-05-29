@@ -165,7 +165,8 @@ local function unwind_external_dependencies(luke)
    end)
    if istable(r.external_dependencies) then
       for prefix, config in next, r.external_dependencies do
-         if config.library ~= '' then
+         -- `config={}` for unsupported, `config={library=''}` for no library required
+         if next(config) and config.library ~= '' then
             r.incdirs = append(r.incdirs or {}, format('$%s_INCDIR', prefix))
             r.libdirs = append(r.libdirs or {}, format('$%s_LIBDIR', prefix))
             r.libraries = append(r.libraries or {}, '-l' .. config.library)

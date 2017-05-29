@@ -27,6 +27,8 @@ end
 local function found_library(L, x)
    if x == nil or x == '' then
       L.verbose 'none required'
+   elseif isempty(x) then
+      L.verbose 'not supported'
    else
       L.verbose(x)
    end
@@ -126,6 +128,28 @@ return %s ();
          L,
          env,
          link_command(L, env, config, a_out.filename, conftest.filename, lib)
+      )
+   end)
+end
+
+
+local function try_compile(L, env, config, headers)
+   return with(CTest(), TmpFile(), function(conftest, a_out)
+      conftest:write(format([[
+%s
+#ifndef %s
+choke me
+#endif
+int
+main()
+{
+return 0;
+}
+]], headers, config.ifdef))
+      return logspawn(
+         L,
+         env,
+         link_command(L, env, config, a_out.filename, conftest.filename)
       )
    end)
 end
@@ -250,6 +274,15 @@ local configure = setmetatable(OrderedDict({
    checksymbol = function(L, env, config)
       checking(L, 'for library containing', config.checksymbol)
 
+      -- Is the feature behind a preprocessor guard?
+      if config.ifdef ~= nil then
+         local headers = concat(format_includes(config.includes), '\n')
+         if try_compile(L, env, config, headers) ~= 0 then
+            return found_library(L, {})
+         end
+      end
+
+      -- Look for required symbol in libc, and then each of `libraries`.
       local libraries, symbol = config.libraries, config.checksymbol
       local trylibs = reduce(libraries, {''}, function(r, lib)
          append(r, '-l' .. lib)
@@ -269,6 +302,8 @@ local configure = setmetatable(OrderedDict({
          fatal("required symbol '%s' not found in any of libc, lib%s",
             symbol, concat(libraries, ', lib'))
       end)
+
+      -- Found the symbol, return the basename of the containing library.
       return {library=gsub(lib, '^-l', '')}
    end
 }, {

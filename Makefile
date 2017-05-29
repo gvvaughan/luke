@@ -1,6 +1,8 @@
 LUA  = lua
 
-LUA_ENV = LUA_PATH=`pwd`'/lib/?.lua;;'
+
+LUA_PATH = `pwd`'/lib/?.lua;'`pwd`'/lib/?/init.lua'
+LUA_ENV  = LUA_PATH=$(LUA_PATH)';;'
 
 
 lib_SOURCES =				\
@@ -22,3 +24,15 @@ DESTDIR = .
 
 build-aux/luke: $(lib_SOURCES)
 	env $(LUA_ENV) $(LUA) lib/smush/init.lua $(lib_SOURCES) > $(DESTDIR)/build-aux/luke
+
+
+BUSTED_ENV = LUA_PATH=`pwd`'/?.lua;'$(LUA_PATH)';;'
+
+noinst_spec_CHECKS =			\
+	spec/configure_spec.lua		\
+	spec/functional_spec.lua	\
+	spec/platform_spec.lua		\
+	$(NOTHING_ELSE)
+
+check:
+	env $(BUSTED_ENV) busted -o TAP $(noinst_spec_CHECKS)
