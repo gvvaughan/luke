@@ -18,6 +18,7 @@ lib_SOURCES =				\
 	lib/type/dict.lua		\
 	$(NOTHING_ELSE)
 
+DESTDIR = .
 
 build-aux/luke: $(lib_SOURCES)
-	env $(LUA_ENV) $(LUA) lib/smush/init.lua $(lib_SOURCES) > build-aux/luke
+	env $(LUA_ENV) $(LUA) lib/smush/init.lua $(lib_SOURCES) > $(DESTDIR)/build-aux/luke
