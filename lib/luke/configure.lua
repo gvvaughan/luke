@@ -137,7 +137,7 @@ local function try_compile(L, env, config, headers)
    return with(CTest(), TmpFile(), function(conftest, a_out)
       conftest:write(format([[
 %s
-#ifndef %s
+#if !defined %s || %s == -1
 choke me
 #endif
 int
@@ -145,7 +145,7 @@ main()
 {
 return 0;
 }
-]], headers, config.ifdef))
+]], headers, config.ifdef, config.ifdef))
       return logspawn(
          L,
          env,
