@@ -315,6 +315,7 @@ package.preload['smush'] = function()
       main = function()
          map({
             '#!/usr/bin/env lua',
+            '--[[ minified code follows, see --help text for source location! ]]',
             'package.searchers=package.searchers or package.loaders',
             'for i=2,#package.searchers do',
             'package.searchers[i]=nil',

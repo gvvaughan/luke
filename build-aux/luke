@@ -1,4 +1,5 @@
 #!/usr/bin/env lua
+--[[ minified code follows, see --help text for source location! ]]
 package.searchers=package.searchers or package.loaders
 for i=2,#package.searchers do
 package.searchers[i]=nil
@@ -10,7 +11,7 @@ stderr:write('luke: fatal: '..msg..'\n')exit(1)end}
 end
 package.preload['luke.cli']=function()
 local _ENV=require'std.normalize'{'luke._base','luke.lukefile','luke.platforms','std.functional',}local function version()print[[
-luke (Luke) 0.1
+luke (Luke) 0.1.1
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2017, Gary V. Vaughan
@@ -108,7 +109,8 @@ return status
 end
 local function checking(L,...)L.verbose('checking ',concat({...},' '),'... ')end
 local function found_library(L,x)if x==nil or x==''then
-L.verbose'none required'else
+L.verbose'none required'elseif isempty(x)then
+L.verbose'not supported'else
 L.verbose(x)end
 L.verbose'\n'return x
 end
@@ -133,6 +135,17 @@ int main () {
 return %s ();
 }
 ]],symbol,symbol))return logspawn(L,env,link_command(L,env,config,a_out.filename,conftest.filename,lib))end)end
+local function try_compile(L,env,config,headers)return with(CTest(),TmpFile(),function(conftest,a_out)conftest:write(format([[
+%s
+#if !defined %s || %s == -1
+choke me
+#endif
+int
+main()
+{
+return 0;
+}
+]],headers,config.ifdef,config.ifdef))return logspawn(L,env,link_command(L,env,config,a_out.filename,conftest.filename))end)end
 local function check_func_decl(L,env,config,fname,extra_hdrs)return with(CTest(),function(conftest)conftest:write(format([[
 %s
 int
@@ -186,10 +199,15 @@ end
 end
 end
 end
+local function format_includes(includes)return map(includes or{},function(include)return format('#include "%s"',include)end)end
 local configure=setmetatable(OrderedDict({checkprog=function(L,env,config)return dropuntil(config.progs,function(prog)checking(L,'for',prog)if found_prog(L,check_executable_in_path(L,env,config,prog))then
 return prog
 end
-end)or fatal('cannot find '..config.checkprog)end},{checkheader=function(L,env,config)checking(L,'for',config.checkheader)local extra_hdrs=map(config.includes or{},function(include)return format('#include "%s"',include)end)return found_result(L,check_header_compile(L,env,config,config.checkheader,concat(extra_hdrs,'\n')))end},{checkdecl=function(L,env,config)checking(L,'whether',config.checkdecl,'is declared')local extra_hdrs=map(config.includes or{},function(include)return format('#include "%s"',include)end)return found_result(L,check_func_decl(L,env,config,config.checkdecl,concat(extra_hdrs,'\n')))end},{checksymbol=function(L,env,config)checking(L,'for library containing',config.checksymbol)local libraries,symbol=config.libraries,config.checksymbol
+end)or fatal('cannot find '..config.checkprog)end},{checkheader=function(L,env,config)checking(L,'for',config.checkheader)local extra_hdrs=concat(format_includes(config.includes),'\n')return found_result(L,check_header_compile(L,env,config,config.checkheader,extra_hdrs))end},{checkdecl=function(L,env,config)checking(L,'whether',config.checkdecl,'is declared')local extra_hdrs=concat(format_includes(config.includes),'\n')return found_result(L,check_func_decl(L,env,config,config.checkdecl,extra_hdrs))end},{checksymbol=function(L,env,config)checking(L,'for library containing',config.checksymbol)if config.ifdef~=nil then
+local headers=concat(format_includes(config.includes),'\n')if try_compile(L,env,config,headers)~=0 then
+return found_library(L,{})end
+end
+local libraries,symbol=config.libraries,config.checksymbol
 local trylibs=reduce(libraries,{''},function(r,lib)append(r,'-l'..lib)end)local lib=dropuntil(trylibs,function(lib)if try_link(L,env,config,lib,symbol)==0 then
 if lib~=''then
 if CONFIGENV.libs~=''then
@@ -294,7 +312,7 @@ return v
 end
 return unwind_external_dependencies(v)end)if istable(r.external_dependencies)then
 for prefix,config in next,r.external_dependencies do
-if config.library~=''then
+if next(config)and config.library~=''then
 r.incdirs=append(r.incdirs or{},format('$%s_INCDIR',prefix))r.libdirs=append(r.libdirs or{},format('$%s_LIBDIR',prefix))r.libraries=append(r.libraries or{},'-l'..config.library)end
 end
 r.external_dependencies=nil
