@@ -45,13 +45,13 @@ describe('luke.configure', function()
 
       it('reports "none required" for libc symbols', function()
          local r = configure(L, env, {checksymbol='sprintf', libraries={'m'}})
-         assert.same({library=''}, r)
+         assert.same('', r)
          assert.stub(L.verbose).was_called_with 'none required'
       end)
 
       it('returns first lib satisfying required symbol', function()
          local r = configure(L, env, {checksymbol='pow', libraries={'m'}})
-         assert.same({library='m'}, r)
+         assert.same('-lm', r)
          assert.stub(L.verbose).was_called_with '-lm'
       end)
 
@@ -62,7 +62,7 @@ describe('luke.configure', function()
             includes={'unistd.h'},
             libraries={'crypt'},
          })
-         assert.same({library='crypt'}, r)
+         assert.same('-lcrypt', r)
          assert.stub(L.verbose).was_called_with '-lcrypt'
       end)
 
