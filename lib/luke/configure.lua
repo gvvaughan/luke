@@ -287,7 +287,7 @@ local configure = setmetatable(OrderedDict({
       local trylibs = reduce(libraries, {''}, function(r, lib)
          append(r, '-l' .. lib)
       end)
-      local lib = dropuntil(trylibs, function(lib)
+      return dropuntil(trylibs, function(lib)
          if try_link(L, env, config, lib, symbol) == 0 then
             if lib ~= '' then
                if CONFIGENV.libs ~= '' then
@@ -302,9 +302,6 @@ local configure = setmetatable(OrderedDict({
          fatal("required symbol '%s' not found in any of libc, lib%s",
             symbol, concat(libraries, ', lib'))
       end)
-
-      -- Found the symbol, return the basename of the containing library.
-      return {library=gsub(lib, '^-l', '')}
    end
 }, {
    checkfunc = function(L, env, config)
