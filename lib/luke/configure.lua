@@ -346,13 +346,17 @@ return {
       end
 
       checking(L, interpolate(env, 'whether $CC works'))
-      local works, err = with(CTest(), function(conftest)
+      local cm = CTest()
+      local works, err = with(cm, function(conftest)
          conftest:write('typedef int x;\n')
          return spawn(env, '$compile', conftest.filename)
       end)
       if works ~= 0 then
          L.verbose 'no\n'
-         stderr:write(err .. '\n')
+         L.log(interpolate(env, '$compile ' .. cm.filename))
+         if err and err ~= '' then
+            L.log(err)
+         end
          fatal('could not find a working C compiler')
       end
       found_prog(L, CC)
