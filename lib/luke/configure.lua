@@ -93,7 +93,7 @@ local function check_executable_in_path(L, env, config, prog)
    local found = dropuntil(gmatch(PATH, '[^:]+'), function(path)
       local progpath = path .. '/' .. prog
       return with(File(progpath, 'r'), function(h)
-         return isfile(h.context) and progpath or nil
+         return h and isfile(h.context) and progpath or nil
       end)
    end)
    L.log(found and 'found ' .. found or prog .. ' not found')

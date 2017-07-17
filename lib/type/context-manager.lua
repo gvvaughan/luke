@@ -10,6 +10,7 @@ local contextmanager_mt = {
             return self.context[key](self.context, ...)
          end
       end
+      -- FIXME `cm.filename` beats `cm[1]`, but what about non-file context managers?
       if key == 'filename' then
          return self[1]
       end
@@ -18,10 +19,14 @@ local contextmanager_mt = {
 
 
 local function ContextManager(release, acquire, ...)
+   local fh, err = acquire(...)
+   if not fh then
+      return nil, err
+   end
    local cm = {
       context = acquire(...),
       release = release,
-      n          = select("#", ...), ...
+      n       = select("#", ...), ...
    }
    if cm.context ~= nil then
       setmetatable(cm, contextmanager_mt)
@@ -40,7 +45,9 @@ local function with(...)
    local block = pop(argu)
    local r = list(apply(block, argu))
    map(argu, function(cm)
-      cm:release()
+      if cm ~= nil then
+         cm:release()
+      end
    end)
    return unpack(r)
 end
@@ -76,7 +83,10 @@ return {
       end, open, fname or tmpname(), mode or 'w')
    end,
 
-   slurp = function(cm)
+   slurp = function(cm, ...)
+      if not cm then
+          return cm, ...
+      end
       return with(cm, function(h)
          return h:read '*a'
       end)
