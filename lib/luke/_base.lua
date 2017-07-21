@@ -1,12 +1,21 @@
 local _ENV = require 'std.normalize' {}
 
-return {
-   fatal = function(...)
-      local msg = (...)
-      if select('#', ...) > 1 then
-         msg = format(...)
-      end
-      stderr:write('luke: fatal: ' .. msg .. '\n')
-      exit(1)
+local function fatal(...)
+   local msg = (...)
+   if select('#', ...) > 1 then
+      msg = format(...)
    end
+   stderr:write('luke: fatal: ' .. msg .. '\n')
+   exit(1)
+end
+
+
+return {
+   diagnose = function(predicate, ...)
+      if not predicate then
+         fatal(...)
+      end
+   end,
+
+   fatal = fatal,
 }

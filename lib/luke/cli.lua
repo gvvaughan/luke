@@ -114,9 +114,7 @@ return {
 
 
       local luke, err = loadluke(fname)
-      if luke == nil then
-         fatal('bad ' .. fname .. ': ' .. err)
-      end
+      diagnose(luke ~= nil, 'bad %s: %s', fname, err)
 
       if isempty(luke.modules or {}) then
          fatal("no modules table in '%s', nothing to build", args.file)
