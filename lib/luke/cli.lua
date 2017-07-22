@@ -45,11 +45,13 @@ Report bugs to https://github.com/gvvaughan/luke/issues.]]
 end
 
 
-local function opterr(msg)
-   if match(msg, '%.$') == nil then
-      msg = msg .. '.'
+local function opterr(...)
+   local msg = (...)
+   if select('#', ...) > 1 then
+      msg = format(...)
    end
-   stderr:write('luke: error: ' .. msg .. '\n')
+   msg = gsub(msg, '%.$', '')
+   stderr:write('luke: error: ' .. msg .. '.\n')
    stderr:write("luke: try '" .. arg[0] .. " --help' for help.\n")
    exit(2)
 end
@@ -105,7 +107,7 @@ return {
 
             function(opt)
                if match(opt, '^-') ~= nil then
-                  opterr(format("unrecognized option '%s'", opt))
+                  opterr("unrecognized option '%s'", opt)
                end
                append(targets, opt)
             end,
