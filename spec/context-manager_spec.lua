@@ -96,6 +96,7 @@ describe('type.context-manager', function()
 
    describe('with', function()
       local File, with = context_manager.File, context_manager.with
+      local rm = os.remove
 
       it('releases passed context managers', function()
          local cm1, cm2 = mock(File('f1', 'w')), mock(File('f2', 'w'))
@@ -105,6 +106,8 @@ describe('type.context-manager', function()
          end)
          assert.spy(cm1.release).called_with(cm1)
          assert.spy(cm2.release).called_with(cm2)
+         rm 'f1'
+         rm 'f2'
       end)
 
       it('does not try to release unacquired context managers', function()
