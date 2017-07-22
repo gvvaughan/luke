@@ -29,6 +29,7 @@ build-aux/luke: $(lib_SOURCES)
 BUSTED_ENV = LUA_PATH=`pwd`'/?.lua;'$(LUA_PATH)';;'
 
 noinst_spec_CHECKS =			\
+	spec/cli_spec.lua		\
 	spec/configure_spec.lua		\
 	spec/context-manager_spec.lua	\
 	spec/functional_spec.lua	\
