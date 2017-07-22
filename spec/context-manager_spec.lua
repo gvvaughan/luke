@@ -110,7 +110,7 @@ describe('type.context-manager', function()
       it('does not try to release unacquired context managers', function()
          local fname = 'this/is/not/an/existing/file!'
          with(File(fname, 'r'), File(fname, 'r'), function(...)
-            assert.same(list(), list(...))
+            assert.same(list(nil, nil), list(...))
          end) 
       end)
    end)
