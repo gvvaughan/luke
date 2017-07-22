@@ -45,7 +45,7 @@ end
 
 return {
    main = function(args)
-      local L = parse_arguments(args)
+      local L = validate_arguments(parse_arguments(args))
       local env = makeenv(L.clidefs, L.luke.variables, DEFAULTENV, SHELLENV)
       local status = 0
 
