@@ -92,7 +92,7 @@ return {
                r.log = dump
             end,
                
-            ['--file=(.+)'] = function(optarg)
+            ['%-%-file=(.+)'] = function(optarg)
                r.fname = optarg
             end,
 
@@ -108,7 +108,7 @@ return {
 
             ['--version'] = version,
 
-            ['([^=]+)=(.+)'] = function(name, value)
+            ['([^-][^=]-)=(.+)'] = function(name, value)
                r.clidefs[name] = value
             end,
 
