@@ -76,25 +76,32 @@ end
 
 return {
    parse_arguments = function(args)
-      local clidefs, fname, targets, install = {}, 'lukefile', {}, {}
-      local verbose, write, log = nop, display, nop
+      local r = {
+         clidefs = {},
+         fname   = 'lukefile',
+         install = {},
+         log     = nop,
+         targets = {},
+         verbose = nop,
+         write   = display,
+      }
 
       map(args, function(opt)
          case(opt, {
             ['--debug'] = function()
-               log = dump
+               r.log = dump
             end,
                
             ['--file=(.+)'] = function(optarg)
-               fname = optarg
+               r.fname = optarg
             end,
 
             ['--quiet'] = function()
-               write = nop
+               r.write = nop
             end,
 
             ['--verbose'] = function()
-               verbose = display
+               r.verbose = display
             end,
 
             ['--help'] = help,
@@ -102,31 +109,34 @@ return {
             ['--version'] = version,
 
             ['([^=]+)=(.+)'] = function(name, value)
-               clidefs[name] = value
+               r.clidefs[name] = value
             end,
 
             function(opt)
                if match(opt, '^-') ~= nil then
                   opterr("unrecognized option '%s'", opt)
                end
-               append(targets, opt)
+               append(r.targets, opt)
             end,
          })
       end)
 
+      return r
+   end,
 
-      local luke, err = loadluke(fname)
-      diagnose(luke ~= nil, 'bad %s: %s', fname, err)
+   validate_arguments = function(parsed)
+      local luke, err = loadluke(parsed.fname)
+      diagnose(luke ~= nil, 'bad %s: %s', parsed.fname, err)
 
       if isempty(luke.modules or {}) then
-         fatal("no modules table in '%s', nothing to build", args.file)
+         fatal("no modules table in '%s', nothing to build", parsed.fname)
       end
 
-      targets = call(function()
-         if isempty(targets) or contains(targets, 'all') then
-            return except(flatten(targets, keys(luke.modules)), 'all')
+      local targets = call(function()
+         if isempty(parsed.targets) or contains(parsed.targets, 'all') then
+            return except(flatten(parsed.targets, keys(luke.modules)), 'all')
          end
-         local r = filter(targets, function(target)
+         local r = filter(parsed.targets, function(target)
             if target ~= 'install' and luke.modules[target] == nil then
                fatal("no rule to make target '%s'", target)
             end
@@ -136,6 +146,7 @@ return {
          return r
       end)
 
+      local install
       local build = pluck(targets, luke.modules)
       if contains(targets, 'install') then
          install = build or luke.modules
@@ -144,7 +155,7 @@ return {
 
       if isempty(luke.modules) then
          luke.external_dependencies = nil
-	 end
+      end
 
       luke.substitute = merge(luke.substitute or {}, {
          package = interpolate_to_substitute(luke.package),
@@ -166,12 +177,12 @@ return {
       )
 
       return {
-         clidefs = clidefs,
+         clidefs = parsed.clidefs,
          install = install,
-         log = log,
-         luke = luke,
-         verbose = verbose,
-         write = write,
+         log     = parsed.log,
+         luke    = luke,
+         verbose = parsed.verbose,
+         write   = parsed.write,
       }
    end,
 }
