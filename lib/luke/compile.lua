@@ -12,7 +12,7 @@ local function spawn(env, ...)
    local command = interpolate(env, concat({...}, ' '))
    return with(TmpFile(), TmpFile(), function(out, err)
       local pipe = concat{command, ' >', out.filename, ' 2>', err.filename, '; printf $?'}
-      return int(slurp(Pipe(pipe))), slurp(File(err.filename)), slurp(File(out.filename))
+      return tonumber(slurp(Pipe(pipe))), slurp(File(err.filename)), slurp(File(out.filename))
    end)
 end
 
