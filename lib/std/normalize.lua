@@ -51,6 +51,7 @@ local pack         = table.pack or function(...) return {n=select('#', ...), ...
 local remove       = table.remove
 local setfenv      = setfenv
 local sort         = table.sort
+local tointeger    = math.tointeger
 local tonumber     = tonumber
 local tostring     = tostring
 local type         = type
@@ -66,12 +67,27 @@ local function copy(iterable)
 end
 
 
-local int = math.tointeger or function(x)
-   local i = tonumber(x)
-   if i and ceil(i) - i == 0.0 then
-      return i
+local int = (function(f)
+   if f == nil then
+      -- No host tointeger implementation, use our own.
+      return function(x)
+         if type(x) == 'number' and ceil(x) - x == 0.0 then
+            return x
+         end
+      end
+
+   elseif f '1' ~= nil then
+      -- Don't perform implicit string-to-number conversion!
+      return function(x)
+         if type(x) == 'number' then
+            return tointeger(x)
+         end
+      end
    end
-end
+
+   -- Host tointeger is good!
+   return f
+end)(tointeger)
 
 
 local function iscallable(x)
@@ -189,7 +205,6 @@ return setmetatable({
    concat        = concat,
    copy          = copy,
    exit          = os.exit,
-   float         = tonumber,
    format        = string.format,
    getenv        = os.getenv,
    getmetatable  = getmetatable,
@@ -251,6 +266,7 @@ return setmetatable({
    str           = str,
    sub           = string.sub,
    tmpname       = os.tmpname,
+   tonumber      = tonumber,
    type          = type,
 
    unpack = function(seq, i, j)
