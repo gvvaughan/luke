@@ -42,8 +42,8 @@ end
 local function deepcopy(t)
    return mapvalues(t, function(v)
       return case(type(v), {
-	    ['table'] = function() return deepcopy(v) end,
-	    v,
+         ['table'] = function() return deepcopy(v) end,
+         v,
       })
    end)
 end

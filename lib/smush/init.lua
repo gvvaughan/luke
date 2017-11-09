@@ -133,7 +133,6 @@ package.preload['type.varargs'] = function()
 
    local mt; mt = {
       __index = {
-         
       },
 
       __len = function(self)
@@ -314,7 +313,7 @@ package.preload['smush'] = function()
       end
       return true
    end
-   
+
    return {
       main = function()
          map({

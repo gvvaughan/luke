@@ -20,7 +20,7 @@
 
 local _ENV = {
    error	= error,
-   getmetatable = getmetatable,
+   getmetatable	= getmetatable,
    pairs	= pairs,
    setfenv	= setfenv or function() end,
    setmetatable	= setmetatable,
