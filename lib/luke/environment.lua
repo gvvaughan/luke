@@ -58,9 +58,9 @@ return {
       CFLAGS        = '-O2',
       platforms     = {
          macosx        = {
-            LIBFLAGS      = '-fPIC -bundle -undefined dynamic_lookup -all_load',
+            LIBFLAG       = '-fPIC -bundle -undefined dynamic_lookup -all_load',
          },
-         LIBFLAGS   = '-shared -fPIC',
+         LIBFLAG    = '-shared -fPIC',
       },
    },
 

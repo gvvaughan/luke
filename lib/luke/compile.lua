@@ -108,7 +108,7 @@ return {
       end
 
       return run(L, env, flatten(
-         '$CC $CFLAGS $LIBFLAGS $PKGFLAGS $CPPFLAGS',
+         '$CC $CFLAGS $LIBFLAG $PKGFLAGS $CPPFLAGS',
          defines(env, except(list(rules.defines, luke.defines), nil)),
          incdirs(rules.incdirs, luke.incdirs),
          rules.sources,
