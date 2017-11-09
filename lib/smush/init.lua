@@ -172,6 +172,10 @@ package.preload['smush'] = function()
    local isidnum = Charset(IDENT .. DIGIT)
    local isspace = Charset(SPACE)
 
+   local function tointeger(x)
+      return int(tonumber(x))
+   end
+
    local function comment(scanner, c)
       local l = scanner.l
       if scanner:peek(1) ~= '-' then
@@ -235,7 +239,7 @@ package.preload['smush'] = function()
       while isdigit(c) do
          buf, c = buf .. c, scanner:advance()
       end
-      return {'INTEGER', int(str(buf)), l}
+      return {'INTEGER', tointeger(str(buf)), l}
    end
 
    local function punctuation(scanner, c)
