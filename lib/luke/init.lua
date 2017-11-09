@@ -49,9 +49,9 @@ return {
       local env = makeenv(L.clidefs, L.luke.variables, DEFAULTENV, SHELLENV)
       local status = 0
 
-	 if status == 0 and not isempty(L.luke.modules or {}) then
+      if status == 0 and not isempty(L.luke.modules or {}) then
          status = build_modules(L, env)
-	 end
+      end
 
       if status == 0 then
          status = install_modules(L, env, L.luke, L.install)

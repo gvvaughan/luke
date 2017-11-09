@@ -91,7 +91,7 @@ return {
             ['--debug'] = function()
                r.log = dump
             end,
-               
+
             ['%-%-file=(.+)'] = function(optarg)
                r.fname = optarg
             end,
