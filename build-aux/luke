@@ -591,7 +591,7 @@ r[k]=r[k]or v
 end
 end
 return r
-end,next=next,open=io.open,pack=pack,pcall=pcall,pop=function(seq)if int(seq.n)then
+end,next=next,open=io.open,pack=pack,pcall=pcall,pop=function(seq)if int(seq.n)and seq.n>0 then
 seq.n=seq.n-1
 end
 return remove(seq)end,popen=io.popen,print=print,rawget=rawget,rawset=rawset,rep=string.rep,rm=os.remove,select=select,setmetatable=setmetatable,sort=sort,stderr=io.stderr,stdout=io.stdout,str=str,sub=string.sub,tmpname=os.tmpname,tonumber=tonumber,type=type,unpack=function(seq,i,j)return unpack(seq,int(i)or 1,int(j)or int(seq.n)or len(seq))end,write=io.write,},{__call=function(self,env,level)local userenv,level=copy(self),level or 1
