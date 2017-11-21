@@ -156,25 +156,19 @@ local function normalize_rules(rules)
 end
 
 
-local function unwind_external_dependencies(luke)
-   local r = mapvalues(luke, function(v)
-      if not istable(v) then
-         return v
-      end
-      return unwind_external_dependencies(v)
-   end)
-   if istable(r.external_dependencies) then
-      for prefix, config in next, r.external_dependencies do
+local function unwrap_external_dependencies(luke)
+   if istable(luke.external_dependencies) then
+      for prefix, config in next, luke.external_dependencies do
          -- `config={}` for unsupported, `config={library=''}` for no library required
          if istable(config) and next(config) and config.library ~= '' then
-            r.incdirs = append(r.incdirs or {}, format('$%s_INCDIR', prefix))
-            r.libdirs = append(r.libdirs or {}, format('$%s_LIBDIR', prefix))
-            r.libraries = append(r.libraries or {}, '-l' .. config.library)
+            luke.incdirs = append(luke.incdirs or {}, format('$%s_INCDIR', prefix))
+            luke.libdirs = append(luke.libdirs or {}, format('$%s_LIBDIR', prefix))
+            luke.libraries = append(luke.libraries or {}, config.library)
          end
       end
-      r.external_dependencies = nil
+      luke.external_dependencies = nil
    end
-   return r
+   return luke
 end
 
 
@@ -211,7 +205,7 @@ return {
       map(all_configs, function(config)
          config.t[config.k] = configure(L, env, config.t[config.k], config.k)
       end)
-      return unwind_external_dependencies(r)
+      return unwrap_external_dependencies(r)
    end,
 
    run_templates = function(L, env, luke)
