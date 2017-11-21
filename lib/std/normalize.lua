@@ -48,7 +48,6 @@ local getmetatable = getmetatable
 local loadstring   = loadstring
 local next         = next
 local pack         = table.pack or function(...) return {n=select('#', ...), ...} end
-local remove       = table.remove
 local setfenv      = setfenv
 local sort         = table.sort
 local tointeger    = math.tointeger
@@ -246,10 +245,12 @@ return setmetatable({
    pcall         = pcall,
 
    pop = function(seq)
+      local n, r = seq.n or len(seq)
+      r, seq[n] = seq[n]
       if int(seq.n) and seq.n > 0 then
          seq.n = seq.n - 1
       end
-      return remove(seq)
+      return r
    end,
 
    popen         = io.popen,
