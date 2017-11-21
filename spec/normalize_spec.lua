@@ -38,4 +38,36 @@ describe('std.normalize', function()
          assert.is_nil(int(false))
       end)
    end)
+
+   describe('pop', function()
+      local pop = normalize.pop
+
+      it('removes and returns the last item', function()
+         local stack = {1, 2, 3, n=3}
+         assert.equal(3, pop(stack))
+         assert.same({1, 2, n=2}, stack)
+      end)
+
+      it('removes and returns the only item', function()
+         local stack = {3, n=1}
+         assert.equal(3, pop(stack))
+         assert.same({n=0}, stack)
+      end)
+
+      it('handles nil elements', function()
+         local stack = {nil, 2, n=2}
+         assert.equal(2, pop(stack))
+         assert.same({n=1}, stack)
+         assert.is_nil(pop(stack))
+         assert.same({n=0}, stack)
+      end)
+
+      it('does not underflow the stack', function()
+         local stack = {n=1}
+         assert.is_nil(pop(stack))
+         assert.same({n=0}, stack)
+         assert.is_nil(pop(stack))
+         assert.same({n=0}, stack)
+      end)
+   end)
 end)

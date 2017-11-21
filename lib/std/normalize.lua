@@ -246,7 +246,7 @@ return setmetatable({
    pcall         = pcall,
 
    pop = function(seq)
-      if int(seq.n) then
+      if int(seq.n) and seq.n > 0 then
          seq.n = seq.n - 1
       end
       return remove(seq)
