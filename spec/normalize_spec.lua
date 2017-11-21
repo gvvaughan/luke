@@ -55,11 +55,11 @@ describe('std.normalize', function()
       end)
 
       it('handles nil elements', function()
-         local stack = {nil, 2, n=2}
-         assert.equal(2, pop(stack))
-         assert.same({n=1}, stack)
+         local stack = {[42]=42, n=42}
+         assert.equal(42, pop(stack))
+         assert.same({n=41}, stack)
          assert.is_nil(pop(stack))
-         assert.same({n=0}, stack)
+         assert.same({n=40}, stack)
       end)
 
       it('does not underflow the stack', function()
