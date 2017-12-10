@@ -14,6 +14,45 @@ describe('type.context-manager', function()
    end
 
 
+   describe('ContextManager', function()
+      local ContextManager = context_manager.ContextManager
+
+      local function record(name)
+         return setmetatable({n=0, name=name}, {
+            __call = function(self, ...)
+               self.n = self.n + 1
+               self[self.n] = pack(...)
+               return {}
+            end,
+         })
+      end
+
+      local acquire
+
+      before_each(function()
+         acquire = record 'acquire'
+         cm = ContextManager(record 'release', acquire, 'arg1', 'arg2')
+      end)
+
+      it('returns a context manager instance', function()
+         assert.is_true(iscontextmanager(cm))
+      end)
+
+      it('acquires a resource once', function()
+         assert.equal(1, acquire.n)
+      end)
+
+      it('passes additional parameters to acquire', function()
+         assert.same(pack('arg1', 'arg2'), acquire[1])
+      end)
+
+      it('releases the resource once', function()
+         cm:release()
+         assert.equal(1, cm.release.n)
+      end)
+   end)
+
+
    describe('File', function()
       local File = context_manager.File
 
