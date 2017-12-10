@@ -24,7 +24,7 @@ local function ContextManager(release, acquire, ...)
       return nil, err
    end
    local cm = {
-      context = acquire(...),
+      context = fh,
       release = release,
       n       = select("#", ...), ...
    }
@@ -54,6 +54,8 @@ end
 
 
 return {
+   ContextManager = ContextManager,
+
    CTest = function()
       local conftest = tmpname()
       return ContextManager(function(cm)
