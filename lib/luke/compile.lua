@@ -3,6 +3,7 @@ local _ENV = require 'std.normalize' {
    'luke.environment',
    'std.functional',
    'type.context-manager',
+   'type.path',
 
    SHELLMETACHARS = '[%s%$"]',
 }
@@ -99,7 +100,7 @@ return {
       local rules = luke.modules[name]
       local c_module = c_module_path(luke.variables.objdir, name)
 
-      local command = {'$MAKEDIRS', (gsub(c_module, '/[^/]*$', ''))}
+      local command = {'$MAKEDIRS', dirname(c_module)}
       local status, err, out = spawn(env, unpack(command))
       if status ~= 0 then
          stdout:write(concat(command, ' ') .. '\n')
@@ -131,7 +132,7 @@ return {
       return reduce(keys(modules), 0, function(status, name)
          if status == 0 then
             local src, dir = module_to_path(name, modules[name].sources, luke.variables.objdir)
-            if open(interpolate(env, dir)) == nil then
+            if not exists(interpolate(env, dir)) then
                status = run(L, env, {'$MAKEDIRS', dir})
             end
             if status == 0 then

@@ -44,8 +44,10 @@
 
 local ceil         = math.ceil
 local concat       = table.concat
+local config       = package.config
 local getmetatable = getmetatable
 local loadstring   = loadstring
+local match        = string.match
 local next         = next
 local pack         = table.pack or function(...) return {n=select('#', ...), ...} end
 local setfenv      = setfenv
@@ -55,6 +57,10 @@ local tonumber     = tonumber
 local tostring     = tostring
 local type         = type
 local unpack       = table.unpack or unpack
+
+
+local dirsep, pathsep, pathmark, execdir, igmark =
+   match(config, '^([^\n]+)\n([^\n]+)\n([^\n]+)\n([^\n]+)\n([^\n]+)')
 
 
 local function copy(iterable)
@@ -203,6 +209,7 @@ return setmetatable({
    close         = io.close,
    concat        = concat,
    copy          = copy,
+   dirsep        = dirsep,
    exit          = os.exit,
    format        = string.format,
    getenv        = os.getenv,
