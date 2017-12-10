@@ -18,6 +18,7 @@ lib_SOURCES =				\
 	lib/std/normalize.lua		\
 	lib/type/context-manager.lua	\
 	lib/type/dict.lua		\
+	lib/type/path.lua		\
 	$(NOTHING_ELSE)
 
 DESTDIR = .
