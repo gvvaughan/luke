@@ -1,3 +1,8 @@
+--[[
+ Use the source, Luke!
+ Copyright (C) 2014-2018 Gary V. Vaughan
+]]
+
 int = math.tointeger or function(x)
    local i = tonumber(x)
    if i and math.ceil(i) - i == 0.0 then

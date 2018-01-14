@@ -1,3 +1,8 @@
+--[[
+ Use the source, Luke!
+ Copyright (C) 2014-2018 Gary V. Vaughan
+]]
+
 package.preload['type.charset'] = function()
    local _ENV = require 'std.normalize' {}
 
