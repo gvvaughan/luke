@@ -54,6 +54,13 @@ return {
       local env = makeenv(L.clidefs, L.luke.variables, DEFAULTENV, SHELLENV)
       local status = 0
 
+      if not isempty(L.valreqs) then
+         map(L.valreqs, function(name)
+            print(interpolate(env, concat {name, "='$", name, "'"}))
+         end)
+         exit(0)
+      end
+
       if status == 0 and not isempty(L.luke.modules or {}) then
          status = build_modules(L, env)
       end

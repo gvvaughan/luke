@@ -13,7 +13,7 @@ local _ENV = require 'std.normalize' {
 
 local function version()
    print [[
-luke (Luke) 0.1.2
+luke (Luke) 0.1.3
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2018, Gary V. Vaughan
@@ -35,6 +35,7 @@ Use the source, Luke!
   --help        print this help, then exit
   --version     print version number, then exit
   --file=FILE   use FILE instead of lukefile
+  --value=NAME  print the value of variable NAME
   --quiet       without any output
   --verbose     provide more progress output
 
@@ -83,6 +84,7 @@ return {
    parse_arguments = function(args)
       local r = {
          clidefs = {},
+         valreqs = {},
          fname   = 'lukefile',
          install = {},
          log     = nop,
@@ -99,6 +101,10 @@ return {
 
             ['%-%-file=(.+)'] = function(optarg)
                r.fname = optarg
+            end,
+
+            ['%-%-value=(.+)'] = function(optarg)
+               r.valreqs[#r.valreqs + 1] = optarg
             end,
 
             ['--quiet'] = function()
@@ -186,6 +192,7 @@ return {
          install = install,
          log     = parsed.log,
          luke    = luke,
+         valreqs = parsed.valreqs,
          verbose = parsed.verbose,
          write   = parsed.write,
       }
