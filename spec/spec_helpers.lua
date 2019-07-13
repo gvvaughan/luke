@@ -1,6 +1,6 @@
 --[[
  Use the source, Luke!
- Copyright (C) 2014-2018 Gary V. Vaughan
+ Copyright (C) 2014-2019 Gary V. Vaughan
 ]]
 
 int = math.tointeger or function(x)
