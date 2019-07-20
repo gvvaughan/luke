@@ -1,0 +1,2 @@
+#!/usr/bin/env lua
+os.exit(require'smush'.main(arg))
