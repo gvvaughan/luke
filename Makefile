@@ -1,11 +1,11 @@
 # Use the source, Luke!
 # Copyright (C) 2014-2019 Gary V. Vaughan
 
-LUA  = lua
-
-
 LUA_PATH = `pwd`'/lib/?.lua;'`pwd`'/lib/?/init.lua'
 LUA_ENV  = LUA_PATH=$(LUA_PATH)';;'
+
+LUA  = lua
+SMUSH = env $(LUA_ENV) $(LUA) build-aux/smush
 
 
 lib_SOURCES =				\
@@ -27,7 +27,8 @@ lib_SOURCES =				\
 DESTDIR = .
 
 build-aux/luke: $(lib_SOURCES)
-	env $(LUA_ENV) $(LUA) lib/smush/init.lua $(lib_SOURCES) > $(DESTDIR)/build-aux/luke
+	$(SMUSH) $(lib_SOURCES) > $(DESTDIR)/$@
+	-chmod 755 $(DESTDIR)/$@
 
 
 BUSTED_ENV = LUA_PATH=`pwd`'/?.lua;'$(LUA_PATH)';;'
