@@ -42,7 +42,7 @@ end
 
 return {
    CONFIGENV = {
-      compile   = '$CC -c $CFLAGS $CPPFLAGS',
+      compile    = '$CC -c $CFLAGS $CPPFLAGS',
       libs       = '',
       link       = '$CC $CFLAGS $CPPFLAGS $LDFLAGS',
    },
