@@ -50,7 +50,9 @@ local function opterr(...)local msg=(...)if select('#',...)>1 then
 msg=format(...)end
 msg=gsub(msg,'%.$','')stderr:write('luke: error: '..msg..'.\n')stderr:write("luke: try '"..arg[0].." --help' for help.\n")exit(2)end
 local function display(...)return stdout:write(concat{...})end
-local function dump(...)gsub(concat(map(list(...),str)),'(.-)\n',function(line)stderr:write('   DEBUG: '..line..'\n')end)end
+local function dump(...)local s=concat(map(list(...),str))if len(s)>0 then
+gsub(concat(map(list(...),str)),'\n*$','\n'):gsub('(.-)\n',function(line)stderr:write('   DEBUG: '..line..'\n')end)end
+end
 local function interpolate_to_substitute(s)return(gsub(s,'%$([%w_]+)','@%1@'))end
 return{parse_arguments=function(args)local r={clidefs={},valreqs={},fname='lukefile',install={},log=nop,targets={},verbose=nop,write=display,}map(args,function(opt)case(opt,{['--debug']=function()r.log=dump
 end,['%-%-file=(.+)']=function(optarg)r.fname=optarg

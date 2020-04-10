@@ -69,9 +69,12 @@ end
 
 
 local function dump(...)
-   gsub(concat(map(list(...), str)), '(.-)\n', function(line)
-      stderr:write('   DEBUG: ' .. line .. '\n')
-   end)
+   local s = concat(map(list(...), str))
+   if len(s) > 0 then
+      gsub(concat(map(list(...), str)), '\n*$', '\n'):gsub('(.-)\n', function(line)
+         stderr:write('   DEBUG: ' .. line .. '\n')
+      end)
+   end
 end
 
 
