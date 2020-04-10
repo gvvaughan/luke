@@ -35,8 +35,10 @@ BUSTED_ENV = LUA_PATH=`pwd`'/?.lua;'$(LUA_PATH)';;'
 
 noinst_spec_CHECKS =			\
 	spec/cli_spec.lua		\
+	spec/compile_spec.lua		\
 	spec/configure_spec.lua		\
 	spec/context-manager_spec.lua	\
+	spec/environment_spec.lua	\
 	spec/functional_spec.lua	\
 	spec/normalize_spec.lua		\
 	spec/platform_spec.lua		\
