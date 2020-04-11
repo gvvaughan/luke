@@ -7,21 +7,63 @@ package.path = os.getenv 'LUA_PATH'
 
 require 'spec.spec_helpers'
 
+local normalize = require 'std.normalize'
+local popen = normalize.popen
 
-local platforms = require 'luke.platforms'
+local mocks = {
+   popen = setmetatable({
+      clear = function(self)
+         self.uname = 'not a real uname!'
+      end,
+   }, {
+      __call = function(self, prog, mode)
+         if prog == 'uname -s' then
+            return {
+               read = function() return self.uname end
+            }
+         end
+         return popen(prog, mode)
+      end
+   }),
+}
+
+
+insulate('mocks', function()
+   normalize.popen = mocks.popen
+
+   before_each(function()
+      mocks.popen:clear()
+   end)
+
+   it('mocks normalize.popen', function()
+      assert.same(mocks.popen.uname, normalize.popen('uname -s'):read '*l')
+   end)
+
+   it('overrides system uname', function()
+      mocks.popen.uname = 'QNX'
+      assert.same('QNX', normalize.popen('uname -s'):read '*l')
+   end)
+
+   it('overrides system uname again without reloading', function()
+      mocks.popen.uname = 'Cygwin'
+      assert.same('Cygwin', normalize.popen('uname -s'):read '*l')
+   end)
+end)
 
 
 describe('luke.platforms', function()
-   describe('platforms', function()
-      local platforms = platforms.platforms
+   mocks.popen.uname = 'Linux'
+
+   insulate('platforms', function()
+      local platforms = require 'luke.platforms'.platforms
 
       it('is a list of platforms', function()
          assert.same(list('linux', 'unix'), platforms)
       end)
    end)
 
-   describe('toplatforms', function()
-      local toplatforms = platforms.toplatforms
+   insulate('toplatforms', function()
+      local toplatforms = require 'luke.platforms'.toplatforms
 
       local lookup = {
          ['literal'] = 'literal',
@@ -48,8 +90,8 @@ describe('luke.platforms', function()
       end)
    end)
 
-   describe('filter_platforms', function()
-      local filter_platforms = platforms.filter_platforms
+   insulate('filter_platforms', function()
+      local filter_platforms = require'luke.platforms'.filter_platforms
 
       local unfiltered = {
          unaffected = true,
@@ -95,8 +137,9 @@ describe('luke.platforms', function()
 
          assert.same({unaffected=true, default=1, other=1}, filtered)
       end)
+   end)
 
-      describe('luaposix lukefile', function()
+   describe('luaposix lukefile', function()
          local defines  = {
             PACKAGE           = '"package"',
             VERSION           = '"version"',
@@ -120,33 +163,11 @@ describe('luke.platforms', function()
             },
          }
 
+      insulate('QNX', function()
+         it('gets the right defines', function()
+            mocks.popen.uname = 'QNX'
+            local filter_platforms = require'luke.platforms'.filter_platforms
 
-         local CANON = {
-            ['AIX']       = list('aix', 'unix'),
-            ['FreeBSD']   = list('freebsd', 'bsd', 'unix'),
-            ['OpenBSD']   = list('openbsd', 'bsd', 'unix'),
-            ['NetBSD']    = list('netbsd', 'bsd', 'unix'),
-            ['Darwin']    = list('macosx', 'bsd', 'unix'),
-            ['Linux']     = list('linux', 'unix'),
-            ['SunOS']     = list('solaris', 'unix'),
-            ['^CYGWIN']   = list('cygwin', 'unix'),
-            ['^MSYS']     = list('msys', 'cygwin', 'unix'),
-            ['^Windows']  = list('win32', 'windows'),
-            ['^MINGW']    = list('mingw32', 'win32', 'windows'),
-            ['^procnto']  = list('qnx'),
-            ['QNX']       = list('qnx'),
-            ['Haiku']     = list('haiku', 'unix'),
-         }
-
-         local ALLPLATFORMS = set('aix', 'bsd', 'cygwin', 'freebsd', 'haiku', 'linux',
-            'macosx', 'mingw32', 'msys', 'netbsd', 'openbsd', 'qnx', 'solaris', 'unix',
-            'win32', 'windows')
-
-         local function isplatform(x)
-            return ALLPLATFORMS[x] ~= nil
-         end
-
-         it('sets the right defines on QNX', function()
             local expected = {
                PACKAGE           = '"package"',
                VERSION           = '"version"',
@@ -155,10 +176,15 @@ describe('luke.platforms', function()
                _POSIX_C_SOURCE   = '200112L',
             }
 
-            assert.same(expected, filter_platforms(defines, CANON.QNX, isplatform))
+            assert.same(expected, filter_platforms(defines))
          end)
+      end)
 
-         it('sets the right defines on Darwin', function()
+      insulate('Darwin', function()
+         it('gets the right defines', function()
+            mocks.popen.uname = 'Darwin'
+            local filter_platforms = require'luke.platforms'.filter_platforms
+
             local expected = {
                PACKAGE           = '"package"',
                VERSION           = '"version"',
@@ -170,10 +196,15 @@ describe('luke.platforms', function()
                _FORTIFY_SOURCE   = 2,
             }
 
-            assert.same(expected, filter_platforms(defines, CANON.Darwin, isplatform))
+            assert.same(expected, filter_platforms(defines))
          end)
+      end)
 
-         it('sets the right defines on Linux', function()
+      insulate('Linux', function()
+         it('gets the right defines', function()
+            mocks.popen.uname = 'Linux'
+            local filter_platforms = require'luke.platforms'.filter_platforms
+
             local expected = {
                PACKAGE           = '"package"',
                VERSION           = '"version"',
@@ -183,9 +214,8 @@ describe('luke.platforms', function()
                _XOPEN_SOURCE     = 700,
             }
 
-            assert.same(expected, filter_platforms(defines, CANON.Linux, isplatform))
+            assert.same(expected, filter_platforms(defines))
          end)
-
       end)
    end)
 end)
