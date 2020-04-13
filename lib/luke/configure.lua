@@ -84,8 +84,8 @@ local function link_command(L, env, config, a_out, source, lib)
       source,
       libdirs(config.libdir),
       '$LDFLAGS',
-      '$libs', CONFIGENV.libs,
-      lib
+      lib,
+      '$libs', CONFIGENV.libs
    )
    --L.log(slurp(source))
    L.log(interpolate(env, concat(command, ' ')))

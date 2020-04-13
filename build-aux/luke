@@ -129,7 +129,7 @@ local function found_result(L,x)L.verbose(x==0 and'yes\n'or'no\n')return x~=0 an
 end
 local function bindirs(...)return map(flatten(...),function(v)return v..':'end)end
 local function compile_command(L,env,config,filename)local command=flatten('$CC','-c','$CFLAGS',incdirs(config.incdir),'$CPPFLAGS',filename)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
-local function link_command(L,env,config,a_out,source,lib)local command=flatten('$CC','$CFLAGS',incdirs(config.incdir),'$CPPFLAGS','-o',a_out,source,libdirs(config.libdir),'$LDFLAGS','$libs',CONFIGENV.libs,lib)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
+local function link_command(L,env,config,a_out,source,lib)local command=flatten('$CC','$CFLAGS',incdirs(config.incdir),'$CPPFLAGS','-o',a_out,source,libdirs(config.libdir),'$LDFLAGS',lib,'$libs',CONFIGENV.libs)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
 local function check_executable_in_path(L,env,config,prog)local PATH=concat(bindirs(config.bindir))..getenv('PATH')local found=dropuntil(gmatch(PATH,'[^:]+'),function(path)local progpath=path..'/'..prog
 return with(File(progpath,'r'),function(h)return h and isfile(h.context)and progpath or nil
 end)end)L.log(found and'found '..found or prog..' not found')return found~=nil
