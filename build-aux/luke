@@ -20,7 +20,7 @@ local _ENV=require'std.normalize'{'luke._base','luke.lukefile','luke.platforms',
 luke (Luke) 0.1.5
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
-Copyright (C) 2019, Gary V. Vaughan
+Copyright (C) 2020, Gary V. Vaughan
 Luke comes with ABSOLUTELY NO WARRANTY.
 You may redistribute copies of Luke under the terms of the MIT license;
 it may be used for any purpose at absolutely no cost, without permission.

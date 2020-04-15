@@ -1,2 +1,5 @@
 #!/usr/bin/env lua
+--[[
+ Copyright (C) 2014-2020 Gary V. Vaughan
+]]
 os.exit(require'smush'.main(arg))

@@ -1,5 +1,5 @@
 # Use the source, Luke!
-# Copyright (C) 2014-2019 Gary V. Vaughan
+# Copyright (C) 2014-2020 Gary V. Vaughan
 
 before:
   normalize = require 'std.normalize'
