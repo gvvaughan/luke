@@ -31,7 +31,7 @@ local function collect_configs(luke, modulename, configs)
       if isconfig(v) then
          append(configs, {t=luke, k=k, module=modulename})
       elseif istable(v) then
-         if k == 'modules' then
+         if k == 'modules' or k == 'external_dependencies' then
             for name, rules in next, v do
                collect_configs(rules, name, configs)
             end
@@ -208,7 +208,7 @@ return {
       local all_configs = collect_configs(r)
       sort(all_configs, config_cmp)
       map(all_configs, function(config)
-         config.t[config.k] = configure(L, env, config.t[config.k], config.k)
+         config.t[config.k] = configure(L, env, config.t[config.k], config.module)
       end)
       return unwrap_external_dependencies(r)
    end,

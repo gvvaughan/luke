@@ -175,6 +175,7 @@ describe('luke.configure', function()
       before_each(function()
          L.verbose:clear()
          mocks.spawn:clear()
+         E.CONFIGENV.libs = '' -- FIXME: global state :(
       end)
 
       it('reports "none required" for libc symbols', function()
@@ -221,6 +222,35 @@ describe('luke.configure', function()
             libraries={'poop'},
          })
          assert.same({}, r)
+      end)
+
+      it('searches for external dependencies', function()
+         mocks.spawn.values = {
+            LINK_FAILURE,
+            LINK_SUCCESS,
+         }
+         local run_configs = require 'luke.lukefile'.run_configs
+         local env = E.makeenv(
+            {
+               CC='cc',
+               YAML_DIR='/usr/local/brew',
+               YAML_INCDIR='$YAML_DIR/include',
+               YAML_LIBDIR='$YAML_DIR/lib',
+            },
+            E.DEFAULTENV,
+            E.SHELLENV
+         )
+         local lukefile = {
+            external_dependencies = {
+               YAML = {
+                  library = {checksymbol='yaml_document_initialize', libraries={'yaml'}},
+               },
+            },
+         }
+         local r = run_configs(L,  env, lukefile)
+         assert.contains('$YAML_INCDIR', r.incdirs)
+         assert.contains('$YAML_LIBDIR', r.libdirs)
+         assert.contains('-lyaml', r.libraries)
       end)
    end)
 end)
