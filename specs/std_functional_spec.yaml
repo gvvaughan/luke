@@ -1,0 +1,12 @@
+before:
+  functional = require 'std.functional'
+
+specify std.functional:
+
+- describe keys:
+  - before:
+      f = functional.keys
+
+  - it returns a list of table keys:
+      expect (functional).to_be{}
+      expect(f{a=1,b=2,'c'}).to_equal{'a', 'b', 1}

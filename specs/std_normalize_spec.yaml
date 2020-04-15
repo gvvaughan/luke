@@ -1,0 +1,24 @@
+before:
+  normalize = require 'std.normalize'
+
+specify std.normalize:
+- it returns a functor:
+    expect(type(normalize)).to_be 'table'
+    expect(normalize.iscallable(normalize)).not_to_be(nil)
+
+
+- describe pop:
+  - before:
+      pop = normalize.pop
+      stack = pack('a', 'b', 'c')
+
+  - it returns the top of the stack:
+      expect(pop(stack)).to_be 'c'
+  - it mutates the stack:
+      expect(stack).to_equal(pack('a', 'b', 'c'))
+      pop(stack)
+      expect(stack).to_equal(pack('a', 'b'))
+  - it maintains the stack size:
+      expect(stack.n).to_be(3)
+      pop(stack)
+      expect(stack.n).to_be(2)

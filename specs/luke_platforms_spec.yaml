@@ -1,0 +1,11 @@
+before:
+  platforms = require 'luke.platforms'
+
+specify luke.platforms:
+- describe platforms:
+  - before:
+      platforms = platforms.platforms
+
+  - it returns a non-empty list:
+      expect(type(platforms)).to_be('table')
+      expect(#platforms > 1).to_be(true)
