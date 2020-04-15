@@ -13,7 +13,7 @@ local _ENV = require 'std.normalize' {
 
 local function version()
    print [[
-luke (Luke) 0.1.5
+luke (Luke) 0.2.0
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2020, Gary V. Vaughan
