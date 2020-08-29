@@ -119,6 +119,7 @@ return {
          incdirs(rules.incdirs, luke.incdirs),
          rules.sources,
          '-o', c_module,
+         '$LDFLAGS',
          libdirs(rules.libdirs, luke.libdirs),
          '$LIBS',
          rules.libraries, luke.libraries
