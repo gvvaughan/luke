@@ -50,10 +50,6 @@ describe('luke.configure', function()
          assert.same(0, configure(L, env, {checkdecl='_not_a_real_c_function_decl'}))
       end)
 
-      it('finds an existing declaration', function()
-         assert.same(1, configure(L, env, {checkdecl='printf'}))
-      end)
-
       it('finds an existing declaration in given header', function()
          assert.same(1, configure(L, env, {checkdecl='gethostid', includes={'unistd.h'}}))
       end)
@@ -63,13 +59,11 @@ describe('luke.configure', function()
          local lukefile = {
             defines = {
                HAVE__NOT_A_REAL_FUNCTION_DECL = {checkdecl='_not_a_real_function_decl'},
-               HAVE_PRINTF_DECL = {checkdecl='printf'},
                HAVE_GETHOSTID_DECL = {checkdecl='gethostid', includes={'unistd.h'}},
             },
          }
          local r = run_configs(L,  env, lukefile)
          assert.same(0, r.defines.HAVE__NOT_A_REAL_FUNCTION_DECL)
-         assert.same(1, r.defines.HAVE_PRINTF_DECL)
          assert.same(1, r.defines.HAVE_GETHOSTID_DECL)
       end)
     end)
