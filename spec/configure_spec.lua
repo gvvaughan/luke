@@ -128,6 +128,33 @@ describe('luke.configure', function()
       end)
    end)
 
+   insulate('checkmember', function()
+      local configure = require 'luke.configure'.configure
+      local E = require 'luke.environment'
+      local env = E.makeenv({CC='cc'}, E.DEFAULTENV, E.SHELLENV)
+
+      it('notes a missing struct member', function()
+         assert.same(0, configure(L, env, {checkmember='struct stat.not_a_member', includes={'sys/stat.h'}}))
+      end)
+
+      it('finds an existing struct member', function()
+         assert.same(1, configure(L, env, {checkmember='struct stat.st_mode', includes={'sys/stat.h'}}))
+      end)
+
+      it('correctly resolves lukefile defines', function()
+         local run_configs = require 'luke.lukefile'.run_configs
+         local lukefile = {
+            defines = {
+               HAVE_STAT_NOT_A_MEMBER = {checkmember='struct stat.not_a_member', includes={'sys/stat.h'}},
+               HAVE_STAT_ST_MODE = {checkmember='struct stat.st_mode', includes={'sys/stat.h'}},
+            },
+         }
+         local r = run_configs(L,  env, lukefile)
+         assert.same(0, r.defines.HAVE_STAT_NOT_A_MEMBER)
+         assert.same(1, r.defines.HAVE_STAT_ST_MODE)
+      end)
+   end)
+
    insulate('checkprog', function()
       local configure = require 'luke.configure'.configure
       local notreal = '|not:a:real:program|'

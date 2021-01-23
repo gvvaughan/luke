@@ -118,6 +118,26 @@ local function check_header_compile(L, env, config, header, extra_hdrs)
 end
 
 
+local function check_struct_member_compile(L, env, config, structname, member, extra_hdrs)
+   return with(CTest(), function(conftest)
+      conftest:write(format([[
+%s
+int main () {
+static %s aggr;
+if (sizeof aggr.%s)
+    return 0;
+return 0;
+}
+]], extra_hdrs, structname, member))
+      return logspawn(
+         L,
+         env,
+         compile_command(L, env, config, conftest.filename)
+      )
+   end)
+end
+
+
 local function try_link(L, env, config, lib, symbol)
    return with(CTest(), TmpFile(), function(conftest, a_out)
       conftest:write(format([[
@@ -312,6 +332,19 @@ local configure = setmetatable(OrderedDict({
    checkfunc = function(L, env, config)
       checking(L, 'for', config.checkfunc)
       return found_result(L, check_func_link(L, env, config, config.checkfunc))
+   end
+}, {
+   checkmember = function(L, env, config)
+      checking(L, 'for', config.checkmember)
+
+      local extra_hdrs = concat(format_includes(config.includes), '\n')
+      local i = find(config.checkmember, '%.')
+      local structname = sub(config.checkmember, 1, i - 1)
+      local member = sub(config.checkmember, i + 1)
+      return found_result(
+         L,
+	 check_struct_member_compile(L, env, config, structname, member, extra_hdrs)
+      )
    end
 }), {
    __call = function(self, L, env, config, prefix)

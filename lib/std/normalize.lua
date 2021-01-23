@@ -211,6 +211,7 @@ return setmetatable({
    copy          = copy,
    dirsep        = dirsep,
    exit          = os.exit,
+   find          = string.find,
    format        = string.format,
    getenv        = os.getenv,
    getmetatable  = getmetatable,
