@@ -1,6 +1,6 @@
 --[[
  Use the source, Luke!
- Copyright (C) 2014-2020 Gary V. Vaughan
+ Copyright (C) 2014-2021 Gary V. Vaughan
 ]]
 
 package.path = os.getenv 'LUA_PATH'
