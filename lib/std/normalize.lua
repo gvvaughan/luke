@@ -327,7 +327,7 @@ return setmetatable({
       local userenv, level = copy(self), level or 1
       for name, value in next, env do
          if int(name) and type(value) == 'string' then
-            for k, v in next, require(value) do
+            for k, v in next, (require(value)) do
                userenv[k] = userenv[k] or v
             end
          else
