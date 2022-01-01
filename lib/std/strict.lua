@@ -1,6 +1,6 @@
 --[[
  Strict variable declarations for Lua 5.1, 5.2 & 5.3
- Copyright(C) 2014-2021 Gary V. Vaughan
+ Copyright(C) 2014-2022 Gary V. Vaughan
  Copyright(C) 2010-2014 Reuben Thomas <rrt@sc3d.org>
  Copyright(C) 2006-2011 Luiz Henrique de Figueiredo <lhf@tecgraf.puc-rio.br>
 ]]

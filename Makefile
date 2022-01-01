@@ -1,5 +1,5 @@
 # Use the source, Luke!
-# Copyright (C) 2014-2021 Gary V. Vaughan
+# Copyright (C) 2014-2022 Gary V. Vaughan
 
 LUA_PATH = `pwd`'/lib/?.lua;'`pwd`'/lib/?/init.lua'
 LUA_ENV  = LUA_PATH=$(LUA_PATH)';;'

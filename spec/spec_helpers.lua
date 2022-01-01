@@ -1,6 +1,6 @@
 --[[
  Use the source, Luke!
- Copyright (C) 2014-2021 Gary V. Vaughan
+ Copyright (C) 2014-2022 Gary V. Vaughan
 ]]
 
 local assert = require 'luassert'

@@ -1,6 +1,6 @@
 --[[
  Use the source, Luke!
- Copyright (C) 2014-2021 Gary V. Vaughan
+ Copyright (C) 2014-2022 Gary V. Vaughan
 ]]
 
 local _ENV = require 'std.normalize' {
@@ -16,7 +16,7 @@ local function version()
 luke (Luke) 0.2.2
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
-Copyright (C) 2021, Gary V. Vaughan
+Copyright (C) 2022, Gary V. Vaughan
 Luke comes with ABSOLUTELY NO WARRANTY.
 You may redistribute copies of Luke under the terms of the MIT license;
 it may be used for any purpose at absolutely no cost, without permission.
