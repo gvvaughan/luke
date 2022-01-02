@@ -45,4 +45,4 @@ noinst_spec_CHECKS =			\
 	$(NOTHING_ELSE)
 
 check:
-	env $(BUSTED_ENV) busted -o TAP $(noinst_spec_CHECKS)
+	env $(BUSTED_ENV) busted $(BUSTED_OPTS) -o TAP $(noinst_spec_CHECKS)

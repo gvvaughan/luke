@@ -1,6 +1,8 @@
 # Use the source, Luke!
 
 [![License](http://img.shields.io/:license-mit-blue.svg)](http://mit-license.org)
+[![workflow status](https://github.com/gvvaughan/luke/actions/workflows/spec.yml/badge.svg?branch=master)](https://github.com/gvvaughan/luke/actions)
+[![codecov.io](https://codecov.io/gh/gvvaughan/luke/branch/master/graph/badge.svg)](https://codecov.io/gh/gvvaughan/luke)
 
 A lightweight, self-bootstrapping build utility for LuaJIT, [Lua][]
 5.1, 5.2, 5.3 and 5.4.

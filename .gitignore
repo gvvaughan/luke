@@ -1,0 +1,5 @@
+*~
+.DS_Store
+/*.src.rock
+/luacov.*.out
+/luke-*.tar.gz
