@@ -1,6 +1,6 @@
 --[[
  Normalized Lua API for Lua 5.1, 5.2 & 5.3
- Copyright (C) 2011-2022 Gary V. Vaughan
+ Copyright (C) 2011-2023 Gary V. Vaughan
  Copyright (C) 2002-2014 Reuben Thomas <rrt@sc3d.org>
 ]]
 --[[--
