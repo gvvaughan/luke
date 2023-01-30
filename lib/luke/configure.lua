@@ -15,9 +15,13 @@ local _ENV = require 'std.normalize' {
 }
 
 
-local function logspawn(L, env, ...)
+local function logspawn(L, env, filename, ...)
    local status, err = spawn(env, ...)
    if status ~= 0 and err ~= '' then
+      with(File(filename, 'r'), function(h)
+         L.log(h.filename .. ':')
+         L.log(slurp(h))
+      end)
       L.log(err)
    end
    return status
@@ -69,7 +73,6 @@ local function compile_command(L, env, config, filename)
       '$CPPFLAGS',
       filename
    )
-   --L.log(slurp(filename))
    L.log(interpolate(env, concat(command, ' ')))
    return unpack(command)
 end
@@ -87,7 +90,6 @@ local function link_command(L, env, config, a_out, source, lib)
       lib,
       '$libs', CONFIGENV.libs
    )
-   --L.log(slurp(source))
    L.log(interpolate(env, concat(command, ' ')))
    return unpack(command)
 end
@@ -109,9 +111,11 @@ end
 local function check_header_compile(L, env, config, header, extra_hdrs)
    return with(CTest(), function(conftest)
       conftest:write(format('%s\n#include "%s"\n', extra_hdrs, header))
+      conftest:flush()
       return logspawn(
          L,
          env,
+         conftest.filename,
          compile_command(L, env, config, conftest.filename)
       )
    end)
@@ -129,9 +133,11 @@ if (sizeof aggr.%s)
 return 0;
 }
 ]], extra_hdrs, structname, member))
+      conftest:flush()
       return logspawn(
          L,
          env,
+         conftest.filename,
          compile_command(L, env, config, conftest.filename)
       )
    end)
@@ -149,9 +155,11 @@ int main () {
 return %s ();
 }
 ]], symbol, symbol))
+      conftest:flush()
       return logspawn(
          L,
          env,
+         conftest.filename,
          link_command(L, env, config, a_out.filename, conftest.filename, lib)
       )
    end)
@@ -171,9 +179,11 @@ main()
 return 0;
 }
 ]], headers, config.ifdef, config.ifdef))
+      conftest:flush()
       return logspawn(
          L,
          env,
+         conftest.filename,
          link_command(L, env, config, a_out.filename, conftest.filename)
       )
    end)
@@ -193,9 +203,11 @@ main()
 return 0;
 }
 ]], extra_hdrs, fname, fname))
+      conftest:flush()
       return logspawn(
          L,
          env,
+         conftest.filename,
          compile_command(L, env, config, conftest.filename)
       )
    end)
@@ -238,9 +250,11 @@ int main () {
 return %s ();
 }
 ]], fname, fname, fname, fname, fname, fname, fname))
+      conftest:flush()
       return logspawn(
          L,
          env,
+         conftest.filename,
          link_command(L, env, config, a_out.filename, conftest.filename)
       )
    end)
@@ -387,6 +401,7 @@ return {
       local cm = CTest()
       local works, err = with(cm, function(conftest)
          conftest:write('typedef int x;\n')
+         conftest:flush()
          return spawn(env, '$compile', conftest.filename)
       end)
       if works ~= 0 then

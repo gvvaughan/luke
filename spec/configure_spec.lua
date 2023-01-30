@@ -121,7 +121,7 @@ describe('luke.configure', function()
                HAVE_NET_IF_H = {checkheader='net/if.h', includes={'sys/socket.h'}},
             },
          }
-         local r = run_configs(L,  env, lukefile)
+         local r = run_configs(L, env, lukefile)
          assert.same(0, r.defines.HAVE__NOT_A_REAL_HEADER_H)
          assert.same(1, r.defines.HAVE_STDIO_H)
          assert.same(1, r.defines.HAVE_NET_IF_H)
@@ -149,7 +149,7 @@ describe('luke.configure', function()
                HAVE_STAT_ST_MODE = {checkmember='struct stat.st_mode', includes={'sys/stat.h'}},
             },
          }
-         local r = run_configs(L,  env, lukefile)
+         local r = run_configs(L, env, lukefile)
          assert.same(0, r.defines.HAVE_STAT_NOT_A_MEMBER)
          assert.same(1, r.defines.HAVE_STAT_ST_MODE)
       end)
