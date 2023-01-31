@@ -69,6 +69,7 @@ end
 local function compile_command(L, env, config, filename)
    local command = flatten(
       '$CC', '-c', '$CFLAGS',
+      defines(L.luke.defines),
       incdirs(config.incdir),
       '$CPPFLAGS',
       filename
@@ -81,6 +82,7 @@ end
 local function link_command(L, env, config, a_out, source, lib)
    local command = flatten(
       '$CC', '$CFLAGS',
+      defines(L.luke.defines),
       incdirs(config.incdir),
       '$CPPFLAGS',
       '-o',  a_out,
@@ -218,7 +220,7 @@ local function check_func_link(L, env, config, fname)
    return with(CTest(), TmpFile(), function(conftest, a_out)
       conftest:write(format([[
 /* Define to an innocous variant, in case <limits.h> declares it.
- For example, HP-UX 11i <limits,h> declares gettimeofday.   */
+ For example, HP-UX 11i <limits.h> declares gettimeofday.   */
 #define %s innocuous_%s
 
 /* System header to define __stub macros and hopefully few prototypes,
@@ -357,7 +359,7 @@ local configure = setmetatable(OrderedDict({
       local member = sub(config.checkmember, i + 1)
       return found_result(
          L,
-	 check_struct_member_compile(L, env, config, structname, member, extra_hdrs)
+         check_struct_member_compile(L, env, config, structname, member, extra_hdrs)
       )
    end
 }), {

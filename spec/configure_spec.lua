@@ -37,6 +37,7 @@ describe('luke.configure', function()
    local L = {
       log = stub.new(),
       verbose = stub.new(),
+      luke = stub.new(),
    }
 
 

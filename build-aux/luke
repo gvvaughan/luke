@@ -89,7 +89,7 @@ stdout:write(concat(command,' ')..'\n')end
 stderr:write(err..'\n')end
 return status,out,err
 end
-local function defines(env,deftables)return zip_with(merge({},unpack(deftables)),function(name,value)local fmt=cond({[int(value)==1]='-D%s'},{[match(value,SHELLMETACHARS)~=nil]="-D%s='%s'"},{[true]='-D%s=%s'})return format(fmt,name,value)end)end
+local function defines(...)return zip_with(merge({},unpack(except(list(...),nil))),function(name,value)local fmt=cond({[int(value)==1]='-D%s'},{[match(value,SHELLMETACHARS)~=nil]="-D%s='%s'"},{[true]='-D%s=%s'})return format(fmt,name,value)end)end
 local function incdirs(...)return map(flatten(...),function(v)return'-I'..v
 end)end
 local function libdirs(...)return map(flatten(...),function(v)return'-L'..v
@@ -102,7 +102,7 @@ abspath=abspath..'.lua'return src,(gsub(abspath,'/[^/]+%.lua$',''))end
 local function module_to_path(module,sources,objdir)return dropuntil(sources,function(source)return case(source,{['.*%.[ch]']=bind(c_source,{module,objdir}),['(.*%.[ch])%.in']=bind(c_source,{module,objdir}),['.*%.lua']=bind(lua_source,{module}),['(.*%.lua)%.in']=bind(lua_source,{module}),function(src)fatal("unsupported source type '%s'",src)end,})end)end
 return{build_c_module=function(L,env,luke,name)local rules=luke.modules[name]local c_module=c_module_path(luke.variables.objdir,name)local command={'$MAKEDIRS',dirname(c_module)}local status,err,out=spawn(env,unpack(command))if status~=0 then
 stdout:write(concat(command,' ')..'\n')stderr:write(err..'\n')exit(status)end
-return run(L,env,flatten('$CC $CFLAGS $LIBFLAG $PKGFLAGS $CPPFLAGS',defines(env,except(list(rules.defines,luke.defines),nil)),incdirs(rules.incdirs,luke.incdirs),rules.sources,'-o',c_module,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries))end,c_modules=function(modules)return filter(keys(modules),function(name)return dropuntil(modules[name].sources,bind(match,{[2]='%.[ch]$'}))end)end,incdirs=incdirs,install_modules=function(L,env,luke,modules)return reduce(keys(modules),0,function(status,name)if status==0 then
+return run(L,env,flatten('$CC $CFLAGS $LIBFLAG $PKGFLAGS $CPPFLAGS',defines(rules.defines,luke.defines),incdirs(rules.incdirs,luke.incdirs),rules.sources,'-o',c_module,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries))end,c_modules=function(modules)return filter(keys(modules),function(name)return dropuntil(modules[name].sources,bind(match,{[2]='%.[ch]$'}))end)end,defines=defines,incdirs=incdirs,install_modules=function(L,env,luke,modules)return reduce(keys(modules),0,function(status,name)if status==0 then
 local src,dir=module_to_path(name,modules[name].sources,luke.variables.objdir)if not exists(interpolate(env,dir))then
 status=run(L,env,{'$MAKEDIRS',dir})end
 if status==0 then
@@ -128,8 +128,8 @@ end
 local function found_result(L,x)L.verbose(x==0 and'yes\n'or'no\n')return x~=0 and 0 or 1
 end
 local function bindirs(...)return map(flatten(...),function(v)return v..':'end)end
-local function compile_command(L,env,config,filename)local command=flatten('$CC','-c','$CFLAGS',incdirs(config.incdir),'$CPPFLAGS',filename)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
-local function link_command(L,env,config,a_out,source,lib)local command=flatten('$CC','$CFLAGS',incdirs(config.incdir),'$CPPFLAGS','-o',a_out,source,libdirs(config.libdir),'$LDFLAGS',lib,'$libs',CONFIGENV.libs)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
+local function compile_command(L,env,config,filename)local command=flatten('$CC','-c','$CFLAGS',defines(L.luke.defines),incdirs(config.incdir),'$CPPFLAGS',filename)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
+local function link_command(L,env,config,a_out,source,lib)local command=flatten('$CC','$CFLAGS',defines(L.luke.defines),incdirs(config.incdir),'$CPPFLAGS','-o',a_out,source,libdirs(config.libdir),'$LDFLAGS',lib,'$libs',CONFIGENV.libs)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
 local function check_executable_in_path(L,env,config,prog)local PATH=concat(bindirs(config.bindir))..getenv('PATH')local found=dropuntil(gmatch(PATH,'[^:]+'),function(path)local progpath=path..'/'..prog
 return with(File(progpath,'r'),function(h)return h and isfile(h.context)and progpath or nil
 end)end)L.log(found and'found '..found or prog..' not found')return found~=nil
@@ -177,7 +177,7 @@ return 0;
 ]],extra_hdrs,fname,fname))conftest:flush()return logspawn(L,env,conftest.filename,compile_command(L,env,config,conftest.filename))end)end
 local function check_func_link(L,env,config,fname)return with(CTest(),TmpFile(),function(conftest,a_out)conftest:write(format([[
 /* Define to an innocous variant, in case <limits.h> declares it.
- For example, HP-UX 11i <limits,h> declares gettimeofday.   */
+ For example, HP-UX 11i <limits.h> declares gettimeofday.   */
 #define %s innocuous_%s
 
 /* System header to define __stub macros and hopefully few prototypes,

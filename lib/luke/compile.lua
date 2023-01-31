@@ -36,8 +36,8 @@ local function run(L, env, command)
 end
 
 
-local function defines(env, deftables)
-   return zip_with(merge({}, unpack(deftables)), function(name, value)
+local function defines(...)
+   return zip_with(merge({}, unpack(except(list(...), nil))), function(name, value)
       local fmt = cond(
          {[int(value) == 1] = '-D%s'},
          {[match(value, SHELLMETACHARS) ~= nil] = "-D%s='%s'"},
@@ -115,7 +115,7 @@ return {
 
       return run(L, env, flatten(
          '$CC $CFLAGS $LIBFLAG $PKGFLAGS $CPPFLAGS',
-         defines(env, except(list(rules.defines, luke.defines), nil)),
+         defines(rules.defines, luke.defines),
          incdirs(rules.incdirs, luke.incdirs),
          rules.sources,
          '-o', c_module,
@@ -132,6 +132,7 @@ return {
       end)
    end,
 
+   defines = defines,
    incdirs = incdirs,
 
    install_modules = function(L, env, luke, modules)
