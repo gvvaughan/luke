@@ -25,18 +25,18 @@ local function isconfig(x)
 end
 
 
-local function collect_configs(luke, modulename, configs)
+local function collect_configs(luke, modulename, configs, sectionname)
    configs = configs or {}
    for k, v in next, luke do
       if isconfig(v) then
-         append(configs, {t=luke, k=k, module=modulename})
+         append(configs, {t=luke, k=k, module=modulename, section=sectionname})
       elseif istable(v) then
          if k == 'modules' or k == 'external_dependencies' then
             for name, rules in next, v do
-               collect_configs(rules, name, configs)
+               collect_configs(rules, name, configs, k)
             end
          else
-            collect_configs(v, modulename, configs)
+            collect_configs(v, modulename, configs, sectionname)
          end
       end
    end
@@ -178,6 +178,10 @@ end
 
 
 return {
+   -- Load `lukefile` into a nested Lua table, normalizing valid shorthands
+   -- from the file to fully specified values in the returned table one
+   -- time only while we're loading, so the rest of the code can safely
+   -- operate on the normalized table contents.
    loadluke = function(filename)
       local content, err = slurp(File(filename))
       if content == nil then
@@ -203,16 +207,24 @@ return {
       return collect_variables(luke, {})
    end,
 
+   -- Recursively collect every config table from normalized lukefile
+   -- table, and execute each in topological order.
    run_configs = function(L, env, luke)
       local r = deepcopy(luke)
       local all_configs = collect_configs(r)
       sort(all_configs, config_cmp)
       map(all_configs, function(config)
-         config.t[config.k] = configure(L, env, config.t[config.k], config.module)
+         local prefix = case(config.section, {
+            external_dependencies = function() return config.module end,
+         })
+         config.t[config.k] = configure(L, env, config.t[config.k], prefix)
       end)
       return unwrap_external_dependencies(r)
    end,
 
+   -- For all modules, copy source files with names ending with '.in',
+   -- expanding all '@varname@' templates, writing the result back to a
+   -- source with the '.in' suffix removed.
    run_templates = function(L, env, luke)
       local r = copy(luke)
       local rewrite = bind(rewrite_template_files, {L, env})

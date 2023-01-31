@@ -293,14 +293,14 @@ package.preload['luke.lukefile']=function()
 local _ENV=require'std.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','std.functional','type.context-manager',}local function has_anykey(t,keylist)return any(map(keylist,function(k)return t[k]~=nil
 end))end
 local function isconfig(x)return istable(x)and has_anykey(x,configure)end
-local function collect_configs(luke,modulename,configs)configs=configs or{}for k,v in next,luke do
+local function collect_configs(luke,modulename,configs,sectionname)configs=configs or{}for k,v in next,luke do
 if isconfig(v)then
-append(configs,{t=luke,k=k,module=modulename})elseif istable(v)then
+append(configs,{t=luke,k=k,module=modulename,section=sectionname})elseif istable(v)then
 if k=='modules'or k=='external_dependencies'then
 for name,rules in next,v do
-collect_configs(rules,name,configs)end
+collect_configs(rules,name,configs,k)end
 else
-collect_configs(v,modulename,configs)end
+collect_configs(v,modulename,configs,sectionname)end
 end
 end
 return configs
@@ -348,7 +348,7 @@ local ok,err=pcall(chunk)if not ok then
 return nil,"Error running file: "..err
 end
 r=filter_platforms(r)r.external_dependencies=normalize_configs(r.external_dependencies)r.ldocs=normalize_rules(r.ldocs)r.modules=mapvalues(r.modules,normalize_rules)return r
-end,collect_variables=function(luke)return collect_variables(luke,{})end,run_configs=function(L,env,luke)local r=deepcopy(luke)local all_configs=collect_configs(r)sort(all_configs,config_cmp)map(all_configs,function(config)config.t[config.k]=configure(L,env,config.t[config.k],config.module)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local r=copy(luke)local rewrite=bind(rewrite_template_files,{L,env})r.modules=mapvalues(r.modules,function(rules)rules.sources=map(rules.sources,rewrite)end)if r.ldocs then
+end,collect_variables=function(luke)return collect_variables(luke,{})end,run_configs=function(L,env,luke)local r=deepcopy(luke)local all_configs=collect_configs(r)sort(all_configs,config_cmp)map(all_configs,function(config)local prefix=case(config.section,{external_dependencies=function()return config.module end,})config.t[config.k]=configure(L,env,config.t[config.k],prefix)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local r=copy(luke)local rewrite=bind(rewrite_template_files,{L,env})r.modules=mapvalues(r.modules,function(rules)rules.sources=map(rules.sources,rewrite)end)if r.ldocs then
 r.ldocs.sources=map(r.ldocs.sources,rewrite)end
 return r
 end,}

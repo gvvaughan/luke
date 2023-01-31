@@ -141,7 +141,7 @@ return {
       end
       local DEFAULT = 1
       for pattern, fn in next, branches do
-         if pattern ~= DEFAULT then
+         if s ~= nil and pattern ~= DEFAULT then
             local argu = list(match(s, '^' .. pattern .. '$'))
             if argu[1] ~= nil then
                return apply(fn, argu)
