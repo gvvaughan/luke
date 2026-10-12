@@ -46,11 +46,11 @@ local ceil         = math.ceil
 local concat       = table.concat
 local config       = package.config
 local getmetatable = getmetatable
-local loadstring   = loadstring
+local loadstring   = rawget(_G, 'loadstring')
 local match        = string.match
 local next         = next
 local pack         = table.pack or function(...) return {n=select('#', ...), ...} end
-local setfenv      = setfenv
+local setfenv      = rawget(_G, 'setfenv')
 local sort         = table.sort
 local tointeger    = math.tointeger
 local tonumber     = tonumber
@@ -130,7 +130,7 @@ if setfenv then
 
    local _loadstring = loadstring
    loadstring = function(s, filename, env)
-      chunk, err = _loadstring(s, filename)
+      local chunk, err = _loadstring(s, filename)
       if chunk ~= nil and env ~= nil then
          setfenv(chunk, env)
       end

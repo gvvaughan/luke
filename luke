@@ -1,0 +1,51 @@
+#!/usr/bin/env lua
+--[[
+ Use the source, Luke!
+ Copyright (C) 2014-2026 Gary V. Vaughan
+]]
+
+-- Run luke from this source tree, enforcing strict variable declarations
+-- in every module environment unless called with `--strict=no`.
+-- luke.strict is not in lib_SOURCES, so none of this reaches the smushed
+-- build-aux/luke.
+local libdir = arg[0]:gsub('[^/]*$', '') .. 'lib'
+package.path = libdir .. '/?.lua;' .. libdir .. '/?/init.lua;' .. package.path
+
+-- Consume our own option, which luke itself would reject.
+local enabled, i = true, 1
+while arg[i] ~= nil do
+   local optarg = arg[i] == '--strict' and 'yes' or arg[i]:match '^%-%-strict=(.*)$'
+   if optarg == nil then
+      i = i + 1
+   elseif optarg == 'yes' or optarg == 'no' then
+      enabled = optarg == 'yes'
+      table.remove(arg, i)
+   else
+      io.stderr:write("luke: invalid argument '", optarg, "' for '--strict'\n")
+      os.exit(2)
+   end
+end
+
+if enabled then
+   local strict = require 'luke.strict'
+
+   -- luke.normalize sets up every other module environment, but not its
+   -- own, so load it in a strict environment here.
+   local env = strict.strict(setmetatable({}, {__index = _G}))
+   local chunk = assert(loadfile(libdir .. '/luke/normalize.lua', 't', env))
+   if rawget(_G, 'setfenv') then
+      setfenv(chunk, env)
+   end
+   package.loaded['luke.normalize'] = chunk 'luke.normalize'
+
+   local mt = getmetatable(require 'luke.normalize')
+   local normalize = mt.__call
+   mt.__call = function(self, env, level)
+      level = level or 1
+      -- Not a tail call, so that `level + 1` still counts our caller.
+      local userenv = strict(normalize(self, env, level + 1), level + 1)
+      return userenv
+   end
+end
+
+os.exit(require 'luke'.main(arg))

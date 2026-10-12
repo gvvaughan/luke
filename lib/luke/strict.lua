@@ -13,7 +13,7 @@
  proxy table to the given environment.   The callable runs `setfenv`
  appropriately in Lua 5.1 interpreters to ensure the semantic equivalence.
 
- @module std.strict
+ @module luke.strict
 ]]
 
 
@@ -145,7 +145,7 @@ return setmetatable({
    -- @usage
    --   local _ENV = setmetatable({}, {__index = _G})
    --   if require 'std._debug'.strict then
-   --      _ENV = require 'std.strict'.strict(_ENV)
+   --      _ENV = require 'luke.strict'.strict(_ENV)
    --   end
    --   -- ...and for Lua 5.1 compatibility, without triggering undeclared
    --   -- variable error:
@@ -213,7 +213,7 @@ return setmetatable({
    --    set caller's environment
    -- @treturn table *env* which must be assigned to `_ENV`
    -- @usage
-   --   local _ENV = require 'std.strict'(_G)
+   --   local _ENV = require 'luke.strict'(_G)
    __call = function(self, env, level)
       env = self.strict(env)
       setfenv(1 + (level or 1), env)
@@ -228,10 +228,10 @@ return setmetatable({
    -- @treturn table|nil the submodule that was loaded to satisfy the missing
    --    `name`, otherwise `nil` if nothing was found
    -- @usage
-   --   local strict = require 'std.strict'
+   --   local strict = require 'luke.strict'
    --   local version = strict.version
    __index = function(self, name)
-      local ok, t = pcall(require, 'std.strict.' .. name)
+      local ok, t = pcall(require, 'luke.strict.' .. name)
       if ok then
          rawset(self, name, t)
          return t
