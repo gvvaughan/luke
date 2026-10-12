@@ -1,4 +1,4 @@
-local _MODREV, _SPECREV = 'git', '-1'
+local _MODREV, _SPECREV = 'dev', '-1'
 
 rockspec_format = '3.0'
 package = 'luke'
@@ -27,7 +27,7 @@ source = {
 -- this rockspec only drives the specs, and installs nothing.
 build = {
    type = 'command',
-   build_command = '$(LUA) ./luke package="' .. package .. '" version="' .. _MODREV .. '"',
+   build_command = '$(LUA) ./luke package="' .. package .. '"',
 }
 
 test_dependencies = {
