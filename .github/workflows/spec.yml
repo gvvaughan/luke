@@ -33,6 +33,9 @@ jobs:
         run: |
           sudo apt-get update -q -q --yes
           sudo apt-get install -y libyaml-dev
+          # Specs need inprocess.capture from unreleased Specl.
+          luarocks install --server=https://luarocks.org/manifests/gvvaughan ldoc
+          luarocks install https://raw.githubusercontent.com/gvvaughan/specl/master/specl-dev-1.rockspec
           luarocks test --prepare
 
       - name: build

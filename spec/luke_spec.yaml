@@ -1,0 +1,134 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before: |
+  inprocess = require 'specl.inprocess'
+
+  -- Run luke in-process, in strict mode, with command line *...*.
+  function luke(...)
+     return inprocess.capture(function(...)
+        require 'luke.strict':enforce()
+        return require 'luke'.main {...}
+     end, {...})
+  end
+
+  function spit(filename, content)
+     local h = assert(io.open(filename, 'w'))
+     h:write(content)
+     h:close()
+     return filename
+  end
+
+  function slurp(filename)
+     local h = io.open(filename)
+     if h ~= nil then
+        local s = h:read '*a'
+        h:close()
+        return s
+     end
+  end
+
+  -- Write *content* to a fresh lukefile, and return its name.
+  function lukefile(content)
+     return spit(os.tmpname(), content)
+  end
+
+specify luke:
+- describe command line:
+  - it prints its version: |
+      expect(luke '--version').to_succeed_while_matching '^luke %(Luke%) git\n'
+  - it prints help: |
+      expect(luke '--help').to_succeed_while_containing 'Usage: luke'
+  - it diagnoses unknown options: |
+      p = luke '--no-such-option'
+      expect(p).to_exit(2)
+      expect(p).to_contain_error "luke: error: unrecognized option '--no-such-option'."
+
+- describe lukefile:
+  - before: |
+      fname = lukefile [[
+         package = 'example'
+         version = '1.0'
+         modules = {
+            example = 'example.lua',
+            other = 'other.lua',
+         }
+      ]]
+  - after: |
+      os.remove(fname)
+
+  - it diagnoses a missing lukefile: |
+      p = luke '--file=no/such/lukefile'
+      expect(p).to_exit(1)
+      expect(p).to_contain_error 'luke: fatal: bad no/such/lukefile'
+  - it diagnoses syntax errors: |
+      spit(fname, 'modules = {')
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error 'Error loading file'
+  - it diagnoses runtime errors: |
+      spit(fname, 'modules = nosuchfunction()')
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error 'Error running file'
+  - it diagnoses a missing modules table: |
+      spit(fname, "package = 'example'")
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error("no modules table in '" .. fname .. "'")
+  - it diagnoses unknown targets: |
+      p = luke('--file=' .. fname, 'nosuchtarget')
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "no rule to make target 'nosuchtarget'"
+  - it prints lukefile values: |
+      expect(luke('--file=' .. fname, '--value=package', '--value=version')).
+         to_succeed_with "package='example'\nversion='1.0'\n"
+  - it prefers command line values: |
+      expect(luke('--file=' .. fname, 'version=2.0', '--value=version')).
+         to_succeed_with "version='2.0'\n"
+
+- describe install:
+  - before: |
+      tmpdir = os.tmpname()
+      os.remove(tmpdir)
+      assert(os.execute('mkdir ' .. tmpdir))
+      spit(tmpdir .. '/example.lua.in', "return '@package@ @version@'\n")
+      spit(tmpdir .. '/other.lua', "return 'other'\n")
+      fname = spit(tmpdir .. '/lukefile', [[
+         package = 'example'
+         version = '1.0'
+         modules = {
+            example = ']] .. tmpdir .. [[/example.lua.in',
+            other = ']] .. tmpdir .. [[/other.lua',
+         }
+      ]])
+      installed = tmpdir .. '/share/lua/' .. _VERSION:match '%d+%.%d+' .. '/'
+  - after: |
+      os.execute('rm -rf ' .. tmpdir)
+
+  - it fills templates when building: |
+      expect(luke('--file=' .. fname)).
+         to_succeed_with('creating ' .. tmpdir .. '/example.lua\n')
+      expect(slurp(tmpdir .. '/example.lua')).to_be "return 'example 1.0'\n"
+  - it installs every module: |
+      expect(luke('--file=' .. fname)).to_succeed()
+      expect(luke('--file=' .. fname, 'PREFIX=' .. tmpdir, 'install')).
+         to_succeed_while_containing('cp ' .. tmpdir .. '/other.lua ' .. installed)
+      expect(slurp(installed .. 'example.lua')).to_be "return 'example 1.0'\n"
+      expect(slurp(installed .. 'other.lua')).to_be "return 'other'\n"
+  - it installs only the given targets: |
+      expect(luke('--file=' .. fname, 'PREFIX=' .. tmpdir, 'other', 'install')).
+         to_succeed()
+      expect(slurp(installed .. 'example.lua')).to_be(nil)
+      expect(slurp(installed .. 'other.lua')).to_be "return 'other'\n"
+  - it builds and installs everything with all: |
+      expect(luke('--file=' .. fname, 'PREFIX=' .. tmpdir, 'all', 'install')).
+         to_succeed()
+      expect(slurp(installed .. 'example.lua')).to_be "return 'example 1.0'\n"
+  - it writes nothing with --quiet: |
+      expect(luke('--file=' .. fname, '--quiet', 'PREFIX=' .. tmpdir, 'all', 'install')).
+         to_succeed_with ''
+  - it writes failing commands even with --quiet: |
+      p = luke('--file=' .. fname, '--quiet', 'PREFIX=' .. tmpdir, 'install')
+      expect(p).to_fail_while_containing 'example.lua'
+      expect(p).to_contain_output '$INSTALL '
