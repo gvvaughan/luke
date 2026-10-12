@@ -37,25 +37,7 @@ while arg[i] ~= nil do
 end
 
 if enabled then
-   local strict = require 'luke.strict'
-
-   -- luke.normalize sets up every other module environment, but not its
-   -- own, so load it in a strict environment here.
-   local env = strict.strict(setmetatable({}, {__index = _G}))
-   local chunk = assert(loadfile(libdir .. '/luke/normalize.lua', 't', env))
-   if rawget(_G, 'setfenv') then
-      setfenv(chunk, env)
-   end
-   package.loaded['luke.normalize'] = chunk 'luke.normalize'
-
-   local mt = getmetatable(require 'luke.normalize')
-   local normalize = mt.__call
-   mt.__call = function(self, env, level)
-      level = level or 1
-      -- Not a tail call, so that `level + 1` still counts our caller.
-      local userenv = strict(normalize(self, env, level + 1), level + 1)
-      return userenv
-   end
+   require 'luke.strict':enforce()
 end
 
 os.exit(require 'luke'.main(arg))
