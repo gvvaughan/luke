@@ -43,6 +43,11 @@ Report bugs to https://github.com/gvvaughan/luke/issues.]]
 end
 
 
+-- Lua 5.1 declares an implicit local `arg` in every vararg function,
+-- shadowing the global, so look up the program name outside of one.
+local progname = arg[0]
+
+
 local function opterr(...)
    local msg = (...)
    if select('#', ...) > 1 then
@@ -50,7 +55,7 @@ local function opterr(...)
    end
    msg = gsub(msg, '%.$', '')
    stderr:write('luke: error: ' .. msg .. '.\n')
-   stderr:write("luke: try '" .. arg[0] .. " --help' for help.\n")
+   stderr:write("luke: try '" .. progname .. " --help' for help.\n")
    exit(2)
 end
 
