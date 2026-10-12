@@ -2,9 +2,9 @@
 # Copyright (C) 2014-2023 Gary V. Vaughan
 
 before:
-  normalize = require 'std.normalize'
+  normalize = require 'luke.normalize'
 
-specify std.normalize:
+specify luke.normalize:
 - it returns a functor:
     expect(type(normalize)).to_be 'table'
     expect(normalize.iscallable(normalize)).not_to_be(nil)

@@ -2,9 +2,9 @@
 # Copyright (C) 2014-2023 Gary V. Vaughan
 
 before:
-  functional = require 'std.functional'
+  functional = require 'luke.functional'
 
-specify std.functional:
+specify luke.functional:
 
 - describe keys:
   - before:

@@ -14,11 +14,11 @@ lib_SOURCES =				\
 	lib/luke/compile.lua		\
 	lib/luke/configure.lua		\
 	lib/luke/environment.lua	\
+	lib/luke/functional.lua		\
 	lib/luke/init.lua		\
 	lib/luke/lukefile.lua		\
+	lib/luke/normalize.lua		\
 	lib/luke/platforms.lua		\
-	lib/std/functional.lua		\
-	lib/std/normalize.lua		\
 	lib/type/context-manager.lua	\
 	lib/type/dict.lua		\
 	lib/type/path.lua		\

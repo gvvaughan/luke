@@ -3,8 +3,8 @@
  Copyright (C) 2014-2023 Gary V. Vaughan
 ]]
 
- local _ENV = require 'std.normalize' {
-   'std.functional',
+ local _ENV = require 'luke.normalize' {
+   'luke.functional',
 }
 
 

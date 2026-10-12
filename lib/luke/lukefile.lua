@@ -3,12 +3,12 @@
  Copyright (C) 2014-2023 Gary V. Vaughan
 ]]
 
-local _ENV = require 'std.normalize' {
+local _ENV = require 'luke.normalize' {
    'luke._base',
    'luke.configure',
    'luke.environment',
    'luke.platforms',
-   'std.functional',
+   'luke.functional',
    'type.context-manager',
 }
 

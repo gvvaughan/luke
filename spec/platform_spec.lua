@@ -7,7 +7,7 @@ package.path = os.getenv 'LUA_PATH'
 
 require 'spec.spec_helpers'
 
-local normalize = require 'std.normalize'
+local normalize = require 'luke.normalize'
 local popen = normalize.popen
 
 local mocks = {

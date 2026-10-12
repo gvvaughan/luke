@@ -3,7 +3,7 @@
  Copyright (C) 2014-2023 Gary V. Vaughan
 ]]
 
-local _ENV = require 'std.normalize' {
+local _ENV = require 'luke.normalize' {
    destructure = next,
    isfile = function(x) return io.type(x) == 'file' end,
    wrap = coroutine.wrap,

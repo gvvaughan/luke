@@ -8,10 +8,10 @@ package.path = os.getenv 'LUA_PATH'
 require 'spec.spec_helpers'
 
 
-local functional = require 'std.functional'
+local functional = require 'luke.functional'
 
 
-describe('std.functional', function()
+describe('luke.functional', function()
    describe('keys', function()
       local keys = functional.keys
 

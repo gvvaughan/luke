@@ -23,7 +23,7 @@
  a single API (as opposed to requiring caching functions from a module
  table into module locals):
 
-      local _ENV = require 'std.normalize' {
+      local _ENV = require 'luke.normalize' {
          'package',
          'std.prototype',
          strict = 'std.strict',
@@ -38,7 +38,7 @@
 
  At the moment, only the functionality used by stdlib is implemented.
 
- @module std.normalize
+ @module luke.normalize
 ]]
 
 
@@ -318,7 +318,7 @@ return setmetatable({
    -- @treturn table *env* with this module's functions merge id.   Assign
    --    back to `_ENV`
    -- @usage
-   --    local _ENV = require 'std.normalize' {
+   --    local _ENV = require 'luke.normalize' {
    --       'string',
    --       'std.prototype',
    --       strict = 'std.strict',

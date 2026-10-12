@@ -8,10 +8,10 @@ package.path = os.getenv 'LUA_PATH'
 require 'spec.spec_helpers'
 
 
-local normalize = require 'std.normalize'
+local normalize = require 'luke.normalize'
 
 
-describe('std.normalize', function()
+describe('luke.normalize', function()
    describe('int', function()
       local int = normalize.int
 
