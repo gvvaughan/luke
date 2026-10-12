@@ -21,8 +21,9 @@ directly into your project.
 
 Note that this is an uglified version of the formatted sources
 combined into a single file for ease of use and minimal size.  If
-you edit the sources locally, run `make` to regenerate
-`build-aux/luke` with your changes.
+you edit the sources locally, run `./luke` to regenerate
+`build-aux/luke` with your changes (or `./luke version=X.Y` for a
+release).
 
 
 ## Use
@@ -34,7 +35,7 @@ project's `lukefile`):
 
     build-aux/luke [VARIABLE=VALUE]... [TARGET]...
 
-...or arrange for it to be executed by your rockspec or `Makefile`.
+...or arrange for it to be executed by your rockspec.
 
 `TARGET` can be any module or script table key in `lukefile`, or one
 of the special keys, `all` to build all modules and scripts, or
@@ -96,14 +97,45 @@ the name of each script to install to its source:
 Luke fills the template of any `.in` source when building, makes every
 listed script executable, and `luke install` copies each to its name
 beneath `$INST_BINDIR` (by default, `$PREFIX/bin`).  An array entry is
-named for its source, without the `.in` suffix.  Only scripts are
-supported for now: table entries are reserved for compiled programs.
+named for its source, without the `.in` suffix.
+
+### Programs
+
+A table entry in `install.bin` or `bin` is a rule for building a program
+from several `sources`, with the same `defines`, `incdirs`, `libdirs`,
+`libraries` and build-time probes as a `modules` rule.  Without a
+`command`, Luke compiles and links C sources:
+
+    install = {
+       bin = {
+          mytool = {
+             sources   = {'src/main.c', 'src/util.c'},
+             libraries = {'m'},
+          },
+       },
+    }
+
+Otherwise, Luke runs `command`, after filling the template of any `.in`
+source, with `$sources` set to the filled source paths, `$target` to the
+program to write, and each `env` variable exported:
+
+    bin = {
+       ['build-aux/luke'] = {
+          command = '$LUA build-aux/smush $sources > $target',
+          env     = {LUA_PATH = '$abs_top_srcdir/lib/?.lua;;'},
+          sources = {'lib/luke/init.lua', 'lib/luke/version.lua.in'},
+       },
+    }
+
+An installable program is built as `$objdir/<name>`, and an in-tree
+program at the path given as its name.  Either way, Luke makes it
+executable, and `luke <name>` rebuilds it.
 
 ### Syntax Extensions
 
-- **bin** (table): Like `install.bin`, but for scripts that are only
-  for use in the source tree, and are never installed, such as a
-  wrapper that runs a program with the uninstalled modules:
+- **bin** (table): Like `install.bin`, but for scripts and programs
+  that are only for use in the source tree, and are never installed,
+  such as a wrapper that runs a program with the uninstalled modules:
 
       bin = {
          specl = 'specl.in',

@@ -162,9 +162,41 @@ local function normalize_rules(rules)
 end
 
 
+-- Diagnose a malformed table-valued script entry, a rule for building a
+-- program from several sources.
+local function check_program(tablename, name, rules)
+   local function bad(...)
+      fatal("bad %s entry '%s': %s", tablename, name, format(...))
+   end
+   if isempty(rules.sources or {}) then
+      bad 'no sources'
+   end
+   map(rules.sources, function(source)
+      if not isstring(source) then
+         bad('source string expected, got %s', type(source))
+      end
+   end)
+   if rules.command ~= nil and not isstring(rules.command) then
+      bad('command string expected, got %s', type(rules.command))
+   end
+   if rules.env ~= nil then
+      if not istable(rules.env) then
+         bad('env table expected, got %s', type(rules.env))
+      end
+      for k, v in next, rules.env do
+         if not isstring(k) or not isstring(v) then
+            bad 'env must map names to strings'
+         end
+      end
+   end
+   return rules
+end
+
+
 -- Like the rockspec `build.install.bin` table, map each script name to
 -- its source path; an array entry is named for its source, without any
--- '.in' suffix.  Table-valued entries are reserved for compiled programs.
+-- '.in' suffix.  A table-valued entry is a rule for building a program
+-- from its `sources`, with an optional `command` and `env`.
 local function normalize_scripts(scripts, tablename)
    if scripts == nil then
       return nil
@@ -175,12 +207,16 @@ local function normalize_scripts(scripts, tablename)
    local r = {}
    for k, source in next, scripts do
       if istable(source) then
-         fatal("bad %s entry '%s': compiled programs are not supported yet", tablename, str(k))
-      elseif not isstring(source) then
-         fatal("bad %s entry '%s': string expected, got %s", tablename, str(k), type(source))
+         if not isstring(k) then
+            fatal("bad %s entry %s: programs need a name", tablename, str(k))
+         end
+         r[k] = check_program(tablename, k, normalize_rules(source))
+      elseif isstring(source) then
+         local name = isstring(k) and k or (gsub(basename(source), '%.in$', ''))
+         r[name] = source
+      else
+         fatal("bad %s entry '%s': string or table expected, got %s", tablename, str(k), type(source))
       end
-      local name = isstring(k) and k or (gsub(basename(source), '%.in$', ''))
-      r[name] = source
    end
    return r
 end

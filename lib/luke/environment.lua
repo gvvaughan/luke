@@ -48,6 +48,7 @@ return {
    },
 
    DEFAULTENV = filter_platforms {
+      LUA           = 'lua',
       LUAVERSION    = LUAVERSION,
 
       PREFIX        = '/usr/local',

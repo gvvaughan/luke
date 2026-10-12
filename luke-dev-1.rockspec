@@ -27,7 +27,7 @@ source = {
 -- this rockspec only drives the specs, and installs nothing.
 build = {
    type = 'command',
-   build_command = '$(LUA) ./luke package="' .. package .. '"',
+   build_command = '$(LUA) ./luke package="' .. package .. '" LUA="$(LUA)"',
 }
 
 test_dependencies = {

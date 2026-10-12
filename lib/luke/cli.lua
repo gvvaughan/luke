@@ -184,16 +184,18 @@ return {
       -- `install` alone installs every module and installable script.
       local named = except(targets, 'install')
       local build = pluck(named, luke.modules)
-      local scripts = {
-         build = flatten(values(pluck(named, bin)), values(pluck(named, installbin))),
-         install = {},
-      }
+      local scripts = {build = {}, install = {}}
+      map({{bin, false}, {installbin, true}}, function(section)
+         map(keys(pluck(named, section[1])), function(name)
+            append(scripts.build, {name = name, installed = section[2]})
+         end)
+      end)
       local install
       if contains(targets, 'install') then
          if isempty(named) then
-            install, scripts.install = luke.modules, installbin
+            install, scripts.install = luke.modules, keys(installbin)
          else
-            install, scripts.install = build or {}, pluck(named, installbin) or {}
+            install, scripts.install = build or {}, keys(pluck(named, installbin))
          end
       end
       luke.modules = build
@@ -203,6 +205,9 @@ return {
       end
 
       local ref, srcdir = gitref(), abs_top_srcdir()
+
+      -- TODO: diagnose a lukefile without `package` or `version`, rather
+      -- than crashing in interpolate_to_substitute.
 
       luke.substitute = merge(luke.substitute or {}, {
          abs_top_srcdir = srcdir,

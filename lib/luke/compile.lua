@@ -17,7 +17,9 @@ local _ENV = require 'luke.normalize' {
 local function spawn(env, ...)
    local command = interpolate(env, concat({...}, ' '))
    return with(TmpFile(), TmpFile(), function(out, err)
-      local pipe = concat{command, ' >', out.filename, ' 2>', err.filename, '; printf $?'}
+      -- Group the command, so that capturing its output redirects every
+      -- part of a compound command, not just the last.
+      local pipe = concat{'{ ', command, '\n} >', out.filename, ' 2>', err.filename, '; printf $?'}
       return tonumber(slurp(Pipe(pipe))), slurp(File(err.filename)), slurp(File(out.filename))
    end)
 end
@@ -81,6 +83,24 @@ local function lua_source(module, src)
    end
    abspath = abspath .. '.lua'
    return src, (gsub(abspath, '/[^/]+%.lua$', ''))
+end
+
+
+-- Where the script or program called *name* is built: a script beside
+-- its source, without any '.in' suffix; an in-tree program at the path
+-- *name*; and an installable program beneath *objdir*.
+local function script_target(name, rules, objdir, installed)
+   if isstring(rules) then
+      return (gsub(rules, '%.in$', ''))
+   elseif installed then
+      return format('%s/%s', objdir, name)
+   end
+   return name
+end
+
+
+local function c_sources(sources)
+   return dropuntil(sources, bind(match, {[2]='%.[ch]$'}))
 end
 
 
@@ -150,10 +170,60 @@ return {
       end)
    end,
 
-   -- Copy each script, without any '.in' suffix, to its name beneath
-   -- INST_BINDIR.
-   install_scripts = function(L, env, scripts)
-      local names = keys(scripts)
+   -- Build *target* from *sources* with the `command` from *rules*, or
+   -- else by compiling and linking C sources.
+   build_program = function(L, env, luke, rules, target, sources)
+      if match(target, '/') then
+         local command = {'$MAKEDIRS', dirname(target)}
+         local status, err = spawn(env, unpack(command))
+         if status ~= 0 then
+            stdout:write(concat(command, ' ') .. '\n')
+            stderr:write(err .. '\n')
+            return status
+         end
+      end
+
+      if rules.command ~= nil then
+         local names = keys(rules.env)
+         sort(names)
+         -- Export env for the whole command, and let `$NAME` in the
+         -- command itself expand to the same value.
+         -- TODO: values are interpolated inside single quotes, so one
+         -- containing a single quote breaks the command.
+         local exports = {}
+         if not isempty(names) then
+            exports = flatten('export', map(names, function(name)
+               return format("%s='%s'", name, rules.env[name])
+            end), ';')
+         end
+         env = makeenv({sources = concat(sources, ' '), target = target}, rules.env, env)
+         return run(L, env, flatten(exports, rules.command))
+      end
+
+      if c_sources(sources) == nil then
+         fatal("no command to build '%s' from %s", target, concat(sources, ' '))
+      end
+      return run(L, env, flatten(
+         '$CC $CFLAGS $CPPFLAGS',
+         defines(rules.defines, luke.defines),
+         incdirs(rules.incdirs, luke.incdirs),
+         sources,
+         '-o', target,
+         '$LDFLAGS',
+         libdirs(rules.libdirs, luke.libdirs),
+         '$LIBS',
+         rules.libraries, luke.libraries
+      ))
+   end,
+
+   -- Whether *rules* builds a program by compiling C sources.
+   c_program = function(rules)
+      return istable(rules) and rules.command == nil and c_sources(rules.sources) ~= nil
+   end,
+
+   -- Copy each installable script or program in *names*, built as for
+   -- `script_target`, to its name beneath INST_BINDIR.
+   install_scripts = function(L, env, luke, names)
       if isempty(names) then
          return 0
       end
@@ -162,9 +232,11 @@ return {
          status = run(L, env, {'$MAKEDIRS', '$INST_BINDIR'})
       end
       return reduce(names, status, function(status, name)
+         local rules = luke.install.bin[name]
+         local src = script_target(name, rules, luke.variables.objdir, true)
          local dest = '$INST_BINDIR/' .. name
          if status == 0 then
-            status = run(L, env, {'$INSTALL', (gsub(scripts[name], '%.in$', '')), dest})
+            status = run(L, env, {'$INSTALL', src, dest})
          end
          if status == 0 then
             status = run(L, env, {'$CHMOD', '+x', dest})
@@ -180,6 +252,8 @@ return {
    end,
 
    run_command = run,
+
+   script_target = script_target,
 
    spawn = spawn,
 }

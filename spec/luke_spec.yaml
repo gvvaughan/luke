@@ -223,14 +223,82 @@ specify luke:
       spit(fname, "modules = {x = 'x.lua'}\nbin = {shim = 42}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
-      expect(p).to_contain_error "bad bin entry 'shim': string expected, got number"
-  - it reserves table entries for compiled programs: |
-      spit(fname, "modules = {x = 'x.lua'}\ninstall = {bin = {prog = {sources = {'a.c'}}}}")
+      expect(p).to_contain_error "bad bin entry 'shim': string or table expected, got number"
+  - it diagnoses programs without sources: |
+      spit(fname, "modules = {x = 'x.lua'}\nbin = {prog = {command = 'true'}}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
-      expect(p).to_contain_error "bad install.bin entry 'prog': compiled programs are not supported yet"
+      expect(p).to_contain_error "bad bin entry 'prog': no sources"
+  - it diagnoses malformed program env tables: |
+      spit(fname, "modules = {x = 'x.lua'}\nbin = {prog = {sources = {'a'}, env = {X = 1}}}")
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "bad bin entry 'prog': env must map names to strings"
   - it diagnoses unsupported install tables: |
       spit(fname, "modules = {x = 'x.lua'}\ninstall = {lua = {}}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error "unsupported install table 'lua'"
+
+- describe programs:
+  - before: |
+      tmpdir = os.tmpname()
+      os.remove(tmpdir)
+      assert(os.execute('mkdir ' .. tmpdir))
+      spit(tmpdir .. '/other.lua', "return 'other'\n")
+      spit(tmpdir .. '/a.txt', 'a\n')
+      spit(tmpdir .. '/b.txt.in', '@package@\n')
+      spit(tmpdir .. '/hello.c', '#include <stdio.h>\nint main(void){puts("hello");return 0;}\n')
+      fname = spit(tmpdir .. '/lukefile', [[
+         package = 'example'
+         version = '1.0'
+         variables = {objdir = ']] .. tmpdir .. [[/obj'}
+         modules = {other = ']] .. tmpdir .. [[/other.lua'}
+         bin = {
+            [']] .. tmpdir .. [[/out/gen'] = {
+               command = 'cat $sources > $target; printenv GREETING >> $target',
+               env = {GREETING = 'hi $package'},
+               sources = {
+                  ']] .. tmpdir .. [[/a.txt',
+                  ']] .. tmpdir .. [[/b.txt.in',
+               },
+            },
+         }
+         install = {
+            bin = {
+               hello = {sources = {']] .. tmpdir .. [[/hello.c'}},
+            },
+         }
+      ]])
+
+      function isexecutable(path)
+         local p = io.popen("test -x '" .. path .. "' && echo yes")
+         local s = p:read '*a'
+         p:close()
+         return s == 'yes\n'
+      end
+  - after: |
+      os.execute('rm -rf ' .. tmpdir)
+
+  - it runs a program command with its env, after filling templates: |
+      expect(luke('--file=' .. fname, tmpdir .. '/out/gen')).to_succeed()
+      expect(slurp(tmpdir .. '/b.txt')).to_be 'example\n'
+      expect(slurp(tmpdir .. '/out/gen')).to_be 'a\nexample\nhi example\n'
+      expect(isexecutable(tmpdir .. '/out/gen')).to_be(true)
+  - it compiles and links C programs beneath objdir: |
+      expect(luke('--file=' .. fname, 'hello')).to_succeed()
+      expect(isexecutable(tmpdir .. '/obj/hello')).to_be(true)
+      p = io.popen(tmpdir .. '/obj/hello')
+      expect(p:read '*a').to_be 'hello\n'
+      p:close()
+  - it installs built programs: |
+      expect(luke('--file=' .. fname)).to_succeed()
+      expect(luke('--file=' .. fname, 'PREFIX=' .. tmpdir, 'install')).
+         to_succeed_while_containing('cp ' .. tmpdir .. '/obj/hello ' .. tmpdir .. '/bin/hello')
+      expect(isexecutable(tmpdir .. '/bin/hello')).to_be(true)
+      expect(slurp(tmpdir .. '/bin/gen')).to_be(nil)
+  - it diagnoses programs it cannot build: |
+      spit(fname, "package = 'x'\nversion = '1'\nmodules = {x = 'x.lua'}\nbin = {prog = {sources = {'a.txt'}}}")
+      p = luke('--file=' .. fname, 'prog')
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "no command to build 'prog' from a.txt"

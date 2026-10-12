@@ -18,41 +18,80 @@ local function run_ldocs(L, env, ldocs)
 end
 
 
-local function build_modules(L, env)
+-- The rules for script *entry*, as selected by `validate_arguments`.
+local function script_rules(L, entry)
+   if entry.installed then
+      return L.luke.install.bin[entry.name]
+   end
+   return L.luke.bin[entry.name]
+end
+
+
+local function build_script(L, env, substitute, entry)
+   local rules = script_rules(L, entry)
+   local target = script_target(entry.name, rules, L.luke.variables.objdir, entry.installed)
+
+   if isstring(rules) then
+      fill_template(L, substitute, rules)
+   else
+      -- TODO: a template shared with a module being built is filled
+      -- twice.
+      local sources = map(rules.sources, function(source)
+         return fill_template(L, substitute, source)
+      end)
+      local status = build_program(L, env, L.luke, rules, target, sources)
+      if status ~= 0 then
+         return status
+      end
+   end
+
+   return make_executable(L, env, target)
+end
+
+
+local function build(L, env)
+   local modules = not isempty(L.luke.modules or {})
    local conf = makeenv(CONFIGENV, env)
 
-   if not isempty(L.luke.ldocs or {}) then
+   if modules and not isempty(L.luke.ldocs or {}) then
       conf = config_ldoc(L, conf)
       env = makeenv(env, {LDOC=conf.LDOC})
    end
 
-   local c = c_modules(L.luke.modules)
-   if not isempty(c) then
+   local c = c_modules(L.luke.modules or {})
+   local cprograms = filter(L.scripts.build, function(entry)
+      return c_program(script_rules(L, entry))
+   end)
+   if not isempty(c) or not isempty(cprograms) then
       conf = config_compiler(L, conf)
       env = makeenv(env, {CC=conf.CC})
    end
+   -- TODO: this runs the probes in every bin and install.bin rule, even
+   -- those not selected by the command line targets.
    L.luke = run_configs(L, conf, L.luke)
 
    local substitute = makeenv(L.clidefs, L.luke.substitute, SHELLENV)
-   L.luke = run_templates(L, substitute, L.luke)
+   local status = 0
 
-   local status = dropuntil(c, isnonzero, function(name)
-      return build_c_module(L, env, L.luke, name)
-   end) or 0
+   if modules then
+      L.luke = run_templates(L, substitute, L.luke)
 
-   if status == 0 and not isempty(L.luke.ldocs or {}) then
-      status = run_ldocs(L, env, L.luke.ldocs)
+      status = dropuntil(c, isnonzero, function(name)
+         return build_c_module(L, env, L.luke, name)
+      end) or 0
+
+      if status == 0 and not isempty(L.luke.ldocs or {}) then
+         status = run_ldocs(L, env, L.luke.ldocs)
+      end
+   end
+
+   if status == 0 then
+      status = dropuntil(L.scripts.build, isnonzero, function(entry)
+         return build_script(L, env, substitute, entry)
+      end) or 0
    end
 
    return status
-end
-
-
-local function build_scripts(L, env, sources)
-   local substitute = makeenv(L.clidefs, L.luke.substitute, SHELLENV)
-   return dropuntil(sources, isnonzero, function(source)
-      return make_executable(L, env, fill_template(L, substitute, source))
-   end) or 0
 end
 
 
@@ -69,12 +108,8 @@ return {
          exit(0)
       end
 
-      if status == 0 and not isempty(L.luke.modules or {}) then
-         status = build_modules(L, env)
-      end
-
-      if status == 0 then
-         status = build_scripts(L, env, L.scripts.build)
+      if not isempty(L.luke.modules or {}) or not isempty(L.scripts.build) then
+         status = build(L, env)
       end
 
       if status == 0 then
@@ -82,7 +117,7 @@ return {
       end
 
       if status == 0 then
-         status = install_scripts(L, env, L.scripts.install)
+         status = install_scripts(L, env, L.luke, L.scripts.install)
       end
 
       return status
