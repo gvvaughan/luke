@@ -54,7 +54,8 @@ local function dump(...)local s=concat(map(list(...),str))if len(s)>0 then
 gsub(concat(map(list(...),str)),'\n*$','\n'):gsub('(.-)\n',function(line)stderr:write('   DEBUG: '..line..'\n')end)end
 end
 local function interpolate_to_substitute(s)return(gsub(s,'%$([%w_]+)','@%1@'))end
-return{parse_arguments=function(args)local r={clidefs={},valreqs={},fname='lukefile',install={},log=nop,targets={},verbose=nop,write=display,}map(args,function(opt)case(opt,{['--debug']=function()r.log=dump
+return{parse_arguments=function(args)local r={clidefs={},debug=false,valreqs={},fname='lukefile',install={},log=nop,targets={},verbose=nop,write=display,}map(args,function(opt)case(opt,{['--debug']=function()r.debug=true
+r.log=dump
 end,['%-%-file=(.+)']=function(optarg)r.fname=optarg
 end,['%-%-value=(.+)']=function(optarg)r.valreqs[#r.valreqs+1]=optarg
 end,['--quiet']=function()r.write=nop
@@ -79,7 +80,7 @@ luke.modules=build
 if isempty(luke.modules)then
 luke.external_dependencies=nil
 end
-luke.substitute=merge(luke.substitute or{},{package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),})luke.variables=merge(luke.variables or{},collect_variables(luke),{LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUAVERSION',LUA_LIBDIR='$LUA_DIR/lib',objdir=platforms[1],package=luke.package,version=luke.version,})return{clidefs=parsed.clidefs,install=install,log=parsed.log,luke=luke,valreqs=parsed.valreqs,verbose=parsed.verbose,write=parsed.write,}end,}
+luke.substitute=merge(luke.substitute or{},{package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),})luke.variables=merge(luke.variables or{},collect_variables(luke),{LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUAVERSION',LUA_LIBDIR='$LUA_DIR/lib',objdir=platforms[1],package=luke.package,version=luke.version,})return{clidefs=parsed.clidefs,debug=parsed.debug,install=install,log=parsed.log,luke=luke,valreqs=parsed.valreqs,verbose=parsed.verbose,write=parsed.write,}end,}
 end
 package.preload['luke.compile']=function()
 local _ENV=require'std.normalize'{'luke._base','luke.environment','std.functional','type.context-manager','type.path',SHELLMETACHARS='[%s%$"]',}local function spawn(env,...)local command=interpolate(env,concat({...},' '))return with(TmpFile(),TmpFile(),function(out,err)local pipe=concat{command,' >',out.filename,' 2>',err.filename,'; printf $?'}return tonumber(slurp(Pipe(pipe))),slurp(File(err.filename)),slurp(File(out.filename))end)end
@@ -116,6 +117,10 @@ local _ENV=require'std.normalize'{'luke._base','luke.compile','luke.environment'
 with(File(filename,'r'),function(h)L.log(h.filename..':')L.log(slurp(h))end)L.log(err)end
 return status
 end
+local function Conftest(L)local cm=CTest(L.debug)if L.debug and cm~=nil then
+L.log('keeping '..cm.filename..' and '..cm.objfile)end
+return cm
+end
 local function checking(L,...)L.verbose('checking ',concat({...},' '),'... ')end
 local function found_library(L,x)if x==nil or x==''then
 L.verbose'none required'elseif isempty(x)then
@@ -128,14 +133,14 @@ end
 local function found_result(L,x)L.verbose(x==0 and'yes\n'or'no\n')return x~=0 and 0 or 1
 end
 local function bindirs(...)return map(flatten(...),function(v)return v..':'end)end
-local function compile_command(L,env,config,filename)local command=flatten('$CC','-c','$CFLAGS',defines(L.luke.defines),incdirs(config.incdir),'$CPPFLAGS',filename)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
+local function compile_command(L,env,config,objfile,filename)local command=flatten('$CC','-c','$CFLAGS',defines(L.luke.defines),incdirs(config.incdir),'$CPPFLAGS','-o',objfile,filename)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
 local function link_command(L,env,config,a_out,source,lib)local command=flatten('$CC','$CFLAGS',defines(L.luke.defines),incdirs(config.incdir),'$CPPFLAGS','-o',a_out,source,libdirs(config.libdir),'$LDFLAGS',lib,'$libs',CONFIGENV.libs)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
 local function check_executable_in_path(L,env,config,prog)local PATH=concat(bindirs(config.bindir))..getenv('PATH')local found=dropuntil(gmatch(PATH,'[^:]+'),function(path)local progpath=path..'/'..prog
 return with(File(progpath,'r'),function(h)return h and isfile(h.context)and progpath or nil
 end)end)L.log(found and'found '..found or prog..' not found')return found~=nil
 end
-local function check_header_compile(L,env,config,header,extra_hdrs)return with(CTest(),function(conftest)conftest:write(format('%s\n#include "%s"\n',extra_hdrs,header))conftest:flush()return logspawn(L,env,conftest.filename,compile_command(L,env,config,conftest.filename))end)end
-local function check_struct_member_compile(L,env,config,structname,member,extra_hdrs)return with(CTest(),function(conftest)conftest:write(format([[
+local function check_header_compile(L,env,config,header,extra_hdrs)return with(Conftest(L),function(conftest)conftest:write(format('%s\n#include "%s"\n',extra_hdrs,header))conftest:flush()return logspawn(L,env,conftest.filename,compile_command(L,env,config,conftest.objfile,conftest.filename))end)end
+local function check_struct_member_compile(L,env,config,structname,member,extra_hdrs)return with(Conftest(L),function(conftest)conftest:write(format([[
 %s
 int main () {
 static %s aggr;
@@ -143,8 +148,8 @@ if (sizeof aggr.%s)
     return 0;
 return 0;
 }
-]],extra_hdrs,structname,member))conftest:flush()return logspawn(L,env,conftest.filename,compile_command(L,env,config,conftest.filename))end)end
-local function try_link(L,env,config,lib,symbol)return with(CTest(),TmpFile(),function(conftest,a_out)conftest:write(format([[
+]],extra_hdrs,structname,member))conftest:flush()return logspawn(L,env,conftest.filename,compile_command(L,env,config,conftest.objfile,conftest.filename))end)end
+local function try_link(L,env,config,lib,symbol)return with(Conftest(L),TmpFile(),function(conftest,a_out)conftest:write(format([[
 /* Override any GCC internal prototype to avoid an error.
  Use char because int might match the return type of a GCC
  builtin and then its argument prototype would still apply.   */
@@ -153,7 +158,7 @@ int main () {
 return %s ();
 }
 ]],symbol,symbol))conftest:flush()return logspawn(L,env,conftest.filename,link_command(L,env,config,a_out.filename,conftest.filename,lib))end)end
-local function try_compile(L,env,config,headers)return with(CTest(),TmpFile(),function(conftest,a_out)conftest:write(format([[
+local function try_compile(L,env,config,headers)return with(Conftest(L),TmpFile(),function(conftest,a_out)conftest:write(format([[
 %s
 #if !defined %s || %s == -1
 choke me
@@ -164,7 +169,7 @@ main()
 return 0;
 }
 ]],headers,config.ifdef,config.ifdef))conftest:flush()return logspawn(L,env,conftest.filename,link_command(L,env,config,a_out.filename,conftest.filename))end)end
-local function check_func_decl(L,env,config,fname,extra_hdrs)return with(CTest(),function(conftest)conftest:write(format([[
+local function check_func_decl(L,env,config,fname,extra_hdrs)return with(Conftest(L),function(conftest)conftest:write(format([[
 %s
 int
 main()
@@ -174,8 +179,8 @@ main()
 #endif
 return 0;
 }
-]],extra_hdrs,fname,fname))conftest:flush()return logspawn(L,env,conftest.filename,compile_command(L,env,config,conftest.filename))end)end
-local function check_func_link(L,env,config,fname)return with(CTest(),TmpFile(),function(conftest,a_out)conftest:write(format([[
+]],extra_hdrs,fname,fname))conftest:flush()return logspawn(L,env,conftest.filename,compile_command(L,env,config,conftest.objfile,conftest.filename))end)end
+local function check_func_link(L,env,config,fname)return with(Conftest(L),TmpFile(),function(conftest,a_out)conftest:write(format([[
 /* Define to an innocous variant, in case <limits.h> declares it.
  For example, HP-UX 11i <limits.h> declares gettimeofday.   */
 #define %s innocuous_%s
@@ -240,8 +245,8 @@ add_external_deps(env,config,prefix)return apply(self[fname],list(L,env,config))
 end)or fatal("unable to configure with keys '%s'",concat(keys(config),"', '"))end,function(type)fatal("unsupported configure type '%s'",type)end,})end,})return{config_compiler=function(L,env)local CC=env.CC
 if CC==nil then
 CC=configure(L,env,{checkprog='C compiler',progs=CCPROGS})env=makeenv(env,{CC=CC})end
-checking(L,interpolate(env,'whether $CC works'))local cm=CTest()local works,err=with(cm,function(conftest)conftest:write('typedef int x;\n')conftest:flush()return spawn(env,'$compile',conftest.filename)end)if works~=0 then
-L.verbose'no\n'L.log(interpolate(env,'$compile '..cm.filename))if err and err~=''then
+checking(L,interpolate(env,'whether $CC works'))local cm=Conftest(L)local works,err=with(cm,function(conftest)conftest:write('typedef int x;\n')conftest:flush()return spawn(env,'$compile','-o',conftest.objfile,conftest.filename)end)if works~=0 then
+L.verbose'no\n'L.log(interpolate(env,'$compile -o '..cm.objfile..' '..cm.filename))if err and err~=''then
 L.log(err)end
 fatal('could not find a working C compiler')end
 found_prog(L,CC)return env
@@ -434,7 +439,7 @@ end,call=call,case=function(s,branches)if branches[s]~=nil then
 return call(branches[s],s)end
 local DEFAULT=1
 for pattern,fn in next,branches do
-if pattern~=DEFAULT then
+if s~=nil and pattern~=DEFAULT then
 local argu=list(match(s,'^'..pattern..'$'))if argu[1]~=nil then
 return apply(fn,argu)end
 end
@@ -644,10 +649,13 @@ local function context_close(cm)return isfile(cm.context)and close(cm.context)en
 local function with(...)local argu=list(...)local block=pop(argu)local r=list(apply(block,argu))map(argu,function(cm)if cm~=nil then
 cm:release()end
 end)return unpack(r)end
-return{ContextManager=ContextManager,CTest=function()local conftest=tmpname()return ContextManager(function(cm)rm(conftest)rm(gsub(conftest,'^.*/','')..'.o')if context_close(cm)then
-return rm(cm.filename)end
-return false
-end,open,conftest..'.c','w')end,File=function(fname,mode)return ContextManager(context_close,open,fname,mode)end,Pipe=function(cmd,mode)return ContextManager(context_close,popen,cmd,mode)end,TmpFile=function(fname,mode)return ContextManager(function(cm)if context_close(cm)then
+return{ContextManager=ContextManager,CTest=function(keep)local conftest=tmpname()local cm,err=ContextManager(function(cm)local closed=context_close(cm)if keep then
+return closed
+end
+rm(conftest)rm(cm.objfile)return closed and rm(cm.filename)end,open,conftest..'.c','w')if cm~=nil then
+cm.objfile=gsub(conftest,'^.*/','')..'.o'end
+return cm,err
+end,File=function(fname,mode)return ContextManager(context_close,open,fname,mode)end,Pipe=function(cmd,mode)return ContextManager(context_close,popen,cmd,mode)end,TmpFile=function(fname,mode)return ContextManager(function(cm)if context_close(cm)then
 return rm(cm.filename)end
 return false
 end,open,fname or tmpname(),mode or'w')end,slurp=function(cm,...)if not cm then

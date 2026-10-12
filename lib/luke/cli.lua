@@ -87,6 +87,7 @@ return {
    parse_arguments = function(args)
       local r = {
          clidefs = {},
+         debug   = false,
          valreqs = {},
          fname   = 'lukefile',
          install = {},
@@ -98,7 +99,9 @@ return {
 
       map(args, function(opt)
          case(opt, {
+            -- Undocumented: for debugging luke itself, not lukefiles.
             ['--debug'] = function()
+               r.debug = true
                r.log = dump
             end,
 
@@ -192,6 +195,7 @@ return {
 
       return {
          clidefs = parsed.clidefs,
+         debug   = parsed.debug,
          install = install,
          log     = parsed.log,
          luke    = luke,

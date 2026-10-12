@@ -61,16 +61,23 @@ end
 return {
    ContextManager = ContextManager,
 
-   CTest = function()
+   -- Unless `keep` is true, remove the C source and its object file
+   -- (`cm.objfile`, in the current directory) on release.
+   CTest = function(keep)
       local conftest = tmpname()
-      return ContextManager(function(cm)
-         rm(conftest)
-         rm(gsub(conftest, '^.*/', '') .. '.o')
-         if context_close(cm) then
-            return rm(cm.filename)
+      local cm, err = ContextManager(function(cm)
+         local closed = context_close(cm)
+         if keep then
+            return closed
          end
-         return false
+         rm(conftest)
+         rm(cm.objfile)
+         return closed and rm(cm.filename)
       end, open, conftest .. '.c', 'w')
+      if cm ~= nil then
+         cm.objfile = gsub(conftest, '^.*/', '') .. '.o'
+      end
+      return cm, err
    end,
 
    File = function(fname, mode)

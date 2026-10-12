@@ -114,6 +114,44 @@ describe('type.context-manager', function()
       it('has a filename ending in .c', function()
          assert.equal('.c', string.match(cm.filename, '%.c$'))
       end)
+
+      it('has an objfile in the current directory, ending in .o', function()
+         assert.equal((cm.filename:gsub('^.*/', ''):gsub('%.c$', '.o')), cm.objfile)
+      end)
+   end)
+
+
+   describe('CTest release', function()
+      local CTest = context_manager.CTest
+
+      local function exists(path)
+         local fh = io.open(path)
+         return fh ~= nil and fh:close()
+      end
+
+      local function probe(keep)
+         local cm = CTest(keep)
+         local filename, objfile = cm.filename, cm.objfile
+         cm:write 'int x;\n'
+         io.open(objfile, 'w'):close()
+         cm:release()
+         return filename, objfile
+      end
+
+      it('removes the source and object files', function()
+         local filename, objfile = probe()
+         assert.is_false(exists(filename))
+         assert.is_false(exists(objfile))
+      end)
+
+      it('keeps the source and object files when asked', function()
+         local filename, objfile = probe(true)
+         assert.is_true(exists(filename))
+         assert.is_true(exists(objfile))
+         os.remove(filename)
+         os.remove(objfile)
+         os.remove((filename:gsub('%.c$', '')))
+      end)
    end)
 
 

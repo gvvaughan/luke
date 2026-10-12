@@ -28,6 +28,16 @@ local function logspawn(L, env, filename, ...)
 end
 
 
+-- With --debug, keep each probe's files and log where they are.
+local function Conftest(L)
+   local cm = CTest(L.debug)
+   if L.debug and cm ~= nil then
+      L.log('keeping ' .. cm.filename .. ' and ' .. cm.objfile)
+   end
+   return cm
+end
+
+
 local function checking(L, ...)
    L.verbose('checking ', concat({...}, ' '), '... ')
 end
@@ -66,12 +76,13 @@ local function bindirs(...)
 end
 
 
-local function compile_command(L, env, config, filename)
+local function compile_command(L, env, config, objfile, filename)
    local command = flatten(
       '$CC', '-c', '$CFLAGS',
       defines(L.luke.defines),
       incdirs(config.incdir),
       '$CPPFLAGS',
+      '-o', objfile,
       filename
    )
    L.log(interpolate(env, concat(command, ' ')))
@@ -111,21 +122,21 @@ end
 
 
 local function check_header_compile(L, env, config, header, extra_hdrs)
-   return with(CTest(), function(conftest)
+   return with(Conftest(L), function(conftest)
       conftest:write(format('%s\n#include "%s"\n', extra_hdrs, header))
       conftest:flush()
       return logspawn(
          L,
          env,
          conftest.filename,
-         compile_command(L, env, config, conftest.filename)
+         compile_command(L, env, config, conftest.objfile, conftest.filename)
       )
    end)
 end
 
 
 local function check_struct_member_compile(L, env, config, structname, member, extra_hdrs)
-   return with(CTest(), function(conftest)
+   return with(Conftest(L), function(conftest)
       conftest:write(format([[
 %s
 int main () {
@@ -140,14 +151,14 @@ return 0;
          L,
          env,
          conftest.filename,
-         compile_command(L, env, config, conftest.filename)
+         compile_command(L, env, config, conftest.objfile, conftest.filename)
       )
    end)
 end
 
 
 local function try_link(L, env, config, lib, symbol)
-   return with(CTest(), TmpFile(), function(conftest, a_out)
+   return with(Conftest(L), TmpFile(), function(conftest, a_out)
       conftest:write(format([[
 /* Override any GCC internal prototype to avoid an error.
  Use char because int might match the return type of a GCC
@@ -169,7 +180,7 @@ end
 
 
 local function try_compile(L, env, config, headers)
-   return with(CTest(), TmpFile(), function(conftest, a_out)
+   return with(Conftest(L), TmpFile(), function(conftest, a_out)
       conftest:write(format([[
 %s
 #if !defined %s || %s == -1
@@ -193,7 +204,7 @@ end
 
 
 local function check_func_decl(L, env, config, fname, extra_hdrs)
-   return with(CTest(), function(conftest)
+   return with(Conftest(L), function(conftest)
       conftest:write(format([[
 %s
 int
@@ -210,14 +221,14 @@ return 0;
          L,
          env,
          conftest.filename,
-         compile_command(L, env, config, conftest.filename)
+         compile_command(L, env, config, conftest.objfile, conftest.filename)
       )
    end)
 end
 
 
 local function check_func_link(L, env, config, fname)
-   return with(CTest(), TmpFile(), function(conftest, a_out)
+   return with(Conftest(L), TmpFile(), function(conftest, a_out)
       conftest:write(format([[
 /* Define to an innocous variant, in case <limits.h> declares it.
  For example, HP-UX 11i <limits.h> declares gettimeofday.   */
@@ -400,15 +411,15 @@ return {
       end
 
       checking(L, interpolate(env, 'whether $CC works'))
-      local cm = CTest()
+      local cm = Conftest(L)
       local works, err = with(cm, function(conftest)
          conftest:write('typedef int x;\n')
          conftest:flush()
-         return spawn(env, '$compile', conftest.filename)
+         return spawn(env, '$compile', '-o', conftest.objfile, conftest.filename)
       end)
       if works ~= 0 then
          L.verbose 'no\n'
-         L.log(interpolate(env, '$compile ' .. cm.filename))
+         L.log(interpolate(env, '$compile -o ' .. cm.objfile .. ' ' .. cm.filename))
          if err and err ~= '' then
             L.log(err)
          end
