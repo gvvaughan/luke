@@ -42,38 +42,15 @@ function restore()
 end
 
 
--- Until the next call to `restore`, make luke.normalize's `exit` raise
--- 'exit STATUS', and collect its `print`, `stdout` and `stderr` output
--- into the returned table.  Reload modules after calling this, so that
--- they see the replacements.
-function mock_io()
-   local normalize = require 'luke.normalize'
-   local output = {stdout = '', stderr = ''}
-
-   local function writer(stream)
-      return {
-         write = function(self, ...)
-            output[stream] = output[stream] .. table.concat {...}
-            return self
-         end,
-      }
-   end
-
-   replace(normalize, 'exit', function(status)
-      error('exit ' .. tostring(status), 0)
-   end)
-   replace(normalize, 'print', function(...)
-      output.stdout = output.stdout .. table.concat({...}, '\t') .. '\n'
-   end)
-   replace(normalize, 'stdout', writer 'stdout')
-   replace(normalize, 'stderr', writer 'stderr')
-
-   -- Other modules import fatal and diagnose from luke._base, so give
-   -- them versions that see the replacements too.
-   local base, fresh = require 'luke._base', reload 'luke._base'
-   replace(base, 'diagnose', fresh.diagnose)
-   replace(base, 'fatal', fresh.fatal)
-   return output
+-- Call *fn* with *...* in-process, in an environment where it loads
+-- every luke module afresh in strict mode, and return a specl Process
+-- with its exit status and output.
+function capture(fn, ...)
+   return require 'specl.inprocess'.capture(function(fn, ...)
+      require 'luke.strict':enforce()
+      setfenv(fn, getfenv(1))
+      return fn(...)
+   end, {fn, ...})
 end
 
 

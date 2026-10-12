@@ -2,14 +2,11 @@
 # Copyright (C) 2014-2026 Gary V. Vaughan
 
 before: |
-  inprocess = require 'specl.inprocess'
-
   -- Run luke in-process, in strict mode, with command line *...*.
   function luke(...)
-     return inprocess.capture(function(...)
-        require 'luke.strict':enforce()
+     return capture(function(...)
         return require 'luke'.main {...}
-     end, {...})
+     end, ...)
   end
 
   function spit(filename, content)

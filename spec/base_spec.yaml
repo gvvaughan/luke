@@ -1,32 +1,34 @@
 # Use the source, Luke!
 # Copyright (C) 2014-2026 Gary V. Vaughan
 
-specify luke._base:
-- after:
-    restore()
+before: |
+  function fatal(...)
+     return capture(function(...)
+        return require 'luke._base'.fatal(...)
+     end, ...)
+  end
 
+  function diagnose(...)
+     return capture(function(...)
+        return require 'luke._base'.diagnose(...)
+     end, ...)
+  end
+
+specify luke._base:
 - describe fatal:
   - it writes a message and exits with status 1: |
-      output = mock_io()
-      fatal = reload 'luke._base'.fatal
-      expect(fatal 'oops').to_raise 'exit 1'
-      expect(output.stderr).to_be 'luke: fatal: oops\n'
+      expect(fatal 'oops').to_fail_with 'luke: fatal: oops\n'
 
   - it formats additional arguments: |
-      output = mock_io()
-      fatal = reload 'luke._base'.fatal
-      expect(fatal("no rule for '%s'", 'foo')).to_raise 'exit 1'
-      expect(output.stderr).to_be "luke: fatal: no rule for 'foo'\n"
+      expect(fatal("no rule for '%s'", 'foo')).
+         to_fail_with "luke: fatal: no rule for 'foo'\n"
 
 - describe diagnose:
   - it does nothing when the predicate holds: |
-      output = mock_io()
-      diagnose = reload 'luke._base'.diagnose
-      expect(diagnose(true, 'oops')).not_to_raise 'any error'
-      expect(output.stderr).to_be ''
+      p = diagnose(true, 'oops')
+      expect(p).to_succeed_with ''
+      expect(p).to_output_error ''
 
   - it is fatal when the predicate fails: |
-      output = mock_io()
-      diagnose = reload 'luke._base'.diagnose
-      expect(diagnose(false, 'bad %s', 'lukefile')).to_raise 'exit 1'
-      expect(output.stderr).to_be 'luke: fatal: bad lukefile\n'
+      expect(diagnose(false, 'bad %s', 'lukefile')).
+         to_fail_with 'luke: fatal: bad lukefile\n'

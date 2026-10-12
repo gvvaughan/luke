@@ -22,9 +22,6 @@ before: |
   end
 
 specify luke.compile:
-- after:
-    restore()
-
 - describe incdirs:
   - before:
       incdirs = compile.incdirs
@@ -103,20 +100,19 @@ specify luke.compile:
       expect(list(compile.run_command(L, env, {'echo', 'hello'}))).to_equal(list(0, 'hello\n', ''))
       expect(L.write).to_contain 'echo hello'
 
-  - it reports the error output of a failing command:
-      output = mock_io()
-      run_command = reload 'luke.compile'.run_command
-      L = {write = Stub()}
-      status = run_command(L, env, {'(echo oops >&2; false)'})
-      expect(status).to_be(1)
-      expect(output.stderr).to_be 'oops\n\n'
+  - it reports the error output of a failing command: |
+      p = capture(function(L, env)
+         return require 'luke.compile'.run_command(L, env, {'(echo oops >&2; false)'})
+      end, {write = Stub()}, env)
+      expect(p).to_fail_with 'oops\n\n'
 
-  - it writes a failing command even when quiet:
-      output = mock_io()
-      run_command = reload 'luke.compile'.run_command
-      status = run_command({write = require 'luke.functional'.nop}, env, {'false'})
-      expect(status).to_be(1)
-      expect(output.stdout).to_be 'false\n'
+  - it writes a failing command even when quiet: |
+      p = capture(function(env)
+         local nop = require 'luke.functional'.nop
+         return require 'luke.compile'.run_command({write = nop}, env, {'false'})
+      end, env)
+      expect(p).to_exit(1)
+      expect(p).to_output 'false\n'
 
 - describe install_modules:
   - before:
@@ -143,16 +139,15 @@ specify luke.compile:
       })).to_be(0)
       expect(slurp(dest .. '/lib/foo.so')).to_be 'built\n'
 
-  - it returns the first failing status:
-      output = mock_io()
-      install_modules = reload 'luke.compile'.install_modules
-      expect(install_modules(L, env, luke, {
+  - it returns the first failing status: |
+      expect(capture(function(...)
+         return require 'luke.compile'.install_modules(...)
+      end, L, env, luke, {
          ['no.such'] = {sources={'lib/no/such.lua'}},
-      })).not_to_be(0)
-      expect(output.stderr).to_contain 'lib/no/such.lua'
+      })).to_fail_while_containing 'lib/no/such.lua'
 
-  - it diagnoses unsupported source types:
-      output = mock_io()
-      install_modules = reload 'luke.compile'.install_modules
-      expect(install_modules(L, env, luke, {foo = {sources={'foo.txt'}}})).to_raise 'exit 1'
-      expect(output.stderr).to_contain "unsupported source type 'foo.txt'"
+  - it diagnoses unsupported source types: |
+      expect(capture(function(...)
+         return require 'luke.compile'.install_modules(...)
+      end, L, env, luke, {foo = {sources={'foo.txt'}}})).
+         to_fail_with "luke: fatal: unsupported source type 'foo.txt'\n"
