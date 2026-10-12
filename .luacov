@@ -36,7 +36,7 @@ return {
     "lib/luke/lukefile$",
     "lib/luke/normalize$",
     "lib/luke/platforms$",
-    "lib/type/context-manager$",
+    "lib/type/context%-manager$",
     "lib/type/dict$",
     "lib/type/path$",
   },
