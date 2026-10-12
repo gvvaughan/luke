@@ -4,9 +4,9 @@
 ]]
 
 return {
-   VERSION = '@VERSION@',
+   VERSION = '@version@',
    versiontext = [[
-luke (Luke) @VERSION@
+luke (Luke) @version@
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

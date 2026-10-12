@@ -35,31 +35,17 @@ build-aux/luke: $(lib_SOURCES)
 	$(SMUSH) $(lib_SOURCES) > $(DESTDIR)/$@
 	-$(CHMOD) 755 $(DESTDIR)/$@
 
-lib/luke/version.lua: lib/luke/version.lua.in Makefile
-	@$(SED) -e 's,@VERSION@,$(VERSION),' '$<' > '$@T';		\
+# Always run, so a version.lua left by another build can't go stale.
+lib/luke/version.lua: lib/luke/version.lua.in FORCE
+	@$(SED) -e 's,@version@,$(VERSION),' '$<' > '$@T';		\
 	if cmp -s '$@' '$@T'; then					\
 	    rm -f '$@T';						\
 	else								\
-	    echo "$(SED) -e 's,@VERSION@,$(VERSION),' '$<' > '$@T'";	\
+	    echo "$(SED) -e 's,@version@,$(VERSION),' '$<' > '$@T'";	\
 	    rm -f '$@';							\
 	    mv -f '$@T' '$@';						\
-	    $(CHMOD) 444 '$@';						\
 	fi
 
 
-SPECL = specl
-SPECL_OPTS = -vfreport
-
-noinst_spec_CHECKS =			\
-	spec/cli_spec.yaml		\
-	spec/compile_spec.yaml		\
-	spec/configure_spec.yaml	\
-	spec/context-manager_spec.yaml	\
-	spec/environment_spec.yaml	\
-	spec/functional_spec.yaml	\
-	spec/normalize_spec.yaml	\
-	spec/platform_spec.yaml		\
-	$(NOTHING_ELSE)
-
-check: lib/luke/version.lua
-	$(SPECL) $(SPECL_OPTS) $(noinst_spec_CHECKS)
+FORCE:
+.PHONY: FORCE

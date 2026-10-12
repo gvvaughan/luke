@@ -1,0 +1,19 @@
+package  = 'luke'
+version  = 'git'
+
+modules  = {
+   ['luke']                 = 'lib/luke/init.lua',
+   ['luke._base']           = 'lib/luke/_base.lua',
+   ['luke.cli']             = 'lib/luke/cli.lua',
+   ['luke.compile']         = 'lib/luke/compile.lua',
+   ['luke.configure']       = 'lib/luke/configure.lua',
+   ['luke.environment']     = 'lib/luke/environment.lua',
+   ['luke.functional']      = 'lib/luke/functional.lua',
+   ['luke.lukefile']        = 'lib/luke/lukefile.lua',
+   ['luke.normalize']       = 'lib/luke/normalize.lua',
+   ['luke.platforms']       = 'lib/luke/platforms.lua',
+   ['luke.version']         = 'lib/luke/version.lua.in',
+   ['type.context-manager'] = 'lib/type/context-manager.lua',
+   ['type.dict']            = 'lib/type/dict.lua',
+   ['type.path']            = 'lib/type/path.lua',
+}

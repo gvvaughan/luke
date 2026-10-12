@@ -5,7 +5,7 @@
 [![codecov.io](https://codecov.io/gh/gvvaughan/luke/branch/master/graph/badge.svg)](https://codecov.io/gh/gvvaughan/luke)
 
 A lightweight, self-bootstrapping build utility for LuaJIT, [Lua][]
-5.1, 5.2, 5.3 and 5.4.
+5.1, 5.2, 5.3, 5.4 and 5.5.
 
 Luke is released under the [MIT license][mit] (the same license as Lua
 itself).  There is no warranty.

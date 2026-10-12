@@ -11,12 +11,12 @@
 local libdir = arg[0]:gsub('[^/]*$', '') .. 'lib'
 package.path = libdir .. '/?.lua;' .. libdir .. '/?/init.lua;' .. package.path
 
--- In-tree luke is always version 'git': lib/luke/version.lua is
--- generated only for smush, and might be stale or missing.
+-- In-tree luke is always version 'git': builds generate lib/luke/version.lua
+-- for other versions, so it might be stale or missing.
 package.preload['luke.version'] = function()
    local filename = libdir .. '/luke/version.lua.in'
    local h = assert(io.open(filename))
-   local s = h:read '*a':gsub('@VERSION@', 'git')
+   local s = h:read '*a':gsub('@version@', 'git')
    h:close()
    return assert((rawget(_G, 'loadstring') or load)(s, '@' .. filename))()
 end

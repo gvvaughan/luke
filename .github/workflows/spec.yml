@@ -11,33 +11,43 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        lua-version: ["5.4", "5.3", "5.2", "5.1", "luajit"]
+        lua-version: ["5.5", "5.4", "5.3", "5.2", "5.1", "luajit"]
 
     runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v2
+    # id-token lets codecov-action authenticate uploads with OIDC.
+    permissions:
+      contents: read
+      id-token: write
 
-      - uses: leafo/gh-actions-lua@v8.0.0
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: luarocks/gh-actions-lua@v14
         with:
           luaVersion: ${{ matrix.lua-version }}
 
-      - uses: leafo/gh-actions-luarocks@v4.0.0
+      - uses: luarocks/gh-actions-luarocks@v7
 
       - name: install
         run: |
           sudo apt-get update -q -q --yes
           sudo apt-get install -y libyaml-dev
-          luarocks install ansicolors
-          luarocks install luacov
-          luarocks install specl
+          luarocks test --prepare
 
       - name: build
         run: |
-          make
+          luarocks make --force
 
       - name: test
         run: |
-          make check SPECL_OPTS='-vfreport --coverage'
-          luacov lib/
-          bash <(curl -s https://codecov.io/bash) -f luacov.report.out
+          luarocks test
+
+      - uses: codecov/codecov-action@v7
+        with:
+          # Pull requests from forks get no OIDC token, but Codecov accepts
+          # tokenless uploads from forks of public repositories.
+          use_oidc: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) }}
+          files: luacov.report.out
+          flags: lua-${{ matrix.lua-version }}
+          fail_ci_if_error: true
