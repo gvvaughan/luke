@@ -1,0 +1,162 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before: |
+  -- Make luke.normalize.popen answer `uname -s` with *uname* until the
+  -- next `restore()`.  Examples see deep copies of any tables set up in
+  -- `before`, so always fetch the shared module with `require`.
+  function mock_uname(uname)
+     local normalize = require 'luke.normalize'
+     local popen = normalize.popen
+     replace(normalize, 'popen', function(prog, mode)
+        if prog == 'uname -s' then
+           return {read = function() return uname end}
+        end
+        return popen(prog, mode)
+     end)
+  end
+
+  -- Load a fresh luke.platforms, as if running on *uname*.
+  function platforms_on(uname)
+     mock_uname(uname)
+     return reload 'luke.platforms'
+  end
+
+specify luke.platforms:
+- after:
+    restore()
+
+- describe mock_uname:
+  - it answers uname -s with the given name:
+      mock_uname 'QNX'
+      expect(require 'luke.normalize'.popen('uname -s'):read '*l').to_be 'QNX'
+
+  - it passes other commands through:
+      mock_uname 'QNX'
+      expect(require 'luke.normalize'.popen('echo hello'):read '*l').to_be 'hello'
+
+  - it is undone by restore:
+      mock_uname 'QNX'
+      restore()
+      expect(require 'luke.normalize'.popen).to_be(io.popen)
+
+- describe platforms:
+  - it is a non-empty list for the real system:
+      platforms = reload 'luke.platforms'.platforms
+      expect(type(platforms)).to_be 'table'
+      expect(#platforms > 0).to_be(true)
+
+  - it is a list of platforms:
+      expect(platforms_on 'Linux'.platforms).to_equal(list('linux', 'unix'))
+
+- describe toplatforms:
+  - before:
+      toplatforms = platforms_on 'Linux'.toplatforms
+      lookup = {
+         ['literal'] = 'literal',
+         ['^pattern'] = 'pattern',
+      }
+
+  - it returns a literal match from the lookup table:
+      expect(toplatforms(lookup, 'literal')).to_be 'literal'
+
+  - it returns an anchored pattern match from the lookup table:
+      expect(toplatforms(lookup, 'pattern-extra-stuff')).to_be 'pattern'
+
+  - it returns unix without another match in the lookup table:
+      expect(toplatforms(lookup, 'no match!')).to_equal(list 'unix')
+
+  - it returns the values in original order:
+      lookup = {Linux = list('linux', 'unix')}
+      expect(toplatforms(lookup, 'Linux')).to_equal(lookup.Linux)
+
+- describe filter_platforms:
+  - before:
+      filter_platforms = platforms_on 'Linux'.filter_platforms
+
+      unfiltered = {
+         unaffected = true,
+
+         platforms = {
+            matching = {match=1},
+            mismatching = {mismatch=1},
+            repeating = {match=0, mismatch=0},
+            misrepeating = {mismatch=0, misrepeat=1},
+            default = 1,
+            other = 1,
+         },
+      }
+
+      isplatform = function(x)
+         return set('matching', 'mismatching', 'repeating', 'misrepeating')[x]
+      end
+
+  - it narrows platform values to match given system:
+      expect(filter_platforms(unfiltered, list('matching'), isplatform)).
+         to_equal {unaffected=true, match=1}
+
+  - it narrows to the contents of all matches:
+      expect(filter_platforms(unfiltered, list('matching', 'mismatching', 'no match'), isplatform)).
+         to_equal {unaffected=true, match=1, mismatch=1}
+      expect(filter_platforms(unfiltered, list('no match', 'mismatching', 'matching'), isplatform)).
+         to_equal {unaffected=true, match=1, mismatch=1}
+
+  - it gives precedence to elements from earlier platform matches:
+      expect(filter_platforms(unfiltered, list('matching', 'repeating'), isplatform)).
+         to_equal {unaffected=true, match=1, mismatch=0}
+
+  - it falls back to defaults with no matching system:
+      expect(filter_platforms(unfiltered, list('no matches'), isplatform)).
+         to_equal {unaffected=true, default=1, other=1}
+
+- describe luaposix lukefile:
+  - before:
+      defines  = {
+         PACKAGE           = '"package"',
+         VERSION           = '"version"',
+         NDEBUG            = 1,
+         _FORTIFY_SOURCE   = 2,
+         platforms   = {
+            aix      = {_ALL_SOURCE       = 1},
+            bsd      = {_BSD_SOURCE       = 1},
+            freebsd  = {__BSD_VISIBLE     = 1},
+            macosx   = {_DARWIN_C_SOURCE  = 1},
+            qnx      = {_POSIX_C_SOURCE   = '200112L'},
+            unix     = {
+               _POSIX_C_SOURCE   = '200809L',
+               _XOPEN_SOURCE     = 700,
+            },
+            _POSIX_C_SOURCE      = '200809L',
+         },
+      }
+
+  - it gets the right defines on QNX:
+      expect(platforms_on 'QNX'.filter_platforms(defines)).to_equal {
+         PACKAGE           = '"package"',
+         VERSION           = '"version"',
+         NDEBUG            = 1,
+         _FORTIFY_SOURCE   = 2,
+         _POSIX_C_SOURCE   = '200112L',
+      }
+
+  - it gets the right defines on Darwin:
+      expect(platforms_on 'Darwin'.filter_platforms(defines)).to_equal {
+         PACKAGE           = '"package"',
+         VERSION           = '"version"',
+         NDEBUG            = 1,
+         _BSD_SOURCE       = 1,
+         _DARWIN_C_SOURCE  = 1,
+         _POSIX_C_SOURCE   = '200809L',
+         _XOPEN_SOURCE     = 700,
+         _FORTIFY_SOURCE   = 2,
+      }
+
+  - it gets the right defines on Linux:
+      expect(platforms_on 'Linux'.filter_platforms(defines)).to_equal {
+         PACKAGE           = '"package"',
+         VERSION           = '"version"',
+         NDEBUG            = 1,
+         _FORTIFY_SOURCE   = 2,
+         _POSIX_C_SOURCE   = '200809L',
+         _XOPEN_SOURCE     = 700,
+      }

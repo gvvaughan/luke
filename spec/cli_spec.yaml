@@ -1,0 +1,19 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before:
+  cli = require 'luke.cli'
+
+specify luke.cli:
+- describe parse_arguments:
+  - before:
+      parse_arguments = cli.parse_arguments
+
+  - it accepts equals signs on RHS of a define:
+      argt = parse_arguments {'foo=bar=baz'}
+      expect(argt.clidefs).to_equal {foo='bar=baz'}
+
+  - it does not confuse --file=foo with defining a variable:
+      argt = parse_arguments {'--file=foo', 'file=bar'}
+      expect(argt.fname).to_be 'foo'
+      expect(argt.clidefs).to_equal {file='bar'}

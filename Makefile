@@ -47,18 +47,19 @@ lib/luke/version.lua: lib/luke/version.lua.in Makefile
 	fi
 
 
-BUSTED_ENV = LUA_PATH=`pwd`'/?.lua;'$(LUA_PATH)';;'
+SPECL = specl
+SPECL_OPTS = -vfreport
 
 noinst_spec_CHECKS =			\
-	spec/cli_spec.lua		\
-	spec/compile_spec.lua		\
-	spec/configure_spec.lua		\
-	spec/context-manager_spec.lua	\
-	spec/environment_spec.lua	\
-	spec/functional_spec.lua	\
-	spec/normalize_spec.lua		\
-	spec/platform_spec.lua		\
+	spec/cli_spec.yaml		\
+	spec/compile_spec.yaml		\
+	spec/configure_spec.yaml	\
+	spec/context-manager_spec.yaml	\
+	spec/environment_spec.yaml	\
+	spec/functional_spec.yaml	\
+	spec/normalize_spec.yaml	\
+	spec/platform_spec.yaml		\
 	$(NOTHING_ELSE)
 
 check: lib/luke/version.lua
-	env $(BUSTED_ENV) busted $(BUSTED_OPTS) -o TAP $(noinst_spec_CHECKS)
+	$(SPECL) $(SPECL_OPTS) $(noinst_spec_CHECKS)

@@ -1,0 +1,223 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before: |
+  E = require 'luke.environment'
+  env = E.makeenv({CC='cc'}, E.DEFAULTENV, E.SHELLENV)
+
+  LINK_SUCCESS = list(0, '', '')
+  LINK_FAILURE = list(1, '', 'error')
+
+  -- Return fresh configure and run_configs functions, with luke._base.fatal
+  -- stubbed out so as not to kill the spec runner, and the first results
+  -- of spawn taken from *spawned* if given, along with stubs to inspect.
+  -- Examples see deep copies of anything set up in `before`, so call this
+  -- from each example rather than sharing stubs.
+  function setup(spawned)
+     local fatal = Stub()
+     replace(require 'luke._base', 'fatal', fatal)
+
+     local compile = require 'luke.compile'
+     local spawn = compile.spawn
+     replace(compile, 'spawn', function(env, ...)
+        if spawned ~= nil and #spawned > 0 then
+           return unpack(table.remove(spawned, 1))
+        end
+        return spawn(env, ...)
+     end)
+
+     replace(require 'luke.environment'.CONFIGENV, 'libs', '')
+
+     local configure = reload 'luke.configure'.configure
+     replace(require 'luke.configure', 'configure', configure)
+     local run_configs = reload 'luke.lukefile'.run_configs
+
+     local L = {log = Stub(), verbose = Stub(), luke = {}}
+     return configure, run_configs, L, fatal
+  end
+
+  -- Return the path to *prog* found by searching PATH, as luke does.
+  function which(prog)
+     for dir in os.getenv 'PATH':gmatch '[^:]+' do
+        local fh = io.open(dir .. '/' .. prog)
+        if fh ~= nil then
+           fh:close()
+           return dir .. '/' .. prog
+        end
+     end
+  end
+
+specify luke.configure:
+- after:
+    restore()
+
+- describe checkdecl:
+  - it notes a missing declaration:
+      configure, run_configs, L = setup()
+      expect(configure(L, env, {checkdecl='_not_a_real_c_function_decl'})).to_be(0)
+
+  - it finds an existing declaration in given header:
+      configure, run_configs, L = setup()
+      expect(configure(L, env, {checkdecl='gethostid', includes={'unistd.h'}})).to_be(1)
+
+  - it correctly resolves lukefile defines:
+      configure, run_configs, L = setup()
+      r = run_configs(L, env, {
+         defines = {
+            HAVE__NOT_A_REAL_FUNCTION_DECL = {checkdecl='_not_a_real_function_decl'},
+            HAVE_GETHOSTID_DECL = {checkdecl='gethostid', includes={'unistd.h'}},
+         },
+      })
+      expect(r.defines.HAVE__NOT_A_REAL_FUNCTION_DECL).to_be(0)
+      expect(r.defines.HAVE_GETHOSTID_DECL).to_be(1)
+
+- describe checkfunc:
+  - it notes a missing function:
+      configure, run_configs, L = setup()
+      expect(configure(L, env, {checkfunc='_not_a_real_c_function'})).to_be(0)
+
+  - it finds an existing linkable function:
+      configure, run_configs, L = setup()
+      expect(configure(L, env, {checkfunc='printf'})).to_be(1)
+
+  - it correctly resolves lukefile defines:
+      configure, run_configs, L = setup()
+      r = run_configs(L, env, {
+         defines = {
+            HAVE__NOT_A_REAL_FUNCTION = {checkfunc='_not_a_real_function'},
+            HAVE_PRINTF = {checkfunc='printf'},
+         },
+      })
+      expect(r.defines.HAVE__NOT_A_REAL_FUNCTION).to_be(0)
+      expect(r.defines.HAVE_PRINTF).to_be(1)
+
+- describe checkheader:
+  - it notes a missing header:
+      configure, run_configs, L = setup()
+      expect(configure(L, env, {checkheader='-not-a-real-header.h'})).to_be(0)
+
+  - it finds an existing header:
+      configure, run_configs, L = setup()
+      expect(configure(L, env, {checkheader='stdio.h'})).to_be(1)
+
+  - it also includes listed extra headers:
+      configure, run_configs, L = setup()
+      expect(configure(L, env, {checkheader='net/if.h', includes={'sys/socket.h'}})).to_be(1)
+
+  - it correctly resolves lukefile defines:
+      configure, run_configs, L = setup()
+      r = run_configs(L, env, {
+         defines = {
+            HAVE__NOT_A_REAL_HEADER_H = {checkheader='-not-a-real-header.h'},
+            HAVE_STDIO_H = {checkheader='stdio.h'},
+            HAVE_NET_IF_H = {checkheader='net/if.h', includes={'sys/socket.h'}},
+         },
+      })
+      expect(r.defines.HAVE__NOT_A_REAL_HEADER_H).to_be(0)
+      expect(r.defines.HAVE_STDIO_H).to_be(1)
+      expect(r.defines.HAVE_NET_IF_H).to_be(1)
+
+- describe checkmember:
+  - it notes a missing struct member:
+      configure, run_configs, L = setup()
+      expect(configure(L, env, {checkmember='struct stat.not_a_member', includes={'sys/stat.h'}})).
+         to_be(0)
+
+  - it finds an existing struct member:
+      configure, run_configs, L = setup()
+      expect(configure(L, env, {checkmember='struct stat.st_mode', includes={'sys/stat.h'}})).
+         to_be(1)
+
+  - it correctly resolves lukefile defines:
+      configure, run_configs, L = setup()
+      r = run_configs(L, env, {
+         defines = {
+            HAVE_STAT_NOT_A_MEMBER = {checkmember='struct stat.not_a_member', includes={'sys/stat.h'}},
+            HAVE_STAT_ST_MODE = {checkmember='struct stat.st_mode', includes={'sys/stat.h'}},
+         },
+      })
+      expect(r.defines.HAVE_STAT_NOT_A_MEMBER).to_be(0)
+      expect(r.defines.HAVE_STAT_ST_MODE).to_be(1)
+
+- describe checkprog:
+  - before:
+      notreal = '|not:a:real:program|'
+
+  - it logs found program:
+      configure, run_configs, L = setup()
+      configure(L, nil, {checkprog='existing', progs={'sed'}})
+      expect(L.log).to_contain('found ' .. which 'sed')
+
+  - it logs missing program:
+      configure, run_configs, L = setup()
+      configure(L, nil, {checkprog='non-existing', progs={notreal}})
+      expect(L.log).to_contain(notreal .. ' not found')
+
+  - it logs found fallback program:
+      configure, run_configs, L = setup()
+      configure(L, nil, {checkprog='fallback', progs={notreal, 'sed'}})
+      expect(L.log).to_contain(notreal .. ' not found')
+      expect(L.log).to_contain('found ' .. which 'sed')
+
+  - it falls back to alternative non-fatally:
+      configure, run_configs, L, fatal = setup()
+      configure(L, nil, {checkprog='non-fatal', progs={notreal, 'sed'}})
+      expect(#fatal).to_be(0)
+
+- describe checksymbol:
+  - it reports "none required" for libc symbols:
+      configure, run_configs, L = setup {LINK_SUCCESS}
+      expect(configure(L, env, {checksymbol='sprintf', libraries={'m'}})).to_be ''
+      expect(L.verbose).to_contain 'none required'
+
+  - it returns first lib satisfying required symbol:
+      configure, run_configs, L = setup {LINK_FAILURE, LINK_SUCCESS}
+      expect(configure(L, env, {checksymbol='pow', libraries={'m'}})).to_be '-lm'
+      expect(L.verbose).to_contain '-lm'
+
+  - it returns optional libs according to successful ifdef:
+      configure, run_configs, L = setup {
+         LINK_SUCCESS, -- try_compile
+         LINK_FAILURE, -- try_link library=''
+         LINK_SUCCESS, -- try_link library='crypt'
+      }
+      env = E.makeenv({CC='cc', CPPFLAGS='-D_XOPEN_CRYPT'}, E.DEFAULTENV, E.SHELLENV)
+      expect(configure(L, env, {
+         checksymbol='crypt',
+         ifdef='_XOPEN_CRYPT',
+         includes={'unistd.h'},
+         libraries={'crypt'},
+      })).to_be '-lcrypt'
+      expect(L.verbose).to_contain '-lcrypt'
+
+  - it elides optional libs according to failing ifdef:
+      configure, run_configs, L = setup()
+      expect(configure(L, env, {
+         checksymbol='poop',
+         ifdef='_POOP_AWAY',
+         includes={'unistd.h'},
+         libraries={'poop'},
+      })).to_equal {}
+
+  - it searches for external dependencies:
+      configure, run_configs, L = setup {LINK_FAILURE, LINK_SUCCESS}
+      env = E.makeenv(
+         {
+            CC='cc',
+            YAML_DIR='/usr/local/brew',
+            YAML_INCDIR='$YAML_DIR/include',
+            YAML_LIBDIR='$YAML_DIR/lib',
+         },
+         E.DEFAULTENV,
+         E.SHELLENV
+      )
+      r = run_configs(L, env, {
+         external_dependencies = {
+            YAML = {
+               library = {checksymbol='yaml_document_initialize', libraries={'yaml'}},
+            },
+         },
+      })
+      expect(r.incdirs).to_contain '$YAML_INCDIR'
+      expect(r.libdirs).to_contain '$YAML_LIBDIR'
+      expect(r.libraries).to_contain '-lyaml'

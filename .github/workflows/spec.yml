@@ -26,8 +26,11 @@ jobs:
 
       - name: install
         run: |
-          luarocks install busted
+          sudo apt-get update -q -q --yes
+          sudo apt-get install -y libyaml-dev
+          luarocks install ansicolors
           luarocks install luacov
+          luarocks install specl
 
       - name: build
         run: |
@@ -35,6 +38,6 @@ jobs:
 
       - name: test
         run: |
-          make check BUSTED_OPTS='--coverage'
+          make check SPECL_OPTS='-vfreport --coverage'
           luacov lib/
           bash <(curl -s https://codecov.io/bash) -f luacov.report.out

@@ -1,0 +1,27 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before:
+  functional = require 'luke.functional'
+
+specify luke.functional:
+- describe keys:
+  - before:
+      keys = functional.keys
+
+  - it returns a list of table keys:
+      r = keys {a=2, b=1, 'c'}
+      expect(r.n).to_be(3)
+      expect(set(unpack(r, 1, r.n))).to_equal(set(1, 'a', 'b'))
+
+- describe partition:
+  - before:
+      partition = functional.partition
+      square, nonsquare = partition(list(1, 2, 3, 4, 5, 6, 7, 8, 9), function(x)
+         local sqrt = math.sqrt(x)
+         return math.ceil(sqrt) == sqrt
+      end)
+
+  - it separates a list according to a predicate:
+      expect(square).to_equal(list(1, 4, 9))
+      expect(nonsquare).to_equal(list(2, 3, 5, 6, 7, 8))

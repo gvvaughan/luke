@@ -1,0 +1,65 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before:
+  normalize = require 'luke.normalize'
+
+specify luke.normalize:
+- it returns a functor:
+    expect(type(normalize)).to_be 'table'
+    expect(normalize.iscallable(normalize)).not_to_be(nil)
+
+- describe int:
+  - before:
+      int = normalize.int
+
+  - it returns any integer argument:
+      expect(int(100)).to_be(100)
+      expect(int(-100)).to_be(-100)
+
+  - it returns an integer equivalent of any float argument:
+      expect(int(100.0)).to_be(100)
+      expect(int(-100.0)).to_be(-100)
+
+  - it returns nil for any integer-like string:
+      expect(int '100').to_be(nil)
+      expect(int '100.0').to_be(nil)
+      expect(int '-100').to_be(nil)
+      expect(int '-100.0').to_be(nil)
+
+  - it returns nil for non-integer number:
+      expect(int(100.5)).to_be(nil)
+      expect(int(-100.5)).to_be(nil)
+
+  - it returns nil non-number:
+      expect(int '100.5').to_be(nil)
+      expect(int '-100.5').to_be(nil)
+      expect(int(false)).to_be(nil)
+
+- describe pop:
+  - before:
+      pop = normalize.pop
+
+  - it removes and returns the last item:
+      stack = {1, 2, 3, n=3}
+      expect(pop(stack)).to_be(3)
+      expect(stack).to_equal {1, 2, n=2}
+
+  - it removes and returns the only item:
+      stack = {3, n=1}
+      expect(pop(stack)).to_be(3)
+      expect(stack).to_equal {n=0}
+
+  - it handles nil elements:
+      stack = {[42]=42, n=42}
+      expect(pop(stack)).to_be(42)
+      expect(stack).to_equal {n=41}
+      expect(pop(stack)).to_be(nil)
+      expect(stack).to_equal {n=40}
+
+  - it does not underflow the stack:
+      stack = {n=1}
+      expect(pop(stack)).to_be(nil)
+      expect(stack).to_equal {n=0}
+      expect(pop(stack)).to_be(nil)
+      expect(stack).to_equal {n=0}

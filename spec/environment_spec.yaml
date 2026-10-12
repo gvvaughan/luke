@@ -1,0 +1,75 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before:
+  platforms = require 'luke.platforms'
+
+specify luke.environment:
+- describe filter_platforms:
+  - before:
+      filter_platforms = platforms.filter_platforms
+
+  - describe DEFAULTENV:
+    - before:
+        defines = {
+           PREFIX        = '/usr/local',
+           INST_LIBDIR   = '$PREFIX/lib/lua/$LUAVERSION',
+           INST_LUADIR   = '$PREFIX/share/lua/$LUAVERSION',
+
+           LIB_EXTENSION = 'so',
+           OBJ_EXTENSION = 'o',
+
+           INSTALL       = 'cp',
+           MAKEDIRS      = 'mkdir -p',
+
+           CFLAGS        = '-O2',
+           platforms     = {
+              macosx        = {
+                 LIBFLAG       = '-fPIC -bundle -undefined dynamic_lookup -all_load',
+              },
+              LIBFLAG    = '-shared -fPIC',
+           },
+        }
+
+        CANON = {
+           Darwin = list('macosx', 'bsd', 'unix'),
+           Linux  = list('linux', 'unix'),
+        }
+
+        ALLPLATFORMS = set('bsd', 'linux', 'macosx', 'unix')
+
+        isplatform = function(x)
+           return ALLPLATFORMS[x] ~= nil
+        end
+
+    - it sets the right defines on Darwin:
+        expect(filter_platforms(defines, CANON.Darwin, isplatform)).to_equal {
+           PREFIX        = '/usr/local',
+           INST_LIBDIR   = '$PREFIX/lib/lua/$LUAVERSION',
+           INST_LUADIR   = '$PREFIX/share/lua/$LUAVERSION',
+
+           LIB_EXTENSION = 'so',
+           OBJ_EXTENSION = 'o',
+
+           INSTALL       = 'cp',
+           MAKEDIRS      = 'mkdir -p',
+
+           CFLAGS        = '-O2',
+           LIBFLAG       = '-fPIC -bundle -undefined dynamic_lookup -all_load',
+        }
+
+    - it sets the right defines on Linux:
+        expect(filter_platforms(defines, CANON.Linux, isplatform)).to_equal {
+           PREFIX        = '/usr/local',
+           INST_LIBDIR   = '$PREFIX/lib/lua/$LUAVERSION',
+           INST_LUADIR   = '$PREFIX/share/lua/$LUAVERSION',
+
+           LIB_EXTENSION = 'so',
+           OBJ_EXTENSION = 'o',
+
+           INSTALL       = 'cp',
+           MAKEDIRS      = 'mkdir -p',
+
+           CFLAGS        = '-O2',
+           LIBFLAG       = '-shared -fPIC',
+        }

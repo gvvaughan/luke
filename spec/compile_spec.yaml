@@ -1,0 +1,38 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before:
+  compile = require 'luke.compile'
+
+specify luke.compile:
+- describe incdirs:
+  - before:
+      incdirs = compile.incdirs
+
+  - it prepends -I to argument:
+      expect(incdirs '/usr/local/include').to_equal {'-I/usr/local/include', n=1}
+
+  - it prepends -I to each argument in a list:
+      dirs = {'/usr/local/include', '/opt/yaml/include', '/opt/libgit2/include'}
+      expect(incdirs(dirs)).to_equal {
+         '-I/usr/local/include', '-I/opt/yaml/include', '-I/opt/libgit2/include', n=3,
+      }
+
+  - it returns an empty list for no arguments:
+      expect(incdirs()).to_equal {n=0}
+
+- describe libdirs:
+  - before:
+      libdirs = compile.libdirs
+
+  - it prepends -L to argument:
+      expect(libdirs '/usr/local/lib').to_equal {'-L/usr/local/lib', n=1}
+
+  - it prepends -L to each argument in a list:
+      dirs = {'/usr/local/lib', '/opt/yaml/lib', '/opt/libgit2/lib'}
+      expect(libdirs(dirs)).to_equal {
+         '-L/usr/local/lib', '-L/opt/yaml/lib', '-L/opt/libgit2/lib', n=3,
+      }
+
+  - it returns an empty list for no arguments:
+      expect(libdirs()).to_equal {n=0}
