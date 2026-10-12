@@ -1,10 +1,30 @@
 # Use the source, Luke!
 # Copyright (C) 2014-2026 Gary V. Vaughan
 
-before:
+before: |
   compile = require 'luke.compile'
+  E = require 'luke.environment'
+
+  -- A fresh scratch directory name, which does not exist yet.
+  function tmpdir()
+     local name = os.tmpname()
+     os.remove(name)
+     return name
+  end
+
+  function slurp(filename)
+     local fh = io.open(filename)
+     if fh ~= nil then
+        local s = fh:read '*a'
+        fh:close()
+        return s
+     end
+  end
 
 specify luke.compile:
+- after:
+    restore()
+
 - describe incdirs:
   - before:
       incdirs = compile.incdirs
@@ -36,3 +56,103 @@ specify luke.compile:
 
   - it returns an empty list for no arguments:
       expect(libdirs()).to_equal {n=0}
+
+- describe defines:
+  - before:
+      defines = compile.defines
+
+  - it defines a flag for the value 1:
+      expect(defines {NDEBUG=1}).to_equal(list '-DNDEBUG')
+
+  - it defines a plain value:
+      expect(defines {_XOPEN_SOURCE=700}).to_equal(list '-D_XOPEN_SOURCE=700')
+
+  - it quotes a value containing shell metacharacters: |
+      expect(defines {VERSION='"git"'}).to_equal(list [[-DVERSION='"git"']])
+
+  - it merges several tables of defines, skipping nils:
+      r = defines({A=1}, nil, {B=2})
+      expect(r.n).to_be(2)
+      expect(set(unpack(r, 1, r.n))).to_equal(set('-DA', '-DB=2'))
+
+- describe c_modules:
+  - it lists only modules built from C sources:
+      expect(compile.c_modules {
+         ['posix.unistd'] = {sources={'ext/posix/unistd.c'}},
+         ['posix.version'] = {sources={'lib/posix/version.lua.in'}},
+      }).to_equal {'posix.unistd'}
+
+- describe spawn:
+  - before:
+      env = E.makeenv({}, E.DEFAULTENV, E.SHELLENV)
+
+  - it returns the exit status, error output and output of a command: |
+      expect(list(compile.spawn(env, '(echo out; echo err >&2; exit 3)'))).
+         to_equal(list(3, 'err\n', 'out\n'))
+
+  - it interpolates environment variables into the command:
+      env = E.makeenv({GREETING='hello'}, E.DEFAULTENV, E.SHELLENV)
+      expect(list(compile.spawn(env, 'echo', '$GREETING'))).to_equal(list(0, '', 'hello\n'))
+
+- describe run_command:
+  - before:
+      env = E.makeenv({}, E.DEFAULTENV, E.SHELLENV)
+
+  - it writes the command, and returns its status and output:
+      L = {write = Stub()}
+      expect(list(compile.run_command(L, env, {'echo', 'hello'}))).to_equal(list(0, 'hello\n', ''))
+      expect(L.write).to_contain 'echo hello'
+
+  - it reports the error output of a failing command:
+      output = mock_io()
+      run_command = reload 'luke.compile'.run_command
+      L = {write = Stub()}
+      status = run_command(L, env, {'(echo oops >&2; false)'})
+      expect(status).to_be(1)
+      expect(output.stderr).to_be 'oops\n\n'
+
+  - it writes a failing command even when quiet:
+      output = mock_io()
+      run_command = reload 'luke.compile'.run_command
+      status = run_command({write = require 'luke.functional'.nop}, env, {'false'})
+      expect(status).to_be(1)
+      expect(output.stdout).to_be 'false\n'
+
+- describe install_modules:
+  - before:
+      dest = tmpdir()
+      env = E.makeenv({INST_LUADIR=dest .. '/share', INST_LIBDIR=dest .. '/lib'}, E.DEFAULTENV, E.SHELLENV)
+      luke = {variables = {objdir = dest .. '/obj'}}
+      L = {write = function() end}
+
+  - after:
+      os.execute("rm -rf '" .. dest .. "'")
+
+  - it installs Lua modules beneath INST_LUADIR:
+      expect(compile.install_modules(L, env, luke, {
+         ['type.dict'] = {sources={'lib/type/dict.lua'}},
+         ['luke'] = {sources={'lib/luke/init.lua'}},
+      })).to_be(0)
+      expect(slurp(dest .. '/share/type/dict.lua')).to_be(slurp 'lib/type/dict.lua')
+      expect(slurp(dest .. '/share/luke/init.lua')).to_be(slurp 'lib/luke/init.lua')
+
+  - it installs built C modules beneath INST_LIBDIR:
+      os.execute("mkdir -p '" .. dest .. "/obj' && echo built > '" .. dest .. "/obj/foo.so'")
+      expect(compile.install_modules(L, env, luke, {
+         foo = {sources={'ext/foo.c'}},
+      })).to_be(0)
+      expect(slurp(dest .. '/lib/foo.so')).to_be 'built\n'
+
+  - it returns the first failing status:
+      output = mock_io()
+      install_modules = reload 'luke.compile'.install_modules
+      expect(install_modules(L, env, luke, {
+         ['no.such'] = {sources={'lib/no/such.lua'}},
+      })).not_to_be(0)
+      expect(output.stderr).to_contain 'lib/no/such.lua'
+
+  - it diagnoses unsupported source types:
+      output = mock_io()
+      install_modules = reload 'luke.compile'.install_modules
+      expect(install_modules(L, env, luke, {foo = {sources={'foo.txt'}}})).to_raise 'exit 1'
+      expect(output.stderr).to_contain "unsupported source type 'foo.txt'"

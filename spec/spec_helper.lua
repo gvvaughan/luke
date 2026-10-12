@@ -42,6 +42,41 @@ function restore()
 end
 
 
+-- Until the next call to `restore`, make luke.normalize's `exit` raise
+-- 'exit STATUS', and collect its `print`, `stdout` and `stderr` output
+-- into the returned table.  Reload modules after calling this, so that
+-- they see the replacements.
+function mock_io()
+   local normalize = require 'luke.normalize'
+   local output = {stdout = '', stderr = ''}
+
+   local function writer(stream)
+      return {
+         write = function(self, ...)
+            output[stream] = output[stream] .. table.concat {...}
+            return self
+         end,
+      }
+   end
+
+   replace(normalize, 'exit', function(status)
+      error('exit ' .. tostring(status), 0)
+   end)
+   replace(normalize, 'print', function(...)
+      output.stdout = output.stdout .. table.concat({...}, '\t') .. '\n'
+   end)
+   replace(normalize, 'stdout', writer 'stdout')
+   replace(normalize, 'stderr', writer 'stderr')
+
+   -- Other modules import fatal and diagnose from luke._base, so give
+   -- them versions that see the replacements too.
+   local base, fresh = require 'luke._base', reload 'luke._base'
+   replace(base, 'diagnose', fresh.diagnose)
+   replace(base, 'fatal', fresh.fatal)
+   return output
+end
+
+
 -- A callable that appends its first argument to itself on every call,
 -- and returns the results of passing all its arguments to *fn*, if any.
 function Stub(fn)

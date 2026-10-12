@@ -1,0 +1,38 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before:
+  path = require 'type.path'
+
+specify type.path:
+- describe basename:
+  - before:
+      basename = path.basename
+
+  - it strips leading directories:
+      expect(basename '/usr/local/bin/luke').to_be 'luke'
+      expect(basename 'build-aux/luke').to_be 'luke'
+
+  - it returns a bare filename unchanged:
+      expect(basename 'luke').to_be 'luke'
+
+- describe dirname:
+  - before:
+      dirname = path.dirname
+
+  - it strips the last path element:
+      expect(dirname '/usr/local/bin/luke').to_be '/usr/local/bin'
+      expect(dirname 'build-aux/luke').to_be 'build-aux'
+
+  - it returns a bare filename unchanged:
+      expect(dirname 'luke').to_be 'luke'
+
+- describe exists:
+  - before:
+      exists = path.exists
+
+  - it returns true for an existing file:
+      expect(exists 'build-aux/luke').to_be(true)
+
+  - it returns false for a missing file:
+      expect(exists 'this/file/does/not/exist').to_be(false)
