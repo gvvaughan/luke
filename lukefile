@@ -1,5 +1,5 @@
 package  = 'luke'
-version  = 'git'
+version  = '$USER/$gitref'
 
 modules  = {
    ['luke']                 = 'lib/luke/init.lua',

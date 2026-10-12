@@ -62,6 +62,13 @@ The `VALUE` for all `VARIABLE=VALUE` pairs on the luke command line are
 substituted in the `lukefile` wherever `$VARIABLE` is seen, otherwise
 `$VARIABLE` will be looked up in the process environment.
 
+Luke also sets `$gitref` to the abbreviated hash of the commit checked
+out in the current directory, or to the empty string outside a git
+working tree.
+Setting `version = '$USER/$gitref'` in `lukefile` identifies who built
+an unreleased copy, and from which commit, while a release rockspec
+can still pass `version=X.Y` on the command line.
+
 ### .in files
 
 In any place that a file path is allowed in `lukefile`, if that path

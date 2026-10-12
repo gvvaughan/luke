@@ -9,6 +9,7 @@ local _ENV = require 'luke.normalize' {
    'luke.platforms',
    'luke.functional',
    'luke.version',
+   'type.context-manager',
 }
 
 
@@ -77,6 +78,14 @@ end
 
 local function interpolate_to_substitute(s)
    return (gsub(s, '%$([%w_]+)', '@%1@'))
+end
+
+
+-- The abbreviated hash of the commit checked out in the current
+-- directory, or '' outside a git working tree.
+local function gitref()
+   local out = slurp(Pipe('git rev-parse --short HEAD 2>/dev/null'))
+   return match(out or '', '^(%x+)\n?$') or ''
 end
 
 
@@ -171,7 +180,10 @@ return {
          luke.external_dependencies = nil
       end
 
+      local ref = gitref()
+
       luke.substitute = merge(luke.substitute or {}, {
+         gitref  = ref,
          package = interpolate_to_substitute(luke.package),
          version = interpolate_to_substitute(luke.version),
       })
@@ -184,6 +196,7 @@ return {
             LUA_BINDIR = '$LUA_DIR/bin',
             LUA_INCDIR = '$LUA_DIR/include/lua$LUAVERSION',
             LUA_LIBDIR = '$LUA_DIR/lib',
+            gitref     = ref,
             objdir     = platforms[1],
             package    = luke.package,
             version    = luke.version,

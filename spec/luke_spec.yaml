@@ -33,7 +33,8 @@ before: |
 specify luke:
 - describe command line:
   - it prints its version: |
-      expect(luke '--version').to_succeed_while_matching '^luke %(Luke%) git\n'
+      expect(luke '--version').
+         to_succeed_while_matching '^luke %(Luke%) [^/%s]*/%x%x%x%x%x%x%x+\n'
   - it prints help: |
       expect(luke '--help').to_succeed_while_containing 'Usage: luke'
   - it diagnoses unknown options: |
@@ -83,6 +84,17 @@ specify luke:
   - it prefers command line values: |
       expect(luke('--file=' .. fname, 'version=2.0', '--value=version')).
          to_succeed_with "version='2.0'\n"
+  - it sets gitref to the checked out commit: |
+      expect(luke('--file=' .. fname, '--value=gitref')).
+         to_succeed_while_matching "^gitref='%x%x%x%x%x%x%x+'\n$"
+  - it expands gitref in lukefile values: |
+      spit(fname, [[
+         package = 'example'
+         version = '$gitref'
+         modules = {example = 'example.lua'}
+      ]])
+      expect(luke('--file=' .. fname, '--value=version')).
+         to_succeed_while_matching "^version='%x%x%x%x%x%x%x+'\n$"
 
 - describe install:
   - before: |
@@ -107,6 +119,10 @@ specify luke:
       expect(luke('--file=' .. fname)).
          to_succeed_with('creating ' .. tmpdir .. '/example.lua\n')
       expect(slurp(tmpdir .. '/example.lua')).to_be "return 'example 1.0'\n"
+  - it fills gitref in templates: |
+      spit(tmpdir .. '/example.lua.in', "return '@gitref@'\n")
+      expect(luke('--file=' .. fname)).to_succeed()
+      expect(slurp(tmpdir .. '/example.lua')).to_match "^return '%x%x%x%x%x%x%x+'\n$"
   - it installs every module: |
       expect(luke('--file=' .. fname)).to_succeed()
       expect(luke('--file=' .. fname, 'PREFIX=' .. tmpdir, 'install')).
