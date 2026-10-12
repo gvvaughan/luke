@@ -622,8 +622,8 @@ end
 return{filter_platforms=filter_platforms,platforms=supported,toplatforms=toplatforms,}
 end
 package.preload['luke.version']=function()
-return{VERSION='0.3',versiontext=[[
-luke (Luke) 0.3
+return{VERSION='0.4',versiontext=[[
+luke (Luke) 0.4
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

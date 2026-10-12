@@ -4,7 +4,7 @@
 LUA_PATH = `pwd`'/lib/?.lua;'`pwd`'/lib/?/init.lua'
 LUA_ENV  = LUA_PATH=$(LUA_PATH)';;'
 
-VERSION = 0.3
+VERSION = 0.4
 
 CHMOD = chmod
 LUA  = lua
