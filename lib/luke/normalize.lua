@@ -126,9 +126,12 @@ local function len(x)
 end
 
 
-if setfenv then
+-- Decide by version, not by probing for setfenv, which some sandboxes
+-- (such as Specl's) provide on every Lua version.
+if _VERSION == 'Lua 5.1' then
 
-   local _loadstring = loadstring
+   -- A sandbox may provide a Lua 5.2+ style load instead of loadstring.
+   local _loadstring = loadstring or load
    loadstring = function(s, filename, env)
       local chunk, err = _loadstring(s, filename)
       if chunk ~= nil and env ~= nil then
