@@ -145,3 +145,92 @@ specify luke:
       p = luke('--file=' .. fname, '--quiet', 'PREFIX=' .. tmpdir, 'install')
       expect(p).to_fail_while_containing 'example.lua'
       expect(p).to_contain_output '$INSTALL '
+
+- describe scripts:
+  - before: |
+      tmpdir = os.tmpname()
+      os.remove(tmpdir)
+      assert(os.execute('mkdir ' .. tmpdir))
+      spit(tmpdir .. '/other.lua', "return 'other'\n")
+      spit(tmpdir .. '/shim.in', "#!/bin/sh\necho '@abs_top_srcdir@' '@version@'\n")
+      spit(tmpdir .. '/tool', "#!/bin/sh\necho tool\n")
+      spit(tmpdir .. '/helper.in', "#!/bin/sh\necho @package@\n")
+      fname = spit(tmpdir .. '/lukefile', [[
+         package = 'example'
+         version = '1.0'
+         modules = {other = ']] .. tmpdir .. [[/other.lua'}
+         bin = {shim = ']] .. tmpdir .. [[/shim.in'}
+         install = {
+            bin = {
+               tool = ']] .. tmpdir .. [[/tool',
+               ']] .. tmpdir .. [[/helper.in',
+            },
+         }
+      ]])
+      bindir = tmpdir .. '/bin/'
+
+      function isexecutable(path)
+         local p = io.popen("test -x '" .. path .. "' && echo yes")
+         local s = p:read '*a'
+         p:close()
+         return s == 'yes\n'
+      end
+
+      local p = io.popen 'pwd'
+      cwd = p:read '*l'
+      p:close()
+  - after: |
+      os.execute('rm -rf ' .. tmpdir)
+
+  - it fills in-tree script templates when building: |
+      expect(luke('--file=' .. fname)).to_succeed()
+      expect(slurp(tmpdir .. '/shim')).
+         to_be("#!/bin/sh\necho '" .. cwd .. "' '1.0'\n")
+  - it makes every script executable when building: |
+      expect(luke('--file=' .. fname)).to_succeed()
+      expect(isexecutable(tmpdir .. '/shim')).to_be(true)
+      expect(isexecutable(tmpdir .. '/tool')).to_be(true)
+      expect(isexecutable(tmpdir .. '/helper')).to_be(true)
+  - it builds only the scripts named as targets: |
+      expect(luke('--file=' .. fname, 'shim')).to_succeed()
+      expect(slurp(tmpdir .. '/shim')).not_to_be(nil)
+      expect(slurp(tmpdir .. '/helper')).to_be(nil)
+  - it names array entries after their source: |
+      expect(luke('--file=' .. fname, 'helper')).to_succeed()
+      expect(slurp(tmpdir .. '/helper')).to_be "#!/bin/sh\necho example\n"
+  - it installs only installable scripts: |
+      expect(luke('--file=' .. fname)).to_succeed()
+      expect(luke('--file=' .. fname, 'PREFIX=' .. tmpdir, 'install')).
+         to_succeed_while_containing('cp ' .. tmpdir .. '/tool ' .. bindir .. 'tool')
+      expect(slurp(bindir .. 'tool')).to_be "#!/bin/sh\necho tool\n"
+      expect(isexecutable(bindir .. 'tool')).to_be(true)
+      expect(isexecutable(bindir .. 'helper')).to_be(true)
+      expect(slurp(bindir .. 'shim')).to_be(nil)
+  - it installs only the scripts named as targets: |
+      expect(luke('--file=' .. fname)).to_succeed()
+      expect(luke('--file=' .. fname, 'PREFIX=' .. tmpdir, 'tool', 'install')).
+         to_succeed()
+      expect(slurp(bindir .. 'tool')).not_to_be(nil)
+      expect(slurp(bindir .. 'helper')).to_be(nil)
+      expect(slurp(tmpdir .. '/share/lua/' .. _VERSION:match '%d+%.%d+' .. '/other.lua')).
+         to_be(nil)
+  - it installs scripts beneath INST_BINDIR: |
+      expect(luke('--file=' .. fname, 'PREFIX=' .. tmpdir,
+         'INST_BINDIR=' .. tmpdir .. '/elsewhere', 'all', 'install')).to_succeed()
+      expect(slurp(tmpdir .. '/elsewhere/tool')).not_to_be(nil)
+      expect(slurp(bindir .. 'tool')).to_be(nil)
+  - it diagnoses non-string script entries: |
+      spit(fname, "modules = {x = 'x.lua'}\nbin = {shim = 42}")
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "bad bin entry 'shim': string expected, got number"
+  - it reserves table entries for compiled programs: |
+      spit(fname, "modules = {x = 'x.lua'}\ninstall = {bin = {prog = {sources = {'a.c'}}}}")
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "bad install.bin entry 'prog': compiled programs are not supported yet"
+  - it diagnoses unsupported install tables: |
+      spit(fname, "modules = {x = 'x.lua'}\ninstall = {lua = {}}")
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "unsupported install table 'lua'"

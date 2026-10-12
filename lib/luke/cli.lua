@@ -89,6 +89,13 @@ local function gitref()
 end
 
 
+-- The absolute path of the current directory, where luke finds the
+-- sources named in lukefile.
+local function abs_top_srcdir()
+   return (gsub(slurp(Pipe('pwd')) or '', '\n$', ''))
+end
+
+
 return {
    parse_arguments = function(args)
       local r = {
@@ -155,12 +162,16 @@ return {
          fatal("no modules table in '%s', nothing to build", parsed.fname)
       end
 
+      local bin = luke.bin or {}
+      local installbin = (luke.install or {}).bin or {}
+
       local targets = call(function()
          if isempty(parsed.targets) or contains(parsed.targets, 'all') then
-            return except(flatten(parsed.targets, keys(luke.modules)), 'all')
+            return except(flatten(parsed.targets, keys(luke.modules), keys(bin), keys(installbin)), 'all')
          end
          local r = filter(parsed.targets, function(target)
-            if target ~= 'install' and luke.modules[target] == nil then
+            if target ~= 'install' and luke.modules[target] == nil
+                  and bin[target] == nil and installbin[target] == nil then
                fatal("no rule to make target '%s'", target)
             end
             return true
@@ -169,10 +180,21 @@ return {
          return r
       end)
 
+      -- Each target names every module and script called that, and
+      -- `install` alone installs every module and installable script.
+      local named = except(targets, 'install')
+      local build = pluck(named, luke.modules)
+      local scripts = {
+         build = flatten(values(pluck(named, bin)), values(pluck(named, installbin))),
+         install = {},
+      }
       local install
-      local build = pluck(targets, luke.modules)
       if contains(targets, 'install') then
-         install = build or luke.modules
+         if isempty(named) then
+            install, scripts.install = luke.modules, installbin
+         else
+            install, scripts.install = build or {}, pluck(named, installbin) or {}
+         end
       end
       luke.modules = build
 
@@ -180,26 +202,28 @@ return {
          luke.external_dependencies = nil
       end
 
-      local ref = gitref()
+      local ref, srcdir = gitref(), abs_top_srcdir()
 
       luke.substitute = merge(luke.substitute or {}, {
-         gitref  = ref,
-         package = interpolate_to_substitute(luke.package),
-         version = interpolate_to_substitute(luke.version),
+         abs_top_srcdir = srcdir,
+         gitref         = ref,
+         package        = interpolate_to_substitute(luke.package),
+         version        = interpolate_to_substitute(luke.version),
       })
 
       luke.variables = merge(
          luke.variables or {},
          collect_variables(luke),
          {
-            LUA_DIR    = '/usr',
-            LUA_BINDIR = '$LUA_DIR/bin',
-            LUA_INCDIR = '$LUA_DIR/include/lua$LUAVERSION',
-            LUA_LIBDIR = '$LUA_DIR/lib',
-            gitref     = ref,
-            objdir     = platforms[1],
-            package    = luke.package,
-            version    = luke.version,
+            LUA_DIR        = '/usr',
+            LUA_BINDIR     = '$LUA_DIR/bin',
+            LUA_INCDIR     = '$LUA_DIR/include/lua$LUAVERSION',
+            LUA_LIBDIR     = '$LUA_DIR/lib',
+            abs_top_srcdir = srcdir,
+            gitref         = ref,
+            objdir         = platforms[1],
+            package        = luke.package,
+            version        = luke.version,
          }
       )
 
@@ -209,6 +233,7 @@ return {
          install = install,
          log     = parsed.log,
          luke    = luke,
+         scripts = scripts,
          valreqs = parsed.valreqs,
          verbose = parsed.verbose,
          write   = parsed.write,

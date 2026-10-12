@@ -150,7 +150,34 @@ return {
       end)
    end,
 
+   -- Copy each script, without any '.in' suffix, to its name beneath
+   -- INST_BINDIR.
+   install_scripts = function(L, env, scripts)
+      local names = keys(scripts)
+      if isempty(names) then
+         return 0
+      end
+      local status = 0
+      if not exists(interpolate(env, '$INST_BINDIR')) then
+         status = run(L, env, {'$MAKEDIRS', '$INST_BINDIR'})
+      end
+      return reduce(names, status, function(status, name)
+         local dest = '$INST_BINDIR/' .. name
+         if status == 0 then
+            status = run(L, env, {'$INSTALL', (gsub(scripts[name], '%.in$', '')), dest})
+         end
+         if status == 0 then
+            status = run(L, env, {'$CHMOD', '+x', dest})
+         end
+         return status
+      end)
+   end,
+
    libdirs = libdirs,
+
+   make_executable = function(L, env, path)
+      return run(L, env, {'$CHMOD', '+x', path})
+   end,
 
    run_command = run,
 

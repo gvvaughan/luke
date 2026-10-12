@@ -51,12 +51,14 @@ return {
       LUAVERSION    = LUAVERSION,
 
       PREFIX        = '/usr/local',
+      INST_BINDIR   = '$PREFIX/bin',
       INST_LIBDIR   = '$PREFIX/lib/lua/$LUAVERSION',
       INST_LUADIR   = '$PREFIX/share/lua/$LUAVERSION',
 
       LIB_EXTENSION = 'so',
       OBJ_EXTENSION = 'o',
 
+      CHMOD         = 'chmod',
       INSTALL       = 'cp',
       MAKEDIRS      = 'mkdir -p',
 

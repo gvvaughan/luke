@@ -36,9 +36,12 @@ project's `lukefile`):
 
 ...or arrange for it to be executed by your rockspec or `Makefile`.
 
-`TARGET` can be any module table key in `lukefile`, or one of the
-special keys, `all` to build all modules, or `install` to copy all
-built modules to `$PREFIX`.  If no `TARGET` is given, `all` is implied.
+`TARGET` can be any module or script table key in `lukefile`, or one
+of the special keys, `all` to build all modules and scripts, or
+`install` to copy all built modules and installable scripts to
+`$PREFIX`.  If no `TARGET` is given, `all` is implied.  A `TARGET`
+selects every module and script with that name, and with `install`
+installs only those.
 
 
 ## Documentation
@@ -64,7 +67,8 @@ substituted in the `lukefile` wherever `$VARIABLE` is seen, otherwise
 
 Luke also sets `$gitref` to the abbreviated hash of the commit checked
 out in the current directory, or to the empty string outside a git
-working tree.
+working tree, and `$abs_top_srcdir` to the absolute path of the current
+directory.
 Setting `version = '$USER/$gitref'` in `lukefile` identifies who built
 an unreleased copy, and from which commit, while a release rockspec
 can still pass `version=X.Y` on the command line.
@@ -78,7 +82,32 @@ the associated `VALUE` if defined on the command line or in the caller's
 environment.  This is useful for keeping a version string in sync, for
 example.
 
+### Scripts
+
+Like the rockspec `build.install.bin` table, an `install.bin` table maps
+the name of each script to install to its source:
+
+    install = {
+       bin = {
+          specl = 'bin/specl',
+       },
+    }
+
+Luke fills the template of any `.in` source when building, makes every
+listed script executable, and `luke install` copies each to its name
+beneath `$INST_BINDIR` (by default, `$PREFIX/bin`).  An array entry is
+named for its source, without the `.in` suffix.  Only scripts are
+supported for now: table entries are reserved for compiled programs.
+
 ### Syntax Extensions
+
+- **bin** (table): Like `install.bin`, but for scripts that are only
+  for use in the source tree, and are never installed, such as a
+  wrapper that runs a program with the uninstalled modules:
+
+      bin = {
+         specl = 'specl.in',
+      }
 
 - **defines** (table): A `defines` table at the top-level will add
   `-D<key>=<value>` to every module compilation.  This is in addition to

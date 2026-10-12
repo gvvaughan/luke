@@ -10,6 +10,7 @@ local _ENV = require 'luke.normalize' {
    'luke.platforms',
    'luke.functional',
    'type.context-manager',
+   'type.path',
 }
 
 
@@ -161,6 +162,30 @@ local function normalize_rules(rules)
 end
 
 
+-- Like the rockspec `build.install.bin` table, map each script name to
+-- its source path; an array entry is named for its source, without any
+-- '.in' suffix.  Table-valued entries are reserved for compiled programs.
+local function normalize_scripts(scripts, tablename)
+   if scripts == nil then
+      return nil
+   end
+   if not istable(scripts) then
+      fatal("%s must be a table, not a %s", tablename, type(scripts))
+   end
+   local r = {}
+   for k, source in next, scripts do
+      if istable(source) then
+         fatal("bad %s entry '%s': compiled programs are not supported yet", tablename, str(k))
+      elseif not isstring(source) then
+         fatal("bad %s entry '%s': string expected, got %s", tablename, str(k), type(source))
+      end
+      local name = isstring(k) and k or (gsub(basename(source), '%.in$', ''))
+      r[name] = source
+   end
+   return r
+end
+
+
 local function unwrap_external_dependencies(luke)
    if istable(luke.external_dependencies) then
       for prefix, config in next, luke.external_dependencies do
@@ -200,11 +225,29 @@ return {
       r.external_dependencies = normalize_configs(r.external_dependencies)
       r.ldocs = normalize_rules(r.ldocs)
       r.modules = mapvalues(r.modules, normalize_rules)
+      r.bin = normalize_scripts(r.bin, 'bin')
+      if r.install ~= nil then
+         if not istable(r.install) then
+            fatal("install must be a table, not a %s", type(r.install))
+         end
+         for k in next, r.install do
+            if k ~= 'bin' then
+               fatal("unsupported install table '%s'", str(k))
+            end
+         end
+         r.install.bin = normalize_scripts(r.install.bin, 'install.bin')
+      end
       return r
    end,
 
    collect_variables = function(luke)
       return collect_variables(luke, {})
+   end,
+
+   -- If *source* ends with '.in', copy it to a file without the suffix,
+   -- expanding all '@varname@' templates; return the resulting path.
+   fill_template = function(L, env, source)
+      return rewrite_template_files(L, env, source)
    end,
 
    -- Recursively collect every config table from normalized lukefile

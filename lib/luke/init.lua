@@ -48,6 +48,14 @@ local function build_modules(L, env)
 end
 
 
+local function build_scripts(L, env, sources)
+   local substitute = makeenv(L.clidefs, L.luke.substitute, SHELLENV)
+   return dropuntil(sources, isnonzero, function(source)
+      return make_executable(L, env, fill_template(L, substitute, source))
+   end) or 0
+end
+
+
 return {
    main = function(args)
       local L = validate_arguments(parse_arguments(args))
@@ -66,7 +74,15 @@ return {
       end
 
       if status == 0 then
+         status = build_scripts(L, env, L.scripts.build)
+      end
+
+      if status == 0 then
          status = install_modules(L, env, L.luke, L.install)
+      end
+
+      if status == 0 then
+         status = install_scripts(L, env, L.scripts.install)
       end
 
       return status
