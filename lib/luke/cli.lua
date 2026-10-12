@@ -8,20 +8,12 @@ local _ENV = require 'luke.normalize' {
    'luke.lukefile',
    'luke.platforms',
    'luke.functional',
+   'luke.version',
 }
 
 
 local function version()
-   print [[
-luke (Luke) 0.3
-Written by Gary V. Vaughan <gary@gnu.org>, 2014
-
-Copyright (C) 2026, Gary V. Vaughan
-Luke comes with ABSOLUTELY NO WARRANTY.
-You may redistribute copies of Luke under the terms of the MIT license;
-it may be used for any purpose at absolutely no cost, without permission.
-See <https://mit-license.org> for details.
-]]
+   print(versiontext)
    exit(0)
 end
 

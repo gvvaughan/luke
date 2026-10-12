@@ -1,5 +1,6 @@
 *~
 .DS_Store
 /*.src.rock
+/lib/luke/version.lua
 /luacov.*.out
 /luke-*.tar.gz

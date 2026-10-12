@@ -4,7 +4,11 @@
 LUA_PATH = `pwd`'/lib/?.lua;'`pwd`'/lib/?/init.lua'
 LUA_ENV  = LUA_PATH=$(LUA_PATH)';;'
 
+VERSION = 0.3
+
+CHMOD = chmod
 LUA  = lua
+SED  = sed
 SMUSH = env $(LUA_ENV) $(LUA) build-aux/smush
 
 
@@ -19,6 +23,7 @@ lib_SOURCES =				\
 	lib/luke/lukefile.lua		\
 	lib/luke/normalize.lua		\
 	lib/luke/platforms.lua		\
+	lib/luke/version.lua		\
 	lib/type/context-manager.lua	\
 	lib/type/dict.lua		\
 	lib/type/path.lua		\
@@ -28,7 +33,18 @@ DESTDIR = .
 
 build-aux/luke: $(lib_SOURCES)
 	$(SMUSH) $(lib_SOURCES) > $(DESTDIR)/$@
-	-chmod 755 $(DESTDIR)/$@
+	-$(CHMOD) 755 $(DESTDIR)/$@
+
+lib/luke/version.lua: lib/luke/version.lua.in Makefile
+	@$(SED) -e 's,@VERSION@,$(VERSION),' '$<' > '$@T';		\
+	if cmp -s '$@' '$@T'; then					\
+	    rm -f '$@T';						\
+	else								\
+	    echo "$(SED) -e 's,@VERSION@,$(VERSION),' '$<' > '$@T'";	\
+	    rm -f '$@';							\
+	    mv -f '$@T' '$@';						\
+	    $(CHMOD) 444 '$@';						\
+	fi
 
 
 BUSTED_ENV = LUA_PATH=`pwd`'/?.lua;'$(LUA_PATH)';;'
@@ -44,5 +60,5 @@ noinst_spec_CHECKS =			\
 	spec/platform_spec.lua		\
 	$(NOTHING_ELSE)
 
-check:
+check: lib/luke/version.lua
 	env $(BUSTED_ENV) busted $(BUSTED_OPTS) -o TAP $(noinst_spec_CHECKS)
