@@ -48,15 +48,13 @@ local LUKEFILE = fields({
    },
 
    -- How `luke release` updates NEWS, writes the release rockspec,
-   -- commits generated files, and updates the gh-pages branch.
+   -- commits generated files, and copies release files to the gh-pages
+   -- branch.
    release               = fields {
       add          = list_of(string),
       news         = string,
       rockspec     = string,
-      ['gh-pages'] = fields {
-         config = string,
-         copy   = map_of(string),
-      },
+      ['gh-pages'] = copies,
    },
 }, true)
 

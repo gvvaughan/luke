@@ -301,7 +301,7 @@ return r
 end
 local function isenv(t)return getmetatable(t)==env_mt
 end
-return{CONFIGENV={compile='$CC -c $CFLAGS $CPPFLAGS',libs='',link='$CC $CFLAGS $CPPFLAGS $LDFLAGS',},DEFAULTENV=filter_platforms{LUA='lua',LUAVERSION=LUAVERSION,PREFIX='/usr/local',INST_BINDIR='$PREFIX/bin',INST_LIBDIR='$PREFIX/lib/lua/$LUAVERSION',INST_LUADIR='$PREFIX/share/lua/$LUAVERSION',LIB_EXTENSION='so',OBJ_EXTENSION='o',CHMOD='chmod',INSTALL='cp',MAKEDIRS='mkdir -p',CFLAGS='-O2',platforms={macosx={LIBFLAG='-fPIC -bundle -undefined dynamic_lookup -all_load',},LIBFLAG='-shared -fPIC',},},SHELLENV=setmetatable({},{__index=function(_,v)return getenv(v)end,}),expand=bind(interpolate_with,{'@([^@]+)@'}),interpolate=bind(interpolate_with,{'%$([%w_]+)'}),makeenv=function(...)local env=reduce(except(list(...),nil),function(r,t)if isenv(t)then
+return{CONFIGENV={compile='$CC -c $CFLAGS $CPPFLAGS',libs='',link='$CC $CFLAGS $CPPFLAGS $LDFLAGS',},DEFAULTENV=filter_platforms{LUA='lua',LUAVERSION=LUAVERSION,PREFIX='/usr/local',INST_BINDIR='$PREFIX/bin',INST_LIBDIR='$PREFIX/lib/lua/$LUAVERSION',INST_LUADIR='$PREFIX/share/lua/$LUAVERSION',LIB_EXTENSION='so',OBJ_EXTENSION='o',CHMOD='chmod',INSTALL='cp',MAKEDIRS='mkdir -p',CFLAGS='-O2',platforms={macosx={LIBFLAG='-fPIC -bundle -undefined dynamic_lookup -all_load',},LIBFLAG='-shared -fPIC',},},SHELLENV=setmetatable({},{__index=function(_,v)return getenv(v)end,}),expand=bind(interpolate_with,{'@([%w_]+)@'}),interpolate=bind(interpolate_with,{'%$([%w_]+)'}),makeenv=function(...)local env=reduce(except(list(...),nil),function(r,t)if isenv(t)then
 map(t,bind(append,{r}))else
 append(r,t)end
 end)return setmetatable(env,env_mt)end,}
@@ -503,7 +503,7 @@ return status
 end,}
 end
 package.preload['luke.lukefile']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local string,table=mkcheck'string',mkcheck'table'local LUKEFILE=fields({package=string,version=string,defines=table,external_dependencies=table,incdirs=list_of(string),ldocs=rules,libdirs=list_of(string),libraries=list_of(id),modules=map_of(rules),substitute=table,variables=table,bin=scripts,files=files,install=fields{bin=scripts,},release=fields{add=list_of(string),news=string,rockspec=string,['gh-pages']=fields{config=string,copy=map_of(string),},},},true)local function has_anykey(t,keylist)return any(map(keylist,function(k)return t[k]~=nil
+local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local string,table=mkcheck'string',mkcheck'table'local LUKEFILE=fields({package=string,version=string,defines=table,external_dependencies=table,incdirs=list_of(string),ldocs=rules,libdirs=list_of(string),libraries=list_of(id),modules=map_of(rules),substitute=table,variables=table,bin=scripts,files=files,install=fields{bin=scripts,},release=fields{add=list_of(string),news=string,rockspec=string,['gh-pages']=copies,},},true)local function has_anykey(t,keylist)return any(map(keylist,function(k)return t[k]~=nil
 end))end
 local function isconfig(x)return istable(x)and has_anykey(x,configure)end
 local function collect_configs(luke,modulename,configs,sectionname)configs=configs or{}for k,v in next,luke do
@@ -690,7 +690,7 @@ end
 return{filter_platforms=filter_platforms,platforms=supported,toplatforms=toplatforms,}
 end
 package.preload['luke.release']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.environment','luke.functional','type.context-manager',date=os.date,}local PLACEHOLDER='\n(## [^\n]*%?%.%?[^\n]*\n)'local MODREV="^(local _MODREV, _SPECREV = ')[^']*(')"local DEVROCKSPEC='^(.-%-)dev(%-%d+%.rockspec)$'local function git(env,...)local status,err,out=spawn(env,'git',...)if status==0 then
+local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.environment','luke.functional','type.context-manager','type.path',date=os.date,}local PLACEHOLDER='\n(## [^\n]*%?%.%?[^\n]*\n)'local MODREV="^(local _MODREV, _SPECREV = ')[^']*(')"local DEVROCKSPEC='^(.-%-)dev(%-%d+%.rockspec)$'local function git(env,...)local status,err,out=spawn(env,'git',...)if status==0 then
 return(gsub(out,'\n$',''))end
 end
 local function has_placeholder(text)local header,body=match('\n'..text,'\n(## [^\n]*\n)(.*)')if header==nil or match('\n'..header,PLACEHOLDER)==nil then
@@ -714,9 +714,11 @@ return 0
 end
 local function rockspec_name(rockspec,version)return(gsub(rockspec,DEVROCKSPEC,'%1'..version..'%2'))end
 local function set_modrev(text,version)return(gsub(text,MODREV,'%1'..version..'%2',1))end
-local function set_release_no(text,version)return sub(gsub('\n'..text,'\nrelease%-no:[^\n]*','\nrelease-no: '..version,1),2)end
-local function copy_steps(L,env,worktree,copy)return map(sorted(keys(copy)),function(dir)local dest=worktree..'/'..dir
-return bind(run,{L,env,'rm -rf',dest,'&& $MAKEDIRS',dest,'&& cp -R',copy[dir]..'/.',dest})end)end
+local function copy_command(source,dest,optional)local copy=format('rm -rf %s && $MAKEDIRS %s && cp -R %s %s',dest,dirname(dest),source,dest)return choose(optional,format('if test -e %s; then %s; fi',source,copy),copy)end
+local function publish_steps(L,env,substitute,worktree,copies)return map(sorted(keys(copies)),function(path)local source,optional=copies[path].source,copies[path].optional
+local dest=worktree..'/'..path
+local template=match(source,'%.in$')~=nil
+return except(list(choose(optional or not template,function()return bind(run,{L,env,copy_command(source,dest,optional)})end),choose(template,function()return bind(edit,{L,choose(optional,dest,source),bind(expand,{substitute}),(gsub(dest,'%.in$',''))})end)),nil)end)end
 local function preconditions(env,release,version)local branch,tag='release-v'..version,'v'..version
 local checks={{'the working tree is clean',function()return git(env,'status --porcelain')==''end},{'master is checked out',function()return git(env,'symbolic-ref --short HEAD')=='master'end},{'master is up to date with origin',function()return git(env,'fetch --quiet origin')~=nil
 and git(env,'rev-parse HEAD')==git(env,'rev-parse origin/master')end},{format('branch %s is unused',branch),function()return git(env,'rev-parse --verify --quiet refs/heads/'..branch)==nil
@@ -725,10 +727,9 @@ end},}if release.news~=nil then
 local news=slurp(File(release.news))append(checks,{format('%s has news under a placeholder header',release.news),function()return news~=nil and has_placeholder(news)end})append(checks,{format('%s has no %s release yet',release.news,version),function()return news~=nil and find(news,'release '..version..' (',1,true)==nil
 end})end
 local ghpages=release['gh-pages']if ghpages~=nil then
-append(checks,{'gh-pages is up to date with origin',function()local ref=git(env,'rev-parse refs/heads/gh-pages')return ref~=nil and ref==git(env,'rev-parse origin/gh-pages')end})if ghpages.config~=nil then
-append(checks,{format('gh-pages %s sets release-no',ghpages.config),function()return match('\n'..(git(env,'show gh-pages:'..ghpages.config)or''),'\nrelease%-no:')~=nil
-end})end
-end
+append(checks,{'gh-pages is up to date with origin',function()local ref=git(env,'rev-parse refs/heads/gh-pages')return ref~=nil and ref==git(env,'rev-parse origin/gh-pages')end})map(filter(sorted(keys(ghpages)),function(path)return ghpages[path].optional and match(path,'%.in$')~=nil
+end),function(template)append(checks,{format('gh-pages or the release has %s',template),function()return exists(template)or git(env,'cat-file -e gh-pages:'..template)~=nil
+end})end)end
 if release.rockspec~=nil then
 local rockspec=slurp(File(release.rockspec))append(checks,{format('%s is a development rockspec',release.rockspec),function()return match(release.rockspec,DEVROCKSPEC)~=nil
 end})append(checks,{format('%s sets _MODREV on its first line',release.rockspec),function()return rockspec~=nil and match(rockspec,MODREV)~=nil
@@ -747,7 +748,7 @@ local rules=L.luke.release or{}local news,rockspec=rules.news,rules.rockspec
 local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.add,generated(L.luke),released)local ghpages=rules['gh-pages']local worktree=tmpname()rm(worktree)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=date'%Y-%m-%d'})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),function()if L.dryrun then
 L.write(format('building with version=%s',version),'\n')return 0
 end
-return build()end,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and bind(run,{L,env,'git add -f',unpack(added)})or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(run,{L,env,'git tag','v'..version}),ghpages and{bind(run,{L,env,'git worktree add --quiet',worktree,'gh-pages'}),copy_steps(L,env,worktree,ghpages.copy or{}),ghpages.config and bind(edit,{L,worktree..'/'..ghpages.config,bind(set_release_no,{[2]=version})})or nil,bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m 'gh-pages: update to $package %s.'",version)}),bind(run,{L,env,'git worktree remove',worktree}),},bind(run,{L,env,'git checkout --quiet master'}))local status=dropuntil(steps,isnonzero,call)or 0
+return build()end,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and bind(run,{L,env,'git add -f',unpack(added)})or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(run,{L,env,'git tag','v'..version}),ghpages and{bind(run,{L,env,'git worktree add --quiet',worktree,'gh-pages'}),publish_steps(L,env,makeenv({version=version},L.clidefs,L.luke.substitute,SHELLENV),worktree,ghpages),bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m 'gh-pages: update to $package %s.'",version)}),bind(run,{L,env,'git worktree remove',worktree}),},bind(run,{L,env,'git checkout --quiet master'}))local status=dropuntil(steps,isnonzero,call)or 0
 if status==0 then
 local pushed=flatten('master','release-v'..version,'v'..version,ghpages and'gh-pages')L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',version,concat(pushed,' ')))if released~=nil then
 L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout master\n',version,released))end
@@ -810,11 +811,12 @@ end,['table']=function()local name=choose(isstring(k),k,bind(bad,{path,'programs
 return function(x,path)return mkcheck'table'(x,path)and reduce(keys(x),{},function(r,k)local name,rules=entry(k,x[k],index(path,k))r[name]=rules
 end)end
 end
-local scripts=mkscripts(function(source)return(gsub(basename(source),'%.in$',''))end)local files=mkscripts(function(source)return(gsub(source,'%.in$',''))end)return{fields=fields,files=files,list_of=list_of,map_of=map_of,mkcheck=mkcheck,rules=rules,scripts=scripts,}
+local scripts=mkscripts(function(source)return(gsub(basename(source),'%.in$',''))end)local files=mkscripts(function(source)return(gsub(source,'%.in$',''))end)local function copies(x,path)return mkcheck'table'(x,path)and reduce(keys(x),{},function(r,k)local source=mkcheck'string'(x[k],index(path,k))r[choose(isstring(k),k,source)]={optional=not isstring(k),source=source}end)end
+return{copies=copies,fields=fields,files=files,list_of=list_of,map_of=map_of,mkcheck=mkcheck,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/f215503',versiontext=[[
-luke (Luke) gvv/f215503
+return{VERSION='gvv/dbe7f3a',versiontext=[[
+luke (Luke) gvv/dbe7f3a
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

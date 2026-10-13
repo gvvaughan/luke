@@ -5,6 +5,19 @@ before:
   platforms = require 'luke.platforms'
 
 specify luke.environment:
+- describe expand:
+  - before:
+      environment = require 'luke.environment'
+      env = environment.makeenv {version = '1.0'}
+
+  - it fills each template name: |
+      expect(environment.expand(env, 'v@version@ (@version@)')).to_be 'v1.0 (1.0)'
+  - it leaves text around a lone '@' alone: |
+      expect(environment.expand(env, 'gary@example.com\nversion: @version@\n')).
+         to_be 'gary@example.com\nversion: 1.0\n'
+      expect(environment.expand(env, 'mail gary@example.com for @version@')).
+         to_be 'mail gary@example.com for 1.0'
+
 - describe filter_platforms:
   - before:
       filter_platforms = platforms.filter_platforms

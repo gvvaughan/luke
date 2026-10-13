@@ -9,6 +9,7 @@ local _ENV = require 'luke.normalize' {
    'luke.environment',
    'luke.functional',
    'type.context-manager',
+   'type.path',
 
    date = os.date,
 }
@@ -102,18 +103,34 @@ local function set_modrev(text, version)
 end
 
 
--- Jekyll _config.yml *text*, set to publish *version*.
-local function set_release_no(text, version)
-   return sub(gsub('\n' .. text, '\nrelease%-no:[^\n]*', '\nrelease-no: ' .. version, 1), 2)
+-- The command to replace *dest* with a copy of the file or directory
+-- *source*, or when *optional*, only if there is a *source*.
+local function copy_command(source, dest, optional)
+   local copy = format('rm -rf %s && $MAKEDIRS %s && cp -R %s %s', dest, dirname(dest), source, dest)
+   return choose(optional, format('if test -e %s; then %s; fi', source, copy), copy)
 end
 
 
--- The steps for copying each directory built for the lukefile
--- `gh-pages.copy` table into the gh-pages *worktree*.
-local function copy_steps(L, env, worktree, copy)
-   return map(sorted(keys(copy)), function(dir)
-      local dest = worktree .. '/' .. dir
-      return bind(run, {L, env, 'rm -rf', dest, '&& $MAKEDIRS', dest, '&& cp -R', copy[dir] .. '/.', dest})
+-- The steps for publishing each of *copies*, from the lukefile
+-- `gh-pages` table, to the gh-pages *worktree*: copy its source there,
+-- then fill a template into place without its '.in' suffix, with values
+-- from *substitute*.  A template under another name is filled straight
+-- from the release, and an optional one from the copy on gh-pages,
+-- whether or not the release has one to copy.
+local function publish_steps(L, env, substitute, worktree, copies)
+   return map(sorted(keys(copies)), function(path)
+      local source, optional = copies[path].source, copies[path].optional
+      local dest = worktree .. '/' .. path
+      local template = match(source, '%.in$') ~= nil
+      return except(list(
+         choose(optional or not template, function()
+            return bind(run, {L, env, copy_command(source, dest, optional)})
+         end),
+         choose(template, function()
+            return bind(edit, {L, choose(optional, dest, source), bind(expand, {substitute}),
+               (gsub(dest, '%.in$', ''))})
+         end)
+      ), nil)
    end)
 end
 
@@ -157,11 +174,16 @@ local function preconditions(env, release, version)
          local ref = git(env, 'rev-parse refs/heads/gh-pages')
          return ref ~= nil and ref == git(env, 'rev-parse origin/gh-pages')
       end})
-      if ghpages.config ~= nil then
-         append(checks, {format('gh-pages %s sets release-no', ghpages.config), function()
-            return match('\n' .. (git(env, 'show gh-pages:' .. ghpages.config) or ''), '\nrelease%-no:') ~= nil
+      -- TODO: the source of a copy under another name is not checked,
+      -- as the build may make it, so a missing one fails only after the
+      -- release is tagged.
+      map(filter(sorted(keys(ghpages)), function(path)
+         return ghpages[path].optional and match(path, '%.in$') ~= nil
+      end), function(template)
+         append(checks, {format('gh-pages or the release has %s', template), function()
+            return exists(template) or git(env, 'cat-file -e gh-pages:' .. template) ~= nil
          end})
-      end
+      end)
    end
 
    if release.rockspec ~= nil then
@@ -244,8 +266,8 @@ return {
          -- until `git worktree prune` after removing it by hand.
          ghpages and {
             bind(run, {L, env, 'git worktree add --quiet', worktree, 'gh-pages'}),
-            copy_steps(L, env, worktree, ghpages.copy or {}),
-            ghpages.config and bind(edit, {L, worktree .. '/' .. ghpages.config, bind(set_release_no, {[2]=version})}) or nil,
+            publish_steps(L, env, makeenv({version = version}, L.clidefs, L.luke.substitute, SHELLENV),
+               worktree, ghpages),
             bind(run, {L, env, 'git -C', worktree, "add -A && git -C", worktree,
                format("commit -m 'gh-pages: update to $package %s.'", version)}),
             bind(run, {L, env, 'git worktree remove', worktree}),

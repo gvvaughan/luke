@@ -100,11 +100,11 @@ specify luke:
          package = 'example'
          version = '1.0'
          modules = {example = 'example.lua'}
-         release = {['gh-pages'] = {copy = {api = 42}}}
+         release = {['gh-pages'] = {api = 42}}
       ]])
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
-      expect(p).to_contain_error "bad release['gh-pages'].copy.api: string expected, got number"
+      expect(p).to_contain_error "bad release['gh-pages'].api: string expected, got number"
   - it diagnoses malformed modules at their path: |
       spit(fname, "modules = {['a.b'] = 42}")
       p = luke('--file=' .. fname)

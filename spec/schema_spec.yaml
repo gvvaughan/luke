@@ -86,6 +86,20 @@ specify luke.schema:
       expect(schema.rules(42, 'p')).
          to_raise 'bad p: string or table expected, got number'
 
+- describe copies:
+  - it maps each destination to its source: |
+      schema = setup()
+      expect(schema.copies({['index.md'] = 'doc/demo.md'}, 'p')).
+         to_equal {['index.md'] = {optional = false, source = 'doc/demo.md'}}
+  - it copies an array entry to the same path, when there is one: |
+      schema = setup()
+      expect(schema.copies({'_config.yml.in'}, 'p')).
+         to_equal {['_config.yml.in'] = {optional = true, source = '_config.yml.in'}}
+  - it diagnoses other sources at their path: |
+      schema = setup()
+      expect(schema.copies({api = 42}, 'p')).
+         to_raise 'bad p.api: string expected, got number'
+
 - describe files:
   - it names array entries after the path of their source: |
       schema = setup()

@@ -191,7 +191,21 @@ local files = mkscripts(function(source)
 end)
 
 
+-- Copies of release files: map each destination path to its source in
+-- the release, where an array entry names a path that is the same in
+-- both, and is optional, being copied only when the release has it.
+-- TODO: an array entry and a key for the same path collide, and either
+-- may win.
+local function copies(x, path)
+   return mkcheck 'table'(x, path) and reduce(keys(x), {}, function(r, k)
+      local source = mkcheck 'string'(x[k], index(path, k))
+      r[choose(isstring(k), k, source)] = {optional = not isstring(k), source = source}
+   end)
+end
+
+
 return {
+   copies  = copies,
    fields  = fields,
    files   = files,
    list_of = list_of,

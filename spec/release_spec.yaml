@@ -27,21 +27,23 @@ before: |
      }
   end
 
-  -- The results of passing() with a gh-pages branch whose _config.yml
-  -- has *config*, and which runs every gh-pages command successfully.
-  function ghpassing(config)
-     local r = passing()
+  -- The results in *r*, with a gh-pages branch that has a _config.yml.in
+  -- *template*, and which runs every gh-pages command for GHPAGES
+  -- successfully.
+  function with_ghpages(r, template)
      r['git rev-parse refs/heads/gh-pages'] = list(0, '', 'fed789\n')
      r['git rev-parse origin/gh-pages'] = list(0, '', 'fed789\n')
-     r['git show gh-pages:_config.yml'] = list(0, '', config)
+     r['git cat-file -e gh-pages:_config.yml.in'] = list(0, '', '')
      r['git worktree add --quiet WORKTREE gh-pages'] = function(worktree)
         os.execute("mkdir '" .. worktree .. "'")
-        local h = assert(io.open(worktree .. '/_config.yml', 'w'))
-        h:write(config)
+        local h = assert(io.open(worktree .. '/_config.yml.in', 'w'))
+        h:write(template)
         h:close()
         return 0, '', ''
      end
-     r['rm -rf WORKTREE/api && $MAKEDIRS WORKTREE/api && cp -R doc/. WORKTREE/api'] = list(0, '', '')
+     r['if test -e _config.yml.in; then rm -rf WORKTREE/_config.yml.in && $MAKEDIRS WORKTREE && cp -R _config.yml.in WORKTREE/_config.yml.in; fi'] = list(0, '', '')
+     r['rm -rf WORKTREE/api && $MAKEDIRS WORKTREE && cp -R doc/api/ WORKTREE/api'] = list(0, '', '')
+     r['rm -rf WORKTREE/index.md && $MAKEDIRS WORKTREE && cp -R doc/demo.md WORKTREE/index.md'] = list(0, '', '')
      r["git -C WORKTREE add -A && git -C WORKTREE commit -m 'gh-pages: update to $package 1.0.'"] = list(0, '', '')
      r['git worktree remove WORKTREE'] = function(worktree)
         os.execute("rm -rf '" .. worktree .. "'")
@@ -130,6 +132,15 @@ before: |
 
   PLACEHOLDER = '# NEWS\n\n## Noteworthy changes in release ?.? (????-??-??) [?]\n\n'
 
+  -- A lukefile `gh-pages` table, normalized as `loadluke` would.
+  function ghpages(copies)
+     return require 'luke.schema'.copies(copies, "release['gh-pages']")
+  end
+
+  -- A lukefile `gh-pages` table with a copied directory, a renamed file,
+  -- and a template tracked on gh-pages.
+  GHPAGES = ghpages {api = 'doc/api/', ['index.md'] = 'doc/demo.md', '_config.yml.in'}
+
 specify luke.release:
 - after:
     restore()
@@ -211,19 +222,22 @@ specify luke.release:
 
   - context with gh-pages:
     - it diagnoses gh-pages behind or ahead of origin: |
-        spawned = ghpassing 'release-no: 0.9\n'
+        spawned = with_ghpages(passing(), 'release-no: @version@\n')
         spawned['git rev-parse origin/gh-pages'] = list(0, '', 'abc123\n')
         release = setup(spawned)
         expect(release(mkL {['gh-pages'] = {}}, env, build)).to_be(1)
     - it diagnoses a missing gh-pages branch: |
-        spawned = ghpassing 'release-no: 0.9\n'
+        spawned = with_ghpages(passing(), 'release-no: @version@\n')
         spawned['git rev-parse refs/heads/gh-pages'] = list(128, '', '')
         spawned['git rev-parse origin/gh-pages'] = list(128, '', '')
         release = setup(spawned)
         expect(release(mkL {['gh-pages'] = {}}, env, build)).to_be(1)
-    - it diagnoses a gh-pages config without release-no: |
-        release = setup(ghpassing 'name: Demo\n')
-        expect(release(mkL {['gh-pages'] = {config = '_config.yml'}}, env, build)).to_be(1)
+    - it diagnoses a template in neither gh-pages nor the release: |
+        spawned = with_ghpages(passing(), 'release-no: @version@\n')
+        spawned['git cat-file -e gh-pages:_config.yml.in'] = list(128, 'fatal: not a valid object', '')
+        release, fatal = setup(spawned)
+        expect(release(mkL {['gh-pages'] = GHPAGES}, env, build)).to_be(1)
+        expect(fatal[1]).to_be 'cannot release %s: check failed: %s'
 
   - context with a rockspec:
     - after: |
@@ -333,10 +347,10 @@ specify luke.release:
 
   - context with gh-pages:
     - before: |
-        rules = {['gh-pages'] = {config = '_config.yml', copy = {api = 'doc'}}}
+        rules = {['gh-pages'] = GHPAGES}
 
-    - it updates gh-pages in a worktree: |
-        spawned = ghpassing 'name: Demo\nrelease-no: 0.9\n'
+    - it copies each file and directory, then fills templates in place: |
+        spawned = with_ghpages(passing(), 'name: Demo\nrelease-no: @version@\n')
         spawned["git -C WORKTREE add -A && git -C WORKTREE commit -m 'gh-pages: update to $package 1.0.'"] = function(worktree)
            published = slurp(worktree .. '/_config.yml')
            return 0, '', ''
@@ -346,14 +360,34 @@ specify luke.release:
         expect(release(L, env, build)).to_be(0)
         expect(published).to_be 'name: Demo\nrelease-no: 1.0\n'
         expect(L.write[4]).to_match '^git worktree add %-%-quiet %S+ gh%-pages$'
-        expect(L.write[5]).to_match '^rm %-rf %S+/api && mkdir %-p %S+/api && cp %-R doc/%. %S+/api$'
+        expect(L.write[5]).to_match '^if test %-e _config%.yml%.in; then rm %-rf %S+/_config%.yml%.in && mkdir %-p %S+ && cp %-R _config%.yml%.in %S+/_config%.yml%.in; fi$'
+        expect(L.write[6]).to_match '^creating %S+/_config%.yml$'
+        expect(L.write[7]).to_match '^rm %-rf %S+/api && mkdir %-p %S+ && cp %-R doc/api/ %S+/api$'
+        expect(L.write[8]).to_match '^rm %-rf %S+/index%.md && mkdir %-p %S+ && cp %-R doc/demo%.md %S+/index%.md$'
+    - it fills a renamed template from the release, without copying it: |
+        template = os.tmpname() .. '.in'
+        h = assert(io.open(template, 'w'))
+        h:write 'version: @version@\n'
+        h:close()
+        spawned = with_ghpages(passing(), '')
+        spawned["git -C WORKTREE add -A && git -C WORKTREE commit -m 'gh-pages: update to $package 1.0.'"] = function(worktree)
+           published = slurp(worktree .. '/_config.yml')
+           return 0, '', ''
+        end
+        release = setup(spawned)
+        L = mkL {['gh-pages'] = ghpages {['_config.yml'] = template}}
+        expect(release(L, env, build)).to_be(0)
+        os.remove(template)
+        expect(published).to_be 'version: 1.0\n'
+        expect(L.write[5]).to_match '^creating %S+/_config%.yml$'
+        expect(L.write[6]).to_match '^git %-C '
     - it pushes gh-pages too: |
-        release = setup(ghpassing 'release-no: 0.9\n')
+        release = setup(with_ghpages(passing(), 'release-no: @version@\n'))
         L = mkL(rules)
         expect(release(L, env, build)).to_be(0)
         expect(L.write[#L.write]).to_contain 'git push origin master release-v1.0 v1.0 gh-pages\n'
     - it creates no worktree with --dry-run: |
-        spawned = ghpassing 'release-no: 0.9\n'
+        spawned = with_ghpages(passing(), 'release-no: @version@\n')
         spawned['git worktree add --quiet WORKTREE gh-pages'] = nil
         release = setup(spawned)
         L = mkL(rules)

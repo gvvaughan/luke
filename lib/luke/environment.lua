@@ -78,7 +78,10 @@ return {
       end,
    }),
 
-   expand = bind(interpolate_with, {'@([^@]+)@'}),
+   -- Like `interpolate`, only names made of word characters count, so
+   -- that a lone '@', as in an email address, leaves the text after it
+   -- alone.
+   expand = bind(interpolate_with, {'@([%w_]+)@'}),
    interpolate = bind(interpolate_with, {'%$([%w_]+)'}),
 
    -- TODO: rename to `mkenv`, like the other builders (`mkpredicate`,
