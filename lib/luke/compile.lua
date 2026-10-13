@@ -9,8 +9,6 @@ local _ENV = require 'luke.normalize' {
    'luke.functional',
    'type.context-manager',
    'type.path',
-
-   SHELLMETACHARS = '[%s%$"]',
 }
 
 
@@ -42,10 +40,9 @@ local function defines(...)
    return zip_with(merge({}, unpack(except(list(...), nil))), function(name, value)
       local fmt = cond(
          {[int(value) == 1] = '-D%s'},
-         {[match(value, SHELLMETACHARS) ~= nil] = "-D%s='%s'"},
          {[true] = '-D%s=%s'}
       )
-      return format(fmt, name, value)
+      return format(fmt, name, shellword(value))
    end)
 end
 
@@ -186,16 +183,16 @@ return {
       if rules.command ~= nil then
          local names = sorted(keys(rules.env))
          -- Export env for the whole command, and let `$NAME` in the
-         -- command itself expand to the same value.
-         -- TODO: values are interpolated inside single quotes, so one
-         -- containing a single quote breaks the command.
+         -- command itself expand to the same value.  Each value is
+         -- expanded before it is quoted, so that a quote in a variable
+         -- it uses is quoted too.
+         env = makeenv({sources = concat(sources, ' '), target = target}, rules.env, env)
          local exports = {}
          if not isempty(names) then
             exports = flatten('export', map(names, function(name)
-               return format("%s='%s'", name, rules.env[name])
+               return format('%s=%s', name, shellword(interpolate(env, rules.env[name])))
             end), ';')
          end
-         env = makeenv({sources = concat(sources, ' '), target = target}, rules.env, env)
          return run(L, env, flatten(exports, rules.command))
       end
 

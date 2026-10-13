@@ -7,6 +7,7 @@ local _ENV = require 'luke.normalize' {
    'luke.platforms',
    'luke.functional',
    LUAVERSION = string.gsub(_VERSION, '[^0-9%.]+', ''),
+   SHELLMETACHARS = '[%s%$"\'&;|<>()*?`\\]',
 }
 
 
@@ -83,6 +84,16 @@ return {
    -- alone.
    expand = bind(interpolate_with, {'@([%w_]+)@'}),
    interpolate = bind(interpolate_with, {'%$([%w_]+)'}),
+
+   -- *s* as a single shell word: as it is, or else in single quotes,
+   -- with each of its own single quotes written as '\''.  Quote a word
+   -- after interpolating it, or a quote in a variable it uses is left
+   -- bare.
+   shellword = function(s)
+      return choose(match(s, SHELLMETACHARS) ~= nil, function()
+         return "'" .. gsub(s, "'", [['\'']]) .. "'"
+      end, s)
+   end,
 
    -- TODO: rename to `mkenv`, like the other builders (`mkpredicate`,
    -- `mkcheck`).

@@ -381,6 +381,12 @@ specify luke.release:
         expect(published).to_be 'version: 1.0\n'
         expect(L.write[5]).to_match '^creating %S+/_config%.yml$'
         expect(L.write[6]).to_match '^git %-C '
+    - it quotes paths with shell metacharacters: |
+        spawned = with_ghpages(passing(), '')
+        spawned["rm -rf 'WORKTREE/my docs' && $MAKEDIRS WORKTREE && cp -R 'doc/my docs/' 'WORKTREE/my docs'"] = list(0, '', '')
+        release = setup(spawned)
+        L = mkL {['gh-pages'] = ghpages {['my docs'] = 'doc/my docs/'}}
+        expect(release(L, env, build)).to_be(0)
     - it pushes gh-pages too: |
         release = setup(with_ghpages(passing(), 'release-no: @version@\n'))
         L = mkL(rules)

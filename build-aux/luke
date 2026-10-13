@@ -86,14 +86,14 @@ end
 local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merge(luke.substitute or{},{abs_top_srcdir=srcdir,gitref=ref,package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),})luke.variables=merge(luke.variables or{},collect_variables(luke),{LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUAVERSION',LUA_LIBDIR='$LUA_DIR/lib',abs_top_srcdir=srcdir,gitref=ref,objdir=platforms[1],package=luke.package,version=luke.version,})return{clidefs=parsed.clidefs,debug=parsed.debug,dryrun=parsed.dryrun,install=install,log=parsed.log,luke=luke,release=release,scripts=scripts,valreqs=parsed.valreqs,verbose=parsed.verbose,write=parsed.write,}end,}
 end
 package.preload['luke.compile']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.environment','luke.functional','type.context-manager','type.path',SHELLMETACHARS='[%s%$"]',}local function spawn(env,...)local command=interpolate(env,concat({...},' '))return with(TmpFile(),TmpFile(),function(out,err)local pipe=concat{'{ ',command,'\n} >',out.filename,' 2>',err.filename,'; printf $?'}return tonumber(slurp(Pipe(pipe))),slurp(File(err.filename)),slurp(File(out.filename))end)end
+local _ENV=require'luke.normalize'{'luke._base','luke.environment','luke.functional','type.context-manager','type.path',}local function spawn(env,...)local command=interpolate(env,concat({...},' '))return with(TmpFile(),TmpFile(),function(out,err)local pipe=concat{'{ ',command,'\n} >',out.filename,' 2>',err.filename,'; printf $?'}return tonumber(slurp(Pipe(pipe))),slurp(File(err.filename)),slurp(File(out.filename))end)end
 local function run(L,env,command)L.write(interpolate(env,concat(command,' ')),'\n')local status,err,out=spawn(env,unpack(command))if status~=0 then
 if L.write==nop then
 stdout:write(concat(command,' ')..'\n')end
 stderr:write(err..'\n')end
 return status,out,err
 end
-local function defines(...)return zip_with(merge({},unpack(except(list(...),nil))),function(name,value)local fmt=cond({[int(value)==1]='-D%s'},{[match(value,SHELLMETACHARS)~=nil]="-D%s='%s'"},{[true]='-D%s=%s'})return format(fmt,name,value)end)end
+local function defines(...)return zip_with(merge({},unpack(except(list(...),nil))),function(name,value)local fmt=cond({[int(value)==1]='-D%s'},{[true]='-D%s=%s'})return format(fmt,name,shellword(value))end)end
 local function incdirs(...)return map(flatten(...),function(v)return'-I'..v
 end)end
 local function libdirs(...)return map(flatten(...),function(v)return'-L'..v
@@ -125,9 +125,9 @@ stdout:write(concat(command,' ')..'\n')stderr:write(err..'\n')return status
 end
 end
 if rules.command~=nil then
-local names=sorted(keys(rules.env))local exports={}if not isempty(names)then
-exports=flatten('export',map(names,function(name)return format("%s='%s'",name,rules.env[name])end),';')end
-env=makeenv({sources=concat(sources,' '),target=target},rules.env,env)return run(L,env,flatten(exports,rules.command))end
+local names=sorted(keys(rules.env))env=makeenv({sources=concat(sources,' '),target=target},rules.env,env)local exports={}if not isempty(names)then
+exports=flatten('export',map(names,function(name)return format('%s=%s',name,shellword(interpolate(env,rules.env[name])))end),';')end
+return run(L,env,flatten(exports,rules.command))end
 if c_sources(sources)==nil then
 fatal("no command to build '%s' from %s",target,concat(sources,' '))end
 return run(L,env,flatten('$CC $CFLAGS $CPPFLAGS',defines(rules.defines,luke.defines),incdirs(rules.incdirs,luke.incdirs),sources,'-o',target,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries))end,c_program=function(rules)return istable(rules)and rules.command==nil and c_sources(rules.sources)~=nil
@@ -290,7 +290,7 @@ return env
 end,configure=configure,}
 end
 package.preload['luke.environment']=function()
-local _ENV=require'luke.normalize'{'luke.platforms','luke.functional',LUAVERSION=string.gsub(_VERSION,'[^0-9%.]+',''),}local env_mt={__index=function(self,varname)return dropuntil(self,function(env)local value=env[varname]if value~=nil then
+local _ENV=require'luke.normalize'{'luke.platforms','luke.functional',LUAVERSION=string.gsub(_VERSION,'[^0-9%.]+',''),SHELLMETACHARS='[%s%$"\'&;|<>()*?`\\]',}local env_mt={__index=function(self,varname)return dropuntil(self,function(env)local value=env[varname]if value~=nil then
 self[varname]=value
 return value
 end
@@ -301,7 +301,7 @@ return r
 end
 local function isenv(t)return getmetatable(t)==env_mt
 end
-return{CONFIGENV={compile='$CC -c $CFLAGS $CPPFLAGS',libs='',link='$CC $CFLAGS $CPPFLAGS $LDFLAGS',},DEFAULTENV=filter_platforms{LUA='lua',LUAVERSION=LUAVERSION,PREFIX='/usr/local',INST_BINDIR='$PREFIX/bin',INST_LIBDIR='$PREFIX/lib/lua/$LUAVERSION',INST_LUADIR='$PREFIX/share/lua/$LUAVERSION',LIB_EXTENSION='so',OBJ_EXTENSION='o',CHMOD='chmod',INSTALL='cp',MAKEDIRS='mkdir -p',CFLAGS='-O2',platforms={macosx={LIBFLAG='-fPIC -bundle -undefined dynamic_lookup -all_load',},LIBFLAG='-shared -fPIC',},},SHELLENV=setmetatable({},{__index=function(_,v)return getenv(v)end,}),expand=bind(interpolate_with,{'@([%w_]+)@'}),interpolate=bind(interpolate_with,{'%$([%w_]+)'}),makeenv=function(...)local env=reduce(except(list(...),nil),function(r,t)if isenv(t)then
+return{CONFIGENV={compile='$CC -c $CFLAGS $CPPFLAGS',libs='',link='$CC $CFLAGS $CPPFLAGS $LDFLAGS',},DEFAULTENV=filter_platforms{LUA='lua',LUAVERSION=LUAVERSION,PREFIX='/usr/local',INST_BINDIR='$PREFIX/bin',INST_LIBDIR='$PREFIX/lib/lua/$LUAVERSION',INST_LUADIR='$PREFIX/share/lua/$LUAVERSION',LIB_EXTENSION='so',OBJ_EXTENSION='o',CHMOD='chmod',INSTALL='cp',MAKEDIRS='mkdir -p',CFLAGS='-O2',platforms={macosx={LIBFLAG='-fPIC -bundle -undefined dynamic_lookup -all_load',},LIBFLAG='-shared -fPIC',},},SHELLENV=setmetatable({},{__index=function(_,v)return getenv(v)end,}),expand=bind(interpolate_with,{'@([%w_]+)@'}),interpolate=bind(interpolate_with,{'%$([%w_]+)'}),shellword=function(s)return choose(match(s,SHELLMETACHARS)~=nil,function()return"'"..gsub(s,"'",[['\'']]).."'"end,s)end,makeenv=function(...)local env=reduce(except(list(...),nil),function(r,t)if isenv(t)then
 map(t,bind(append,{r}))else
 append(r,t)end
 end)return setmetatable(env,env_mt)end,}
@@ -714,7 +714,7 @@ return 0
 end
 local function rockspec_name(rockspec,version)return(gsub(rockspec,DEVROCKSPEC,'%1'..version..'%2'))end
 local function set_modrev(text,version)return(gsub(text,MODREV,'%1'..version..'%2',1))end
-local function copy_command(source,dest,optional)local copy=format('rm -rf %s && $MAKEDIRS %s && cp -R %s %s',dest,dirname(dest),source,dest)return choose(optional,format('if test -e %s; then %s; fi',source,copy),copy)end
+local function copy_command(source,dest,optional)local from,to=shellword(source),shellword(dest)local copy=format('rm -rf %s && $MAKEDIRS %s && cp -R %s %s',to,shellword(dirname(dest)),from,to)return choose(optional,format('if test -e %s; then %s; fi',from,copy),copy)end
 local function publish_steps(L,env,substitute,worktree,copies)return map(sorted(keys(copies)),function(path)local source,optional=copies[path].source,copies[path].optional
 local dest=worktree..'/'..path
 local template=match(source,'%.in$')~=nil
@@ -815,8 +815,8 @@ local scripts=mkscripts(function(source)return(gsub(basename(source),'%.in$','')
 return{copies=copies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/742c278',versiontext=[[
-luke (Luke) gvv/742c278
+return{VERSION='gvv/31d88ba',versiontext=[[
+luke (Luke) gvv/31d88ba
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

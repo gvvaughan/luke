@@ -106,8 +106,9 @@ end
 -- The command to replace *dest* with a copy of the file or directory
 -- *source*, or when *optional*, only if there is a *source*.
 local function copy_command(source, dest, optional)
-   local copy = format('rm -rf %s && $MAKEDIRS %s && cp -R %s %s', dest, dirname(dest), source, dest)
-   return choose(optional, format('if test -e %s; then %s; fi', source, copy), copy)
+   local from, to = shellword(source), shellword(dest)
+   local copy = format('rm -rf %s && $MAKEDIRS %s && cp -R %s %s', to, shellword(dirname(dest)), from, to)
+   return choose(optional, format('if test -e %s; then %s; fi', from, copy), copy)
 end
 
 

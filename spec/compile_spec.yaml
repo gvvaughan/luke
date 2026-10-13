@@ -67,6 +67,9 @@ specify luke.compile:
   - it quotes a value containing shell metacharacters: |
       expect(defines {VERSION='"git"'}).to_equal(list [[-DVERSION='"git"']])
 
+  - it quotes a value containing a single quote: |
+      expect(defines {GREETING="it's"}).to_equal(list [[-DGREETING='it'\''s']])
+
   - it merges several tables of defines, skipping nils:
       r = defines({A=1}, nil, {B=2})
       expect(r.n).to_be(2)

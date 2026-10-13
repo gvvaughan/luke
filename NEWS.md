@@ -49,3 +49,7 @@
 
   - A lukefile without `package` or `version` is diagnosed, rather
     than crashing Luke.
+
+  - A program `env` value, a define, or a `gh-pages` path containing a
+    single quote, or other characters special to the shell, is quoted
+    correctly in the commands Luke runs.

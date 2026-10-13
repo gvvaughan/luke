@@ -18,6 +18,19 @@ specify luke.environment:
       expect(environment.expand(env, 'mail gary@example.com for @version@')).
          to_be 'mail gary@example.com for 1.0'
 
+- describe shellword:
+  - before:
+      shellword = require 'luke.environment'.shellword
+
+  - it leaves a plain word alone:
+      expect(shellword 'lib/luke/init.lua').to_be 'lib/luke/init.lua'
+  - it quotes a word with shell metacharacters: |
+      expect(shellword 'a b').to_be "'a b'"
+      expect(shellword '"git"').to_be [['"git"']]
+      expect(shellword 'a;b').to_be "'a;b'"
+  - it quotes each single quote in a word: |
+      expect(shellword "it's").to_be [['it'\''s']]
+
 - describe filter_platforms:
   - before:
       filter_platforms = platforms.filter_platforms

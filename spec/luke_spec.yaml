@@ -372,6 +372,21 @@ specify luke:
       expect(slurp(tmpdir .. '/b.txt')).to_be 'example\n'
       expect(slurp(tmpdir .. '/out/gen')).to_be 'a\nexample\nhi example\n'
       expect(isexecutable(tmpdir .. '/out/gen')).to_be(true)
+  - it quotes program env values containing a single quote: |
+      spit(fname, [[
+         package = "it's"
+         version = '1.0'
+         modules = {other = ']] .. tmpdir .. [[/other.lua'}
+         bin = {
+            [']] .. tmpdir .. [[/gen'] = {
+               command = 'printenv GREETING > $target',
+               env = {GREETING = "hi '$package'"},
+               sources = {']] .. tmpdir .. [[/a.txt'},
+            },
+         }
+      ]])
+      expect(luke('--file=' .. fname, tmpdir .. '/gen')).to_succeed()
+      expect(slurp(tmpdir .. '/gen')).to_be "hi 'it's'\n"
   - it runs a program command without env as is: |
       spit(fname, [[
          package = 'example'
