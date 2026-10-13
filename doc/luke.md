@@ -539,8 +539,9 @@ prints the commands it would run and the files it would write.
 
 Luke checks, before changing anything, that:
 
- * the working tree is clean, and `master` is checked out and up to
-   date with `origin/master`, which Luke fetches;
+ * the working tree is clean, and a branch is checked out, such as
+   `master`, `main` or a maintenance branch, and is up to date with
+   origin, which Luke fetches;
  * there is no `release-vX.Y` branch or `vX.Y` tag yet;
  * the first `##` header in `news` is a placeholder for the next
    release, with `?.?` in place of its version, and has news under it;
@@ -552,9 +553,10 @@ Luke checks, before changing anything, that:
     local _MODREV, _SPECREV = 'dev', '-1'
 {% endhighlight %}
 
- * the `gh-pages` branch is up to date with `origin/gh-pages`, and each
-   template that `gh-pages` copies from the same path is in the release
-   or on `gh-pages` (see [GitHub Pages](#83-github-pages)).
+ * each branch that the release copies files to, such as `gh-pages`, is
+   up to date with origin, and each template copied there from the same
+   path is in the release or on that branch (see [Publishing to
+   Branches](#83-publishing-to-branches)).
 
 `--verbose` shows each check as Luke makes it.
 
@@ -562,8 +564,9 @@ Luke checks, before changing anything, that:
 
 Then Luke:
 
-1. adds a header for X.Y, with today's date, between the placeholder in
-   `news` and the news under it, and commits that to `master`:
+1. adds a header for X.Y, with today's date, between the placeholder
+   in `news` and the news under it, and commits that to the branch
+   checked out:
 
         ## Noteworthy changes in release ?.? (????-??-??) [?]
 
@@ -579,22 +582,24 @@ Then Luke:
    file](#34-generated-files) and the release rockspec, even if git
    ignores them, so that the release builds without the tools that made
    them, and tags the commit `vX.Y`;
-6. copies files to the `gh-pages` branch, and commits them;
-7. checks out `master` again, and prints the commands to publish the
-   release:
+6. copies files to each branch that the release table names, such as
+   `gh-pages`, and commits them;
+7. checks out that branch again, and prints the commands to publish the
+   release, which for `master` are:
 
         git push origin master release-v1.2 v1.2 gh-pages
         git checkout release-v1.2
         luarocks upload luke-1.2-1.rockspec
         git checkout master
 
-### 8.3. GitHub Pages
+### 8.3. Publishing to Branches
 
-Each key in `gh-pages` is a path on the `gh-pages` branch, and its
-value the file or directory in the release that replaces it.  An array
-entry names a path that is the same in both, and is copied only if the
-release has it.  [Specl] publishes its manual and API documentation
-like this:
+Any other key in the `release` table names a branch to copy release
+files to, such as `gh-pages` for GitHub Pages.  Each key in its table
+is a path on that branch, and its value the file or directory in the
+release that replaces it.  An array entry names a path that is the
+same in both, and is copied only if the release has it.  [Specl]
+publishes its manual and API documentation like this:
 
 {% highlight lua %}
     ['gh-pages'] = {
@@ -606,8 +611,8 @@ like this:
 
 A path ending in `.in` is a [template](#43-templates), which Luke fills
 into the same path without the `.in`, with `@version@` set to X.Y.  A
-template copied from the same path is filled from the copy on
-`gh-pages` when the release has none, so a template such as
+template copied from the same path is filled from the copy on the
+branch when the release has none, so a template such as
 `_config.yml.in` can live on `gh-pages` alone:
 
 {% highlight yaml %}
@@ -640,11 +645,11 @@ other tools.
 | `ldocs`                 | an LDoc configuration file                                   | [3.6](#36-ldocs) |
 | `variables`             | variable names, each mapped to a value                       | [4.1](#41-variables) |
 | `substitute`            | template names, each mapped to a value                       | [4.3](#43-templates) |
-| `release`               | a table with `news`, `rockspec`, `add` and `gh-pages`        | [8](#8-releases) |
+| `release`               | a table with `news`, `rockspec`, `add` and branches          | [8](#8-releases) |
 | `release.news`          | the NEWS file                                                | [8.1](#81-checks), [8.2](#82-steps) |
 | `release.rockspec`      | the development rockspec                                     | [8.1](#81-checks), [8.2](#82-steps) |
 | `release.add`           | a list of paths to commit to the release                     | [8.2](#82-steps) |
-| `release['gh-pages']`   | `gh-pages` paths, each mapped to a path in the release, or a list of paths | [8.3](#83-github-pages) |
+| `release[branch]`       | paths on the branch, each mapped to a path in the release, or a list of paths | [8.3](#83-publishing-to-branches) |
 
 
 ## 10. Bugs and Contributions

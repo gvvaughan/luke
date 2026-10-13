@@ -18,11 +18,12 @@
     executable nor installed, such as a man page made with `help2man`.
 
   - `luke release version=X.Y[.Z]` cuts a release, as configured by the
-    lukefile `release` table: it adds the release to `NEWS.md` on
-    master, then on a new `release-vX.Y` branch, it builds everything,
-    writes the release rockspec, commits generated files, tags the
-    release, and copies files to the `gh-pages` branch, filling any
-    templates there.  `--dry-run` prints what it would do.
+    lukefile `release` table: it adds the release to `NEWS.md` on the
+    branch checked out, then on a new `release-vX.Y` branch, it builds
+    everything, writes the release rockspec, commits generated files,
+    tags the release, and copies files to each branch that the table
+    names, such as `gh-pages`, filling any templates there.  `--dry-run`
+    prints what it would do.
 
   - `$gitref` is the abbreviated hash of the commit checked out, and
     `$abs_top_srcdir` the absolute path of the source tree, so that
@@ -50,13 +51,14 @@
   - A lukefile without `package` or `version` is diagnosed, rather
     than crashing Luke.
 
-  - A program `env` value, a define, or a `gh-pages` path containing a
+  - A program `env` value, a define, or a release copy path containing a
     single quote, or other characters special to the shell, is quoted
     correctly in the commands Luke runs.
 
-  - Two entries in `bin`, `install.bin`, `files` or `gh-pages` for the
-    same name, such as an array entry named for its source and a key
-    with that name, are diagnosed, rather than one being dropped.
+  - Two entries in `bin`, `install.bin`, `files` or a release branch
+    table for the same name, such as an array entry named for its
+    source and a key with that name, are diagnosed, rather than one
+    being dropped.
 
-  - When a `luke release` step fails while updating `gh-pages`, Luke
-    removes the temporary worktree it was updating.
+  - When a `luke release` step fails while updating a branch such as
+    `gh-pages`, Luke removes the temporary worktree it was updating.

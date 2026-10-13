@@ -27,14 +27,25 @@ before: |
      }
   end
 
-  -- The results in *r*, with a gh-pages branch that has a _config.yml.in
-  -- *template*, and which runs every gh-pages command for GHPAGES
-  -- successfully.
-  function with_ghpages(r, template)
-     r['git rev-parse refs/heads/gh-pages'] = list(0, '', 'fed789\n')
-     r['git rev-parse origin/gh-pages'] = list(0, '', 'fed789\n')
-     r['git cat-file -e gh-pages:_config.yml.in'] = list(0, '', '')
-     r['git worktree add --quiet WORKTREE gh-pages'] = function(worktree)
+  -- The results in *r*, with *branch* checked out, rather than master.
+  function on_branch(r, branch)
+     r['git symbolic-ref --short HEAD'] = list(0, '', branch .. '\n')
+     r['git rev-parse origin/master'] = nil
+     r['git rev-parse origin/' .. branch] = list(0, '', 'abc123\n')
+     r['git checkout --quiet master'] = nil
+     r['git checkout --quiet ' .. branch] = list(0, '', '')
+     return r
+  end
+
+  -- The results in *r*, with a *branch* (gh-pages, unless given) that
+  -- has a _config.yml.in *template*, and which runs every command for
+  -- copying GHPAGES there successfully.
+  function with_ghpages(r, template, branch)
+     branch = branch or 'gh-pages'
+     r['git rev-parse refs/heads/' .. branch] = list(0, '', 'fed789\n')
+     r['git rev-parse origin/' .. branch] = list(0, '', 'fed789\n')
+     r['git cat-file -e ' .. branch .. ':_config.yml.in'] = list(0, '', '')
+     r['git worktree add --quiet WORKTREE ' .. branch] = function(worktree)
         os.execute("mkdir '" .. worktree .. "'")
         local h = assert(io.open(worktree .. '/_config.yml.in', 'w'))
         h:write(template)
@@ -44,7 +55,7 @@ before: |
      r['if test -e _config.yml.in; then rm -rf WORKTREE/_config.yml.in && $MAKEDIRS WORKTREE && cp -R _config.yml.in WORKTREE/_config.yml.in; fi'] = list(0, '', '')
      r['rm -rf WORKTREE/api && $MAKEDIRS WORKTREE && cp -R doc/api/ WORKTREE/api'] = list(0, '', '')
      r['rm -rf WORKTREE/index.md && $MAKEDIRS WORKTREE && cp -R doc/demo.md WORKTREE/index.md'] = list(0, '', '')
-     r["git -C WORKTREE add -A && git -C WORKTREE commit -m 'gh-pages: update to $package 1.0.'"] = list(0, '', '')
+     r["git -C WORKTREE add -A && git -C WORKTREE commit -m '" .. branch .. ": update to $package 1.0.'"] = list(0, '', '')
      r['git worktree remove WORKTREE'] = function(worktree)
         os.execute("rm -rf '" .. worktree .. "'")
         return 0, '', ''
@@ -66,7 +77,7 @@ before: |
      local worktree
      replace(require 'luke.compile', 'spawn', function(env, ...)
         local command = table.concat({...}, ' ')
-        worktree = worktree or command:match '^git worktree add %-%-quiet (%S+) gh%-pages$'
+        worktree = worktree or command:match '^git worktree add %-%-quiet (%S+) %S+$'
         if worktree ~= nil then
            command = command:gsub(worktree:gsub('%p', '%%%0'), 'WORKTREE')
         end
@@ -166,14 +177,15 @@ specify luke.release:
   - it stops at the first failing check: |
       spawned = passing()
       spawned['git status --porcelain'] = list(0, '', ' M lukefile\n')
-      spawned['git symbolic-ref --short HEAD'] = nil
+      spawned['git fetch --quiet origin'] = nil
       release, fatal = setup(spawned)
       expect(release(mkL(), env, build)).to_be(1)
-  - it diagnoses another branch checked out: |
+  - it diagnoses a detached HEAD: |
       spawned = passing()
-      spawned['git symbolic-ref --short HEAD'] = list(0, '', 'topic\n')
+      spawned['git symbolic-ref --short HEAD'] = list(128, 'fatal: ref HEAD is not a symbolic ref', '')
       release, fatal = setup(spawned)
       expect(release(mkL(), env, build)).to_be(1)
+      expect(fatal[1]).to_be 'cannot release %s: check failed: %s'
   - it diagnoses a failed fetch: |
       spawned = passing()
       spawned['git fetch --quiet origin'] = list(128, 'no origin', '')
@@ -182,6 +194,18 @@ specify luke.release:
   - it diagnoses master behind or ahead of origin: |
       spawned = passing()
       spawned['git rev-parse origin/master'] = list(0, '', 'def456\n')
+      release, fatal = setup(spawned)
+      expect(release(mkL(), env, build)).to_be(1)
+  - it releases from the branch checked out: |
+      release, fatal = setup(on_branch(passing(), 'main'))
+      L = mkL()
+      expect(release(L, env, build)).to_be(0)
+      expect(#fatal).to_be(0)
+      expect(L.write[#L.write - 1]).to_be 'git checkout --quiet main'
+      expect(L.write[#L.write]).to_contain 'git push origin main release-v1.0 v1.0\n'
+  - it diagnoses the branch checked out behind or ahead of origin: |
+      spawned = on_branch(passing(), 'release-0.9')
+      spawned['git rev-parse origin/release-0.9'] = list(0, '', 'def456\n')
       release, fatal = setup(spawned)
       expect(release(mkL(), env, build)).to_be(1)
   - it diagnoses an existing release branch: |
@@ -418,6 +442,18 @@ specify luke.release:
         L = mkL(rules)
         expect(release(L, env, build)).to_be(1)
         expect(L.write[#L.write]).to_match '^git worktree remove %-%-force %S+$'
+    - it copies to the branch that the release table key names: |
+        spawned = with_ghpages(passing(), 'release-no: @version@\n', 'docs')
+        spawned["git -C WORKTREE add -A && git -C WORKTREE commit -m 'docs: update to $package 1.0.'"] = function(worktree)
+           published = slurp(worktree .. '/_config.yml')
+           return 0, '', ''
+        end
+        release = setup(spawned)
+        L = mkL {docs = GHPAGES}
+        expect(release(L, env, build)).to_be(0)
+        expect(published).to_be 'release-no: 1.0\n'
+        expect(L.write[4]).to_match '^git worktree add %-%-quiet %S+ docs$'
+        expect(L.write[#L.write]).to_contain 'git push origin master release-v1.0 v1.0 docs\n'
     - it pushes gh-pages too: |
         release = setup(with_ghpages(passing(), 'release-no: @version@\n'))
         L = mkL(rules)

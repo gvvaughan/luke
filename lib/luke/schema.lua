@@ -92,26 +92,18 @@ end
 
 
 -- A table with only the keys in *schema*, each with a value that passes
--- the normalizer for that key; or with *open*, also any other keys,
--- which are returned as they are.  The normalizer is a callable table
--- that keeps *schema*, for `keypaths`.
-local function fields(schema, open)
+-- the normalizer for that key; or with *others*, also any other keys,
+-- with values that pass *others*, or that are returned as they are when
+-- *others* is `true`.  The normalizer is a callable table that keeps
+-- *schema*, for `keypaths`.
+local function fields(schema, others)
+   -- Each leg is wrapped, as `choose` would call a normalizer.
+   local rest = choose(others == true, function() return id end, function() return others end)
    return setmetatable({schema = schema}, {__call = function(_, x, path)
-      mkcheck 'table'(x, path)
-      if x ~= nil then
-         local r = {}
-         for k, v in next, x do
-            local normalize = schema[k]
-            if normalize ~= nil then
-               r[k] = normalize(v, index(path, k))
-            elseif open then
-               r[k] = v
-            else
-               bad(path, "unsupported key '%s'", str(k))
-            end
-         end
-         return r
-      end
+      return mkcheck 'table'(x, path) and reduce(keys(x), {}, function(r, k)
+         local normalize = schema[k] or rest or bind(bad, {path, "unsupported key '%s'", str(k)})
+         r[k] = normalize(x[k], index(path, k))
+      end)
    end})
 end
 

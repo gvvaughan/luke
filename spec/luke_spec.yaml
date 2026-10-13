@@ -135,7 +135,15 @@ specify luke:
          description = {summary = 'An example'}
       ]])
       expect(luke('--file=' .. fname, '--value=version')).to_succeed()
-  - it diagnoses unsupported release keys: |
+  - it accepts release copies to any branch: |
+      spit(fname, [[
+         package = 'example'
+         version = '1.0'
+         modules = {example = 'example.lua'}
+         release = {docs = {['index.md'] = 'doc/example.md'}}
+      ]])
+      expect(luke('--file=' .. fname, '--value=version')).to_succeed()
+  - it diagnoses malformed release copies at their branch: |
       spit(fname, [[
          package = 'example'
          version = '1.0'
@@ -144,7 +152,7 @@ specify luke:
       ]])
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
-      expect(p).to_contain_error "bad release: unsupported key 'changelog'"
+      expect(p).to_contain_error 'bad release.changelog: table expected, got string'
   - it has a row in the manual's lukefile reference for every key: |
       reference = slurp 'doc/luke.md':match '\n## %d+%. Lukefile Reference\n(.-)\n## '
       expect(reference).not_to_be(nil)

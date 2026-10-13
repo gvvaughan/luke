@@ -24,6 +24,15 @@ local _ENV = require 'luke.normalize' {
 
 local string, table = mkcheck 'string', mkcheck 'table'
 
+-- How `luke release` updates NEWS, writes the release rockspec, and
+-- commits generated files; any other key names a branch, such as
+-- `gh-pages`, mapped to the release files to copy there.
+local RELEASE = fields({
+   add      = list_of(string),
+   news     = string,
+   rockspec = string,
+}, copies)
+
 -- TODO: lukefile keys luke does not understand are let through, as a
 -- rockspec-style lukefile may have fields for other tools; diagnose
 -- misspellings of the keys below.
@@ -47,15 +56,7 @@ local LUKEFILE = fields({
       bin = scripts,
    },
 
-   -- How `luke release` updates NEWS, writes the release rockspec,
-   -- commits generated files, and copies release files to the gh-pages
-   -- branch.
-   release               = fields {
-      add          = list_of(string),
-      news         = string,
-      rockspec     = string,
-      ['gh-pages'] = copies,
-   },
+   release               = RELEASE,
 }, true)
 
 
@@ -223,6 +224,14 @@ return {
 
    collect_variables = function(luke)
       return collect_variables(luke, {})
+   end,
+
+   -- The branches that the lukefile *release* table copies files to,
+   -- in sorted order.
+   branches = function(release)
+      return filter(sorted(keys(release or {})), function(k)
+         return RELEASE.schema[k] == nil
+      end)
    end,
 
    -- The path of every lukefile key luke understands, such as
