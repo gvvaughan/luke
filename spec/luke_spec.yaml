@@ -74,6 +74,15 @@ specify luke:
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error("no modules table in '" .. fname .. "'")
+  - it diagnoses a missing package or version: |
+      spit(fname, "version = '1.0'\nmodules = {example = 'example.lua'}")
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error("no package in '" .. fname .. "'")
+      spit(fname, "package = 'example'\nmodules = {example = 'example.lua'}")
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error("no version in '" .. fname .. "'")
   - it diagnoses unknown targets: |
       p = luke('--file=' .. fname, 'nosuchtarget')
       expect(p).to_exit(1)

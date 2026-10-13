@@ -46,3 +46,6 @@
 
   - The hint to try `--help` after a bad option names the program
     correctly on Lua 5.1.
+
+  - A lukefile without `package` or `version` is diagnosed, rather
+    than crashing Luke.

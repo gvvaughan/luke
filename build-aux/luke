@@ -62,7 +62,7 @@ opterr("unrecognized option '%s'",opt)end
 append(r.targets,opt)end,})end)return r
 end,validate_arguments=function(parsed)local luke,err=loadluke(parsed.fname)diagnose(luke~=nil,'bad %s: %s',parsed.fname,err)if isempty(luke.modules or{})then
 fatal("no modules table in '%s', nothing to build",parsed.fname)end
-local release
+map({'package','version'},function(key)diagnose(luke[key]~=nil,"no %s in '%s'",key,parsed.fname)end)local release
 if contains(parsed.targets,'release')then
 if len(parsed.targets)>1 then
 fatal('release cannot be combined with other targets')end
@@ -815,8 +815,8 @@ local scripts=mkscripts(function(source)return(gsub(basename(source),'%.in$','')
 return{copies=copies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/3e888e0',versiontext=[[
-luke (Luke) gvv/3e888e0
+return{VERSION='gvv/742c278',versiontext=[[
+luke (Luke) gvv/742c278
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

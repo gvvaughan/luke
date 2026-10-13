@@ -168,6 +168,9 @@ return {
       if isempty(luke.modules or {}) then
          fatal("no modules table in '%s', nothing to build", parsed.fname)
       end
+      map({'package', 'version'}, function(key)
+         diagnose(luke[key] ~= nil, "no %s in '%s'", key, parsed.fname)
+      end)
 
       -- `release` builds everything, for the version given on the command
       -- line.
@@ -235,9 +238,6 @@ return {
       end
 
       local ref, srcdir = gitref(), abs_top_srcdir()
-
-      -- TODO: diagnose a lukefile without `package` or `version`, rather
-      -- than crashing in interpolate_to_substitute.
 
       luke.substitute = merge(luke.substitute or {}, {
          abs_top_srcdir = srcdir,

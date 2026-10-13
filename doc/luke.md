@@ -104,7 +104,8 @@ rockspec.  A minimal one for a pure Lua project is:
 
 `package` and `version` name the project, and are available to
 templates as `@package@` and `@version@` (see
-[Templates](#43-templates)).  A `modules` table is required.
+[Templates](#43-templates)).  `package`, `version` and a `modules`
+table are required.
 
 ### 3.1. Modules
 
