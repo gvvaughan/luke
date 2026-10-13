@@ -762,6 +762,8 @@ local function index(path,k)if isstring(k)and match(k,'^[%a_][%w_]*$')then
 return path==''and k or path..'.'..k
 end
 return format(isstring(k)and"%s['%s']"or'%s[%s]',path,str(k))end
+local function claim(r,name,value,path)choose(r[name]~=nil,bind(bad,{path,"more than one entry for '%s'",name}))r[name]=value
+end
 local function mkcheck(kind)return function(x,path)if x~=nil and type(x)~=kind then
 bad(path,'%s expected, got %s',kind,type(x))end
 return x
@@ -808,15 +810,18 @@ r.sources=list_of(mkcheck'string')(r.sources,index(path,'sources'))mkcheck'strin
 end
 local function mkscripts(mkname)local function entry(k,source,path)return case(type(source),{['string']=function()return choose(isstring(k),k,bind(mkname,{source})),source
 end,['table']=function()local name=choose(isstring(k),k,bind(bad,{path,'programs need a name'}))return name,program(source,path)end,function(kind)bad(path,'string or table expected, got %s',kind)end,})end
-return function(x,path)return mkcheck'table'(x,path)and reduce(keys(x),{},function(r,k)local name,rules=entry(k,x[k],index(path,k))r[name]=rules
-end)end
+return function(x,path)return mkcheck'table'(x,path)and reduce(keys(x),{},function(r,k)local name,rules=entry(k,x[k],index(path,k))claim(r,name,rules,path)end)end
 end
-local scripts=mkscripts(function(source)return(gsub(basename(source),'%.in$',''))end)local files=mkscripts(function(source)return(gsub(source,'%.in$',''))end)local function copies(x,path)return mkcheck'table'(x,path)and reduce(keys(x),{},function(r,k)local source=mkcheck'string'(x[k],index(path,k))r[choose(isstring(k),k,source)]={optional=not isstring(k),source=source}end)end
+local function filled(path)return(gsub(path,'%.in$',''))end
+local scripts=mkscripts(function(source)return filled(basename(source))end)local files=mkscripts(filled)local function fills_too(r,dest)return match(dest,'%.in$')~=nil and match(r[dest].source,'%.in$')~=nil
+end
+local function copies(x,path)local r=mkcheck'table'(x,path)and reduce(keys(x),{},function(r,k)local source=mkcheck'string'(x[k],index(path,k))claim(r,choose(isstring(k),k,source),{optional=not isstring(k),source=source},path)end)reduce(filter(keys(r or{}),bind(fills_too,{r})),copy(r),function(written,dest)claim(written,filled(dest),true,path)end)return r
+end
 return{copies=copies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/31d88ba',versiontext=[[
-luke (Luke) gvv/31d88ba
+return{VERSION='gvv/8c391d8',versiontext=[[
+luke (Luke) gvv/8c391d8
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

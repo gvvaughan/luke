@@ -33,6 +33,15 @@ local function index(path, k)
 end
 
 
+-- Set *name* in *r* to *value*, diagnosing another entry of the table
+-- at *path* that already set it, such as an array entry named for its
+-- source as well as a key with the same name.
+local function claim(r, name, value, path)
+   choose(r[name] ~= nil, bind(bad, {path, "more than one entry for '%s'", name}))
+   r[name] = value
+end
+
+
 -- A value of type *kind*.
 local function mkcheck(kind)
    return function(x, path)
@@ -184,36 +193,51 @@ local function mkscripts(mkname)
    return function(x, path)
       return mkcheck 'table'(x, path) and reduce(keys(x), {}, function(r, k)
          local name, rules = entry(k, x[k], index(path, k))
-         r[name] = rules
+         claim(r, name, rules, path)
       end)
    end
+end
+
+
+-- *path* without any '.in' suffix, where a template there is filled.
+local function filled(path)
+   return (gsub(path, '%.in$', ''))
 end
 
 
 -- Scripts, with array entries named for their source, without the
 -- directory or any '.in' suffix.
 local scripts = mkscripts(function(source)
-   return (gsub(basename(source), '%.in$', ''))
+   return filled(basename(source))
 end)
 
 
 -- Generated files, with array entries named for the path of their
 -- source, without any '.in' suffix.
-local files = mkscripts(function(source)
-   return (gsub(source, '%.in$', ''))
-end)
+local files = mkscripts(filled)
+
+
+-- Whether the copy to *dest* in *r* is a template copied under its own
+-- name, which is then filled into *dest* without the '.in' as well.
+local function fills_too(r, dest)
+   return match(dest, '%.in$') ~= nil and match(r[dest].source, '%.in$') ~= nil
+end
 
 
 -- Copies of release files: map each destination path to its source in
 -- the release, where an array entry names a path that is the same in
 -- both, and is optional, being copied only when the release has it.
--- TODO: an array entry and a key for the same path collide, and either
--- may win.
 local function copies(x, path)
-   return mkcheck 'table'(x, path) and reduce(keys(x), {}, function(r, k)
+   local r = mkcheck 'table'(x, path) and reduce(keys(x), {}, function(r, k)
       local source = mkcheck 'string'(x[k], index(path, k))
-      r[choose(isstring(k), k, source)] = {optional = not isstring(k), source = source}
+      claim(r, choose(isstring(k), k, source), {optional = not isstring(k), source = source}, path)
    end)
+   -- Every path written, starting with each destination, then the path
+   -- each template copied under its own name is filled into.
+   reduce(filter(keys(r or {}), bind(fills_too, {r})), copy(r), function(written, dest)
+      claim(written, filled(dest), true, path)
+   end)
+   return r
 end
 
 

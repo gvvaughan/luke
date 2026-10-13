@@ -108,6 +108,18 @@ specify luke.schema:
       schema = setup()
       expect(schema.copies({api = 42}, 'p')).
          to_raise 'bad p.api: string expected, got number'
+  - it diagnoses an array entry and a key for the same path: |
+      schema = setup()
+      expect(schema.copies({['index.md'] = 'doc/demo.md', 'index.md'}, 'p')).
+         to_raise "bad p: more than one entry for 'index.md'"
+  - it diagnoses a template filled into a path that is also copied: |
+      schema = setup()
+      expect(schema.copies({['_config.yml'] = 'doc/config.yml', '_config.yml.in'}, 'p')).
+         to_raise "bad p: more than one entry for '_config.yml'"
+  - it fills a renamed template into its own name: |
+      schema = setup()
+      expect(schema.copies({['_config.yml'] = 'doc/config.yml.in'}, 'p')).
+         to_equal {['_config.yml'] = {optional = false, source = 'doc/config.yml.in'}}
 
 - describe files:
   - it names array entries after the path of their source: |
@@ -126,6 +138,14 @@ specify luke.schema:
   - it names array entries after their source: |
       schema = setup()
       expect(schema.scripts({'bin/tool.in'}, 'bin')).to_equal {tool = 'bin/tool.in'}
+  - it diagnoses an array entry named like a key: |
+      schema = setup()
+      expect(schema.scripts({'tool.in', tool = 'bin/tool'}, 'bin')).
+         to_raise "bad bin: more than one entry for 'tool'"
+  - it diagnoses array entries with the same name: |
+      schema = setup()
+      expect(schema.scripts({'bin/tool.in', 'src/tool'}, 'bin')).
+         to_raise "bad bin: more than one entry for 'tool'"
   - it normalizes program sources: |
       schema = setup()
       expect(schema.scripts({prog = {sources = 'a.c'}}, 'bin')).

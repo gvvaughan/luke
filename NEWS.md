@@ -53,3 +53,7 @@
   - A program `env` value, a define, or a `gh-pages` path containing a
     single quote, or other characters special to the shell, is quoted
     correctly in the commands Luke runs.
+
+  - Two entries in `bin`, `install.bin`, `files` or `gh-pages` for the
+    same name, such as an array entry named for its source and a key
+    with that name, are diagnosed, rather than one being dropped.
