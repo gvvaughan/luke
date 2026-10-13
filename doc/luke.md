@@ -20,6 +20,9 @@ libraries they need, from a `lukefile` written in the same style as a
  * [platform-specific](#5-platforms) settings, and Autotools-style
    [build-time probes](#6-build-time-probes)
  * easy to drive [from a rockspec](#7-rockspecs)
+ * [releases](#8-releases) cut with one command, which also publish
+   your manual to GitHub Pages
+ * a [reference](#9-lukefile-reference) of every lukefile key
 
 Luke grew out of replacing Autotools in [lyaml] and [luaposix], without
 needing Perl and M4 on the developer's machine, or carrying a 500k
@@ -53,15 +56,17 @@ more targets to build only those:
 {% endhighlight %}
 
 A target names every module, script, program and generated file with
-that name.  Two targets are special: `all` builds everything, and is
-the default; and `install` copies everything already built to its
-installation directory, except generated files.  With other targets,
-`install` installs only those:
+that name.  Three targets are special: `all` builds everything, and is
+the default; `install` copies everything already built to its
+installation directory, except generated files; and `release` cuts a
+[release](#8-releases).  With other targets, `install` installs only
+those:
 
 {% highlight bash %}
     build-aux/luke
     build-aux/luke PREFIX=/opt/lua install
     build-aux/luke PREFIX=/opt/lua posix.time install
+    build-aux/luke release version=1.2
 {% endhighlight %}
 
 Each `VARIABLE=VALUE` argument sets a [variable](#4-variables-and-templates),
@@ -72,6 +77,7 @@ The options are:
 
     --help        print help, then exit
     --version     print version number, then exit
+    --dry-run     print the commands for a release, without running them
     --file=FILE   use FILE instead of lukefile
     --value=NAME  print the value of variable NAME, then exit
     --quiet       without any output
@@ -221,8 +227,8 @@ that building a release needs none of the tools that made them.
 ### 3.5. Settings for Every Module
 
 A top-level `defines` table adds its definitions to every C compilation,
-and a top-level `incdirs` array adds its directories, in addition to the
-settings of each module:
+and top-level `incdirs`, `libdirs` and `libraries` arrays add their
+directories and libraries, in addition to the settings of each module:
 
 {% highlight lua %}
     defines = {
@@ -278,7 +284,15 @@ skips the documentation if it is not installed.
 
 Wherever a string in `lukefile` contains `$NAME`, Luke replaces it with
 the value of variable `NAME`, looking first on the command line, then
-in `lukefile`, then in Luke's defaults, and finally in the environment.
+in the lukefile `variables` table, then in Luke's defaults, and finally
+in the environment:
+
+{% highlight lua %}
+    variables = {
+       INST_LUADIR = '$PREFIX/share/lua',
+    }
+{% endhighlight %}
+
 Use `--value` to see what Luke makes of one:
 
 {% highlight bash %}
@@ -331,9 +345,9 @@ pass `version=X.Y` on the command line.
 
 Wherever `lukefile` names a source file ending in `.in`, Luke copies it
 to the same path without the `.in`, replacing each `@NAME@` with the
-value of `NAME` from the command line, `package`, `version` and the
-built-in values above, or the environment.  This keeps a version string
-in sync, for example:
+value of `NAME` from the command line, the lukefile `substitute` table,
+`package`, `version` and the built-in values above, or the environment.
+This keeps a version string in sync, for example:
 
 {% highlight lua %}
     -- lib/stack/version.lua.in
@@ -497,7 +511,142 @@ Luke may read the extra syntax it needs directly from your rockspec,
 so that a separate `lukefile` is no longer necessary.
 
 
-## 8. Bugs and Contributions
+## 8. Releases
+
+`luke release version=X.Y` cuts release X.Y (or X.Y.Z) in your git
+working tree, as set out in the lukefile `release` table.  Luke's own
+is:
+
+{% highlight lua %}
+    release = {
+       news         = 'NEWS.md',
+       rockspec     = 'luke-dev-1.rockspec',
+       ['gh-pages'] = {
+          ['index.md'] = 'doc/luke.md',
+          '_config.yml.in',
+       },
+    }
+{% endhighlight %}
+
+Every key is optional, and Luke skips the steps for any that are
+missing.  `release` cannot be combined with other targets, and Luke
+pushes nothing: it prints the commands to publish the release when it
+is done.  With `--dry-run`, Luke still makes its checks, but then only
+prints the commands it would run and the files it would write.
+
+### 8.1. Checks
+
+Luke checks, before changing anything, that:
+
+ * the working tree is clean, and `master` is checked out and up to
+   date with `origin/master`, which Luke fetches;
+ * there is no `release-vX.Y` branch or `vX.Y` tag yet;
+ * the first `##` header in `news` is a placeholder for the next
+   release, with `?.?` in place of its version, and has news under it;
+ * `news` has no release X.Y yet;
+ * `rockspec` is a development rockspec, named like `luke-dev-1.rockspec`,
+   whose first line sets `_MODREV`:
+
+{% highlight lua %}
+    local _MODREV, _SPECREV = 'dev', '-1'
+{% endhighlight %}
+
+ * the `gh-pages` branch is up to date with `origin/gh-pages`, and each
+   template that `gh-pages` copies from the same path is in the release
+   or on `gh-pages` (see [GitHub Pages](#83-github-pages)).
+
+`--verbose` shows each check as Luke makes it.
+
+### 8.2. Steps
+
+Then Luke:
+
+1. adds a header for X.Y, with today's date, between the placeholder in
+   `news` and the news under it, and commits that to `master`:
+
+        ## Noteworthy changes in release ?.? (????-??-??) [?]
+
+
+        ## Noteworthy changes in release 1.2 (2026-10-13) [stable]
+
+2. checks out a new `release-vX.Y` branch, and removes the placeholder
+   from `news` there;
+3. builds everything with `version=X.Y`;
+4. writes the release rockspec, such as `luke-X.Y-1.rockspec`, with
+   `_MODREV` set to X.Y, in place of `rockspec`;
+5. commits every path in the `add` list, every [generated
+   file](#34-generated-files) and the release rockspec, even if git
+   ignores them, so that the release builds without the tools that made
+   them, and tags the commit `vX.Y`;
+6. copies files to the `gh-pages` branch, and commits them;
+7. checks out `master` again, and prints the commands to publish the
+   release:
+
+        git push origin master release-v1.2 v1.2 gh-pages
+        git checkout release-v1.2
+        luarocks upload luke-1.2-1.rockspec
+        git checkout master
+
+### 8.3. GitHub Pages
+
+Each key in `gh-pages` is a path on the `gh-pages` branch, and its
+value the file or directory in the release that replaces it.  An array
+entry names a path that is the same in both, and is copied only if the
+release has it.  [Specl] publishes its manual and API documentation
+like this:
+
+{% highlight lua %}
+    ['gh-pages'] = {
+       api          = 'doc/api/',
+       ['index.md'] = 'doc/specl.md',
+       '_config.yml.in',
+    }
+{% endhighlight %}
+
+A path ending in `.in` is a [template](#43-templates), which Luke fills
+into the same path without the `.in`, with `@version@` set to X.Y.  A
+template copied from the same path is filled from the copy on
+`gh-pages` when the release has none, so a template such as
+`_config.yml.in` can live on `gh-pages` alone:
+
+{% highlight yaml %}
+    release-no:   @version@
+{% endhighlight %}
+
+
+## 9. Lukefile Reference
+
+Every key that Luke understands, with the value it takes, where a list
+can also be a single string, and where it is explained.  Any of them,
+and any table they contain, can have a [`platforms`](#5-platforms)
+table.  Luke ignores other keys, so a lukefile can hold settings for
+other tools.
+
+| Key                     | Value                                                        | Explained in |
+|-------------------------|--------------------------------------------------------------|--------------|
+| `package`               | the project name                                             | [3](#3-the-lukefile) |
+| `version`               | the project version                                          | [3](#3-the-lukefile), [4.2](#42-built-in-values) |
+| `modules`               | module names, each mapped to a source, a list of sources, or a table of rules | [3.1](#31-modules) |
+| `install`               | a table with `bin`                                           | [3.2](#32-scripts) |
+| `install.bin`           | script and program names, each mapped to a source or a table of rules, or a list of sources | [3.2](#32-scripts), [3.3](#33-programs) |
+| `bin`                   | like `install.bin`, but never installed                      | [3.2](#32-scripts), [3.3](#33-programs) |
+| `files`                 | generated file paths, each mapped to a source or a table of rules, or a list of sources | [3.4](#34-generated-files) |
+| `defines`               | macro names, each mapped to a value or a probe               | [3.5](#35-settings-for-every-module), [6](#6-build-time-probes) |
+| `incdirs`               | a list of header directories                                 | [3.5](#35-settings-for-every-module) |
+| `libdirs`               | a list of library directories                                | [3.5](#35-settings-for-every-module) |
+| `libraries`             | a list of libraries or probes                                | [3.5](#35-settings-for-every-module), [6](#6-build-time-probes) |
+| `external_dependencies` | dependency names, each mapped to a table with a `library`    | [3.5](#35-settings-for-every-module) |
+| `ldocs`                 | an LDoc configuration file                                   | [3.6](#36-ldocs) |
+| `variables`             | variable names, each mapped to a value                       | [4.1](#41-variables) |
+| `substitute`            | template names, each mapped to a value                       | [4.3](#43-templates) |
+| `release`               | a table with `news`, `rockspec`, `add` and `gh-pages`        | [8](#8-releases) |
+| `release.news`          | the NEWS file                                                | [8.1](#81-checks), [8.2](#82-steps) |
+| `release.rockspec`      | the development rockspec                                     | [8.1](#81-checks), [8.2](#82-steps) |
+| `release.add`           | a list of paths to commit to the release                     | [8.2](#82-steps) |
+| `release['gh-pages']`   | `gh-pages` paths, each mapped to a path in the release, or a list of paths | [8.3](#83-github-pages) |
+
+
+## 10. Bugs and Contributions
 
 Please report bugs and make suggestions as [GitHub issues][issues], and
 check that they are not already fixed on [master][luke] first.  Pull
@@ -510,5 +659,6 @@ requests are especially welcome.
 [luajit]:   https://luajit.org
 [luaposix]: https://github.com/luaposix/luaposix
 [luarocks]: https://luarocks.org
+[specl]:    https://github.com/gvvaughan/specl
 [luke]:     https://github.com/gvvaughan/luke
 [lyaml]:    https://github.com/gvvaughan/lyaml

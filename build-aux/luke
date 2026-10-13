@@ -556,7 +556,7 @@ end
 local ok,err=pcall(chunk)if not ok then
 return nil,"Error running file: "..err
 end
-return LUKEFILE(normalize_configs(filter_platforms(r)),'')end,collect_variables=function(luke)return collect_variables(luke,{})end,script_sections=function(luke)return{bin=luke.bin or{},files=luke.files or{},install=(luke.install or{}).bin or{},}end,fill_template=function(L,env,source)return rewrite_template_files(L,env,source)end,run_configs=function(L,env,luke)local r=deepcopy(luke)map(sorted(collect_configs(r),config_cmp),function(config)local prefix=case(config.section,{external_dependencies=function()return config.module end,})config.t[config.k]=configure(L,env,config.t[config.k],prefix)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local r=copy(luke)local rewrite=bind(rewrite_template_files,{L,env})r.modules=mapvalues(r.modules,function(rules)rules.sources=map(rules.sources,rewrite)end)if r.ldocs then
+return LUKEFILE(normalize_configs(filter_platforms(r)),'')end,collect_variables=function(luke)return collect_variables(luke,{})end,keypaths=function()return keypaths(LUKEFILE)end,script_sections=function(luke)return{bin=luke.bin or{},files=luke.files or{},install=(luke.install or{}).bin or{},}end,fill_template=function(L,env,source)return rewrite_template_files(L,env,source)end,run_configs=function(L,env,luke)local r=deepcopy(luke)map(sorted(collect_configs(r),config_cmp),function(config)local prefix=case(config.section,{external_dependencies=function()return config.module end,})config.t[config.k]=configure(L,env,config.t[config.k],prefix)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local r=copy(luke)local rewrite=bind(rewrite_template_files,{L,env})r.modules=mapvalues(r.modules,function(rules)rules.sources=map(rules.sources,rewrite)end)if r.ldocs then
 r.ldocs.sources=map(r.ldocs.sources,rewrite)end
 return r
 end,}
@@ -785,7 +785,7 @@ return r
 end
 end
 end
-local function fields(schema,open)return function(x,path)mkcheck'table'(x,path)if x~=nil then
+local function fields(schema,open)return setmetatable({schema=schema},{__call=function(_,x,path)mkcheck'table'(x,path)if x~=nil then
 local r={}for k,v in next,x do
 local normalize=schema[k]if normalize~=nil then
 r[k]=normalize(v,index(path,k))elseif open then
@@ -795,8 +795,8 @@ bad(path,"unsupported key '%s'",str(k))end
 end
 return r
 end
-end
-end
+end})end
+local function keypaths(normalize,path)return sorted(flatten(map(keys(normalize.schema),function(k)local nested,p=normalize.schema[k],index(path or'',k)return choose(istable(nested),function()return{p,keypaths(nested,p)}end,p)end)))end
 local function rules(x,path)return case(type(x),{['nil']=nop,['string']=function()return{sources={x}}end,['table']=function()if len(x)>0 then
 return{sources=x}elseif isstring(x.sources)then
 return merge({sources={x.sources}},x)end
@@ -812,11 +812,11 @@ return function(x,path)return mkcheck'table'(x,path)and reduce(keys(x),{},functi
 end)end
 end
 local scripts=mkscripts(function(source)return(gsub(basename(source),'%.in$',''))end)local files=mkscripts(function(source)return(gsub(source,'%.in$',''))end)local function copies(x,path)return mkcheck'table'(x,path)and reduce(keys(x),{},function(r,k)local source=mkcheck'string'(x[k],index(path,k))r[choose(isstring(k),k,source)]={optional=not isstring(k),source=source}end)end
-return{copies=copies,fields=fields,files=files,list_of=list_of,map_of=map_of,mkcheck=mkcheck,rules=rules,scripts=scripts,}
+return{copies=copies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/9ef1f8e',versiontext=[[
-luke (Luke) gvv/9ef1f8e
+return{VERSION='gvv/3e888e0',versiontext=[[
+luke (Luke) gvv/3e888e0
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

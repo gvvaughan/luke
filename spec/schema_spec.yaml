@@ -70,6 +70,15 @@ specify luke.schema:
       expect(schema.fields {a = schema.mkcheck 'string'}({a = 1}, '')).
          to_raise 'bad a: string expected, got number'
 
+- describe keypaths:
+  - it lists every key, with the keys of nested fields beneath theirs: |
+      schema = setup()
+      string = schema.mkcheck 'string'
+      expect(schema.keypaths(schema.fields {
+         b = string,
+         a = schema.fields {y = string, ['x-z'] = string},
+      })).to_equal {'a', 'a.y', "a['x-z']", 'b'}
+
 - describe rules:
   - it accepts a single source: |
       schema = setup()

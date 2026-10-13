@@ -84,9 +84,10 @@ end
 
 -- A table with only the keys in *schema*, each with a value that passes
 -- the normalizer for that key; or with *open*, also any other keys,
--- which are returned as they are.
+-- which are returned as they are.  The normalizer is a callable table
+-- that keeps *schema*, for `keypaths`.
 local function fields(schema, open)
-   return function(x, path)
+   return setmetatable({schema = schema}, {__call = function(_, x, path)
       mkcheck 'table'(x, path)
       if x ~= nil then
          local r = {}
@@ -102,7 +103,19 @@ local function fields(schema, open)
          end
          return r
       end
-   end
+   end})
+end
+
+
+-- The path of every key in the `fields` normalizer *normalize*, and in
+-- each `fields` normalizer nested in it, in sorted order.
+local function keypaths(normalize, path)
+   return sorted(flatten(map(keys(normalize.schema), function(k)
+      local nested, p = normalize.schema[k], index(path or '', k)
+      return choose(istable(nested), function()
+         return {p, keypaths(nested, p)}
+      end, p)
+   end)))
 end
 
 
@@ -205,12 +218,13 @@ end
 
 
 return {
-   copies  = copies,
-   fields  = fields,
-   files   = files,
-   list_of = list_of,
-   map_of  = map_of,
-   mkcheck = mkcheck,
-   rules   = rules,
-   scripts = scripts,
+   copies   = copies,
+   fields   = fields,
+   files    = files,
+   keypaths = keypaths,
+   list_of  = list_of,
+   map_of   = map_of,
+   mkcheck  = mkcheck,
+   rules    = rules,
+   scripts  = scripts,
 }

@@ -225,6 +225,12 @@ return {
       return collect_variables(luke, {})
    end,
 
+   -- The path of every lukefile key luke understands, such as
+   -- `install.bin`, in sorted order.
+   keypaths = function()
+      return keypaths(LUKEFILE)
+   end,
+
    -- The scripts, programs and generated files of *luke*, by the
    -- section name that build entries are looked up with.
    script_sections = function(luke)
