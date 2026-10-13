@@ -4,14 +4,14 @@
 [![workflow status](https://github.com/gvvaughan/luke/actions/workflows/spec.yml/badge.svg?branch=master)](https://github.com/gvvaughan/luke/actions)
 [![codecov.io](https://codecov.io/gh/gvvaughan/luke/branch/master/graph/badge.svg)](https://codecov.io/gh/gvvaughan/luke)
 
-A lightweight, self-bootstrapping build utility for LuaJIT, [Lua][]
-5.1, 5.2, 5.3, 5.4 and 5.5.
+[Luke][] is a lightweight, self-bootstrapping build utility for
+[LuaJIT][] and [Lua][] 5.1, 5.2, 5.3, 5.4 and 5.5.  It builds Lua and C
+modules, scripts and programs, probing the host system for the headers,
+functions and libraries they need, from a `lukefile` written in the same
+style as a [LuaRocks][] rockspec.
 
 Luke is released under the [MIT license][mit] (the same license as Lua
 itself).  There is no warranty.
-
-[lua]: http://www.lua.org/ "The Lua Project"
-[mit]: http://mit-license.org "MIT License"
 
 
 ## Installation
@@ -22,233 +22,23 @@ directly into your project.
 Note that this is an uglified version of the formatted sources
 combined into a single file for ease of use and minimal size.  If
 you edit the sources locally, run `./luke` to regenerate
-`build-aux/luke` with your changes (or `./luke version=X.Y` for a
-release).
-
-
-## Use
-
-Add a `lukefile` to your C or Lua project, with the proper settings
-to build your project.  You can either run it from your shell
-(The VARIABLES you need to pass will depend on the content of your
-project's `lukefile`):
-
-    build-aux/luke [VARIABLE=VALUE]... [TARGET]...
-
-...or arrange for it to be executed by your rockspec.
-
-`TARGET` can be any module or script table key in `lukefile`, or one
-of the special keys, `all` to build all modules and scripts, or
-`install` to copy all built modules and installable scripts to
-`$PREFIX`.  If no `TARGET` is given, `all` is implied.  A `TARGET`
-selects every module and script with that name, and with `install`
-installs only those.
+`build-aux/luke` with your changes.
 
 
 ## Documentation
 
-Luke was originally an experiment to find a powerful enough syntax
-to add to a [LuaRocks][] rockspec file for probing the host system
-features at build-time well enough to replace Autotools in [lyaml][]
-and [luaposix][], without relying on having Perl and M4 installed on
-the developer system, or carrying a 500k shell-script in the
-distribution (the entire uncompressed content of lyaml including specs,
-documentation, and a copy of luke is well below 400k).
-
-For now, that involves some duplication between the rockspec and the
-`lukefile` content, but now that I've found a pleasant way to express
-system probing and compiler/linker invocations from luke, I'll likely
-rewrite this code as a patch for [LuaRocks][] or as a plug-in, so that
-`lukefile` will no longer be necessary -- the additional syntaxes will
-be supported directly in your rockspec file.
-
-The `VALUE` for all `VARIABLE=VALUE` pairs on the luke command line are
-substituted in the `lukefile` wherever `$VARIABLE` is seen, otherwise
-`$VARIABLE` will be looked up in the process environment.
-
-Luke also sets `$gitref` to the abbreviated hash of the commit checked
-out in the current directory, or to the empty string outside a git
-working tree, and `$abs_top_srcdir` to the absolute path of the current
-directory.
-Setting `version = '$USER/$gitref'` in `lukefile` identifies who built
-an unreleased copy, and from which commit, while a release rockspec
-can still pass `version=X.Y` on the command line.
-
-### .in files
-
-In any place that a file path is allowed in `lukefile`, if that path
-has an extension of `.in`, Luke will copy that file to a new location
-without the `.in` suffix, and substitute any `@VARIABLE@` strings with
-the associated `VALUE` if defined on the command line or in the caller's
-environment.  This is useful for keeping a version string in sync, for
-example.
-
-### Scripts
-
-Like the rockspec `build.install.bin` table, an `install.bin` table maps
-the name of each script to install to its source:
-
-    install = {
-       bin = {
-          specl = 'bin/specl',
-       },
-    }
-
-Luke fills the template of any `.in` source when building, makes every
-listed script executable, and `luke install` copies each to its name
-beneath `$INST_BINDIR` (by default, `$PREFIX/bin`).  An array entry is
-named for its source, without the `.in` suffix.
-
-### Programs
-
-A table entry in `install.bin` or `bin` is a rule for building a program
-from several `sources`, with the same `defines`, `incdirs`, `libdirs`,
-`libraries` and build-time probes as a `modules` rule.  Without a
-`command`, Luke compiles and links C sources:
-
-    install = {
-       bin = {
-          mytool = {
-             sources   = {'src/main.c', 'src/util.c'},
-             libraries = {'m'},
-          },
-       },
-    }
-
-Otherwise, Luke runs `command`, after filling the template of any `.in`
-source, with `$sources` set to the filled source paths, `$target` to the
-program to write, and each `env` variable exported:
-
-    bin = {
-       ['build-aux/luke'] = {
-          command = '$LUA build-aux/smush $sources > $target',
-          env     = {LUA_PATH = '$abs_top_srcdir/lib/?.lua;;'},
-          sources = {'lib/luke/init.lua', 'lib/luke/version.lua.in'},
-       },
-    }
-
-An installable program is built as `$objdir/<name>`, and an in-tree
-program at the path given as its name.  Either way, Luke makes it
-executable, and `luke <name>` rebuilds it.
-
-### Syntax Extensions
-
-- **bin** (table): Like `install.bin`, but for scripts and programs
-  that are only for use in the source tree, and are never installed,
-  such as a wrapper that runs a program with the uninstalled modules:
-
-      bin = {
-         specl = 'specl.in',
-      }
-
-- **defines** (table): A `defines` table at the top-level will add
-  `-D<key>=<value>` to every module compilation.  This is in addition to
-  the `defines` tables allowed in the `modules` table by the rockspec
-  `builtin` backend, and supports the same platform overrides syntax.
-  Note that unlike the rockspec array of strings syntax
-  (`"ROCKSPEC_DEFINE=1"`), Luke requires a table in all cases
-  (`{LUKE_DEFINE=1}`).
-
-- **incdirs** (array of strings): An `incdirs` array at the top-level will
-  add `-I<string>` to every module compilation.  This is in addition to
-  the `incdirs` arrays allowed in the  `modules` table by the rockspec
-  `builtin` backend.
-
-- **ldocs** (string): Path to an [LDocs][] `config.ld` file, which Luke
-  will process with:
-
-      ldocs -c config.ld .
-
-### Build-Time Probes
-
-No matter what order these are declared in your `lukefile`, the probes
-are always executed in the following order:
-
-1. **checkprog** (table): `{checkprog='SH', progs={'dash', 'ash', 'sh'}}`
-   Search the caller's PATH for the earliest of `progs` and return the
-   matching path.
-
-2. **checkheader** (table): `{checkheader='net/if.h', include='sys/socket.h'}`
-   Return `1` if a short C program that includes the named header
-   compiles successfully, otherwise `0`. An optional `include` can name
-   another header that must be included first, or `includes` with an
-   array of prerequisite headers is allowed.
-
-3. **checkdecl** (table): `{checkdecl='fdatasync', include='unistd.h'}`
-   Return `1` if any of the headers named by the `include` (or
-   `includes`) key have a declaration (or CPP macro) for the function
-   given with the `checkdecl` key, otherwise `0`. 
-   
-4. **checksymbol** (table): `{checksymbol='crypt', library='crypt'}`
-   Return the value of the `library` key if linking with that library is
-   necessary to resolve the named symbol, otherwise nothing is returned
-   if the symbol can be resolved without 'library'.  Instead of `library`,
-   multiple libraries can be tried in turn if passed as an array in a
-   `libraries` key. An optional `include` (or `includes`) can name a
-   header that must be included in a C program that has symbol resolved.
-   And finally, an `ifdef` key will mark the symbol as unsupported if
-   the named macro is undefined.
-
-5. **checkfunc** (table): `{checkfunc='crypt'}`
-   Return `1` if the named function is available, `0` otherwise.
-
-6. **checkmember** (table): `{checkmember='struct tm.tm_gmtoff', include='time.h'}`
-   Return `1` if the struct and member are available, `0` otherwise.  An
-   optional `include` (or `includes`) key should name any headers that
-   must be included for the compiler to have a definition os the named
-   struct.
-
-Due to the strict reordering of probes, this modules entry:
-
-    ['crypt'] = {
-       defines = {
-          HAVE_CRYPT = {checkfunc='crypt'},
-          HAVE_CRYPT_H = {checkheader='crypt.h'},
-       },
-       libraries = {
-          {checksymbol='crypt', library='crypt'},
-       },
-       sources = 'crypt.c',
-    },
-
-...when executed, may behave as follows on your build machine:
-
-    checking for cc... yes
-    checking whether cc works... yes
-    checking for crypt.h... no
-    checking for library containing crypt... none required
-    checking for crypt... yes
-    cc -O2 -fPIC -DHAVE_CRYPT_H=0 -DHAVE_CRYPT crypt.c -o linux/crypt.so
-
-...given `crypt.c` was written with:
-
-    #if HAVE_CRYPT_H
-    #  include <crypt.h>
-    #endif
-
-    #if defined HAVE_CRYPT
-    static int Pcrypt(lua_State *L)
-    {
-        ...
-        return pushresult(crypt(str, salt));
-    }
-    #endif
-
-[ldocs]: https://github.com/lunarmodules/LDoc "Lua documentation generator"
-[luaposix]: https://github.com/luaposix/luaposix "Lua bindings for POSIX"
-[luarocks]: https://github.com/luarocks/luarocks "Lua package manager"
-[lyaml]: https://github.com/gvvaughan/lyaml "LibYAML binding for Lua"
+Luke includes [comprehensive documentation][github.io], which is
+written in [doc/luke.md][manual].
 
 
-## Bugs reports and code contributions
+## Bug reports and code contributions
 
 Please make bug reports and suggestions as [GitHub issues][issues].
 Pull requests are especially appreciated.
 
-But first, please check that you issue has not already been reported by
-someone else, and that it is not already fixed on [master][github] in
-preparation for the next release (See Installation section above for how
-to temporarily install master with [LuaRocks][]).
+But first, please check that your issue has not already been reported
+by someone else, and that it is not already fixed on [master][github]
+in preparation for the next release.
 
 There is no strict coding style, but please bear in mind the following
 points when proposing changes:
@@ -269,7 +59,15 @@ points when proposing changes:
    coverage reports discover untested lines.
 
 5. Prefer explicit string function calls over object methods, to mitigate
-   issues with monkey-patching in caller environment. 
+   issues with monkey-patching in caller environment.
 
-[github]: http://github.com/gvvaughan/luke
-[issues]: http://github.com/gvvaughan/luke/issues
+
+[github]:    https://github.com/gvvaughan/luke
+[github.io]: https://gvvaughan.github.io/luke
+[issues]:    https://github.com/gvvaughan/luke/issues
+[lua]:       https://www.lua.org "The Lua Project"
+[luajit]:    https://luajit.org
+[luarocks]:  https://luarocks.org "Lua package manager"
+[luke]:      https://github.com/gvvaughan/luke
+[manual]:    doc/luke.md
+[mit]:       http://mit-license.org "MIT License"
