@@ -81,6 +81,8 @@ return {
    expand = bind(interpolate_with, {'@([^@]+)@'}),
    interpolate = bind(interpolate_with, {'%$([%w_]+)'}),
 
+   -- TODO: rename to `mkenv`, like the other builders (`mkpredicate`,
+   -- `mkcheck`).
    makeenv = function(...)
       local env = reduce(except(list(...), nil), function(r, t)
          if isenv(t) then

@@ -10,6 +10,7 @@ local function fatal(...)
    if select('#', ...) > 1 then
       msg = format(...)
    end
+   stdout:flush()
    stderr:write('luke: fatal: ' .. msg .. '\n')
    exit(1)
 end

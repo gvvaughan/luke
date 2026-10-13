@@ -10,6 +10,7 @@ local _ENV = require 'luke.normalize' {
    'luke.environment',
    'luke.lukefile',
    'luke.functional',
+   'luke.release',
 }
 
 
@@ -106,6 +107,10 @@ return {
             print(interpolate(env, concat {name, "='$", name, "'"}))
          end)
          exit(0)
+      end
+
+      if L.release ~= nil then
+         return release(L, env)
       end
 
       if not isempty(L.luke.modules or {}) or not isempty(L.scripts.build) then

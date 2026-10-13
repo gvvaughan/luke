@@ -95,6 +95,49 @@ specify luke:
       ]])
       expect(luke('--file=' .. fname, '--value=version')).
          to_succeed_while_matching "^version='%x%x%x%x%x%x%x+'\n$"
+  - it diagnoses a malformed release table: |
+      spit(fname, [[
+         package = 'example'
+         version = '1.0'
+         modules = {example = 'example.lua'}
+         release = {['gh-pages'] = {copy = {api = 42}}}
+      ]])
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error 'bad release table: gh-pages: copy: string expected, got number'
+  - it diagnoses unsupported release keys: |
+      spit(fname, [[
+         package = 'example'
+         version = '1.0'
+         modules = {example = 'example.lua'}
+         release = {changelog = 'ChangeLog'}
+      ]])
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "bad release table: unsupported key 'changelog'"
+
+- describe release:
+  - before: |
+      fname = lukefile [[
+         package = 'example'
+         version = '1.0'
+         modules = {example = 'example.lua'}
+      ]]
+  - after: |
+      os.remove(fname)
+
+  - it needs a version: |
+      p = luke('--file=' .. fname, 'release')
+      expect(p).to_exit(1)
+      expect(p).to_contain_error 'release needs a version=VERSION argument'
+  - it diagnoses malformed versions: |
+      p = luke('--file=' .. fname, 'release', 'version=1.0rc1')
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "bad release version '1.0rc1': X.Y or X.Y.Z expected"
+  - it cannot be combined with other targets: |
+      p = luke('--file=' .. fname, 'release', 'example', 'version=1.0')
+      expect(p).to_exit(1)
+      expect(p).to_contain_error 'release cannot be combined with other targets'
 
 - describe install:
   - before: |

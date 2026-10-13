@@ -222,6 +222,54 @@ local function normalize_scripts(scripts, tablename)
 end
 
 
+-- Checkers for lukefile values: each returns nil for a valid value, or
+-- else a description of what is wrong with it.
+local function mkcheck(kind)
+   return function(x)
+      if type(x) ~= kind then
+         return format('%s expected, got %s', kind, type(x))
+      end
+   end
+end
+
+
+-- A table whose every value passes *check*.
+local function each_of(check)
+   return function(t)
+      return mkcheck 'table'(t) or dropuntil(values(t), check)
+   end
+end
+
+
+-- A table with only the keys in *schema*, each with a value that passes
+-- the check for that key.
+local function fields(schema)
+   return function(t)
+      return mkcheck 'table'(t) or dropuntil(keys(t), function(k)
+         local check = schema[k]
+         if check == nil then
+            return format("unsupported key '%s'", str(k))
+         end
+         local err = check(t[k])
+         return err and format('%s: %s', k, err)
+      end)
+   end
+end
+
+
+-- How `luke release` updates NEWS, writes the release rockspec, commits
+-- generated files, and updates the gh-pages branch.
+local check_release = fields {
+   files        = each_of(mkcheck 'string'),
+   news         = mkcheck 'string',
+   rockspec     = mkcheck 'string',
+   ['gh-pages'] = fields {
+      config = mkcheck 'string',
+      copy   = each_of(mkcheck 'string'),
+   },
+}
+
+
 local function unwrap_external_dependencies(luke)
    if istable(luke.external_dependencies) then
       for prefix, config in next, luke.external_dependencies do
@@ -272,6 +320,10 @@ return {
             end
          end
          r.install.bin = normalize_scripts(r.install.bin, 'install.bin')
+      end
+      if r.release ~= nil then
+         local err = check_release(r.release)
+         diagnose(err == nil, 'bad release table: %s', err)
       end
       return r
    end,

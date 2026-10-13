@@ -27,6 +27,7 @@ Use the source, Luke!
 
   --help        print this help, then exit
   --version     print version number, then exit
+  --dry-run     print the commands for a release, without running them
   --file=FILE   use FILE instead of lukefile
   --value=NAME  print the value of variable NAME
   --quiet       without any output
@@ -36,6 +37,7 @@ Each TARGET can be one of the module table keys from lukefile, or:
 
   all           build all targets in lukefile
   install       copy all built targets to $PREFIX
+  release       cut a release of the version given by version=VERSION
 
 If no TARGET is given, 'all' is implied.
 
@@ -101,6 +103,7 @@ return {
       local r = {
          clidefs = {},
          debug   = false,
+         dryrun  = false,
          valreqs = {},
          fname   = 'lukefile',
          install = {},
@@ -116,6 +119,10 @@ return {
             ['--debug'] = function()
                r.debug = true
                r.log = dump
+            end,
+
+            ['--dry-run'] = function()
+               r.dryrun = true
             end,
 
             ['%-%-file=(.+)'] = function(optarg)
@@ -160,6 +167,26 @@ return {
 
       if isempty(luke.modules or {}) then
          fatal("no modules table in '%s', nothing to build", parsed.fname)
+      end
+
+      -- `release` builds everything, for the version given on the command
+      -- line.
+      local release
+      if contains(parsed.targets, 'release') then
+         if len(parsed.targets) > 1 then
+            fatal('release cannot be combined with other targets')
+         end
+         release = parsed.clidefs.version
+         diagnose(release ~= nil, 'release needs a version=VERSION argument')
+         case(release, {
+            ['%d+%.%d+']      = nop,
+            ['%d+%.%d+%.%d+'] = nop,
+
+            function()
+               fatal("bad release version '%s': X.Y or X.Y.Z expected", release)
+            end,
+         })
+         parsed.targets = {}
       end
 
       local bin = luke.bin or {}
@@ -235,9 +262,11 @@ return {
       return {
          clidefs = parsed.clidefs,
          debug   = parsed.debug,
+         dryrun  = parsed.dryrun,
          install = install,
          log     = parsed.log,
          luke    = luke,
+         release = release,
          scripts = scripts,
          valreqs = parsed.valreqs,
          verbose = parsed.verbose,
