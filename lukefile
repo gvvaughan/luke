@@ -50,3 +50,14 @@ bin = {
       sources = bundled,
    },
 }
+
+-- `luke release version=X.Y` adds the release to NEWS.md, writes the
+-- release rockspec, and publishes the manual to gh-pages.
+release = {
+   news         = 'NEWS.md',
+   rockspec     = 'luke-dev-1.rockspec',
+   ['gh-pages'] = {
+      ['index.md'] = 'doc/luke.md',
+      '_config.yml.in',
+   },
+}

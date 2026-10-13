@@ -815,8 +815,8 @@ local scripts=mkscripts(function(source)return(gsub(basename(source),'%.in$','')
 return{copies=copies,fields=fields,files=files,list_of=list_of,map_of=map_of,mkcheck=mkcheck,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/dbe7f3a',versiontext=[[
-luke (Luke) gvv/dbe7f3a
+return{VERSION='gvv/9ef1f8e',versiontext=[[
+luke (Luke) gvv/9ef1f8e
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
