@@ -384,3 +384,55 @@ specify luke:
       p = luke('--file=' .. fname, 'prog')
       expect(p).to_exit(1)
       expect(p).to_contain_error "no command to build 'prog' from a.txt"
+
+- describe files:
+  - before: |
+      tmpdir = os.tmpname()
+      os.remove(tmpdir)
+      assert(os.execute('mkdir ' .. tmpdir))
+      spit(tmpdir .. '/other.lua', "return 'other'\n")
+      spit(tmpdir .. '/a.txt', 'a\n')
+      spit(tmpdir .. '/b.txt.in', '@package@\n')
+      fname = spit(tmpdir .. '/lukefile', [[
+         package = 'example'
+         version = '1.0'
+         modules = {other = ']] .. tmpdir .. [[/other.lua'}
+         files = {
+            ']] .. tmpdir .. [[/b.txt.in',
+            [']] .. tmpdir .. [[/doc/a.out'] = {
+               command = 'cat $sources > $target',
+               sources = ']] .. tmpdir .. [[/a.txt',
+            },
+         }
+      ]])
+
+      function isexecutable(path)
+         local p = io.popen("test -x '" .. path .. "' && echo yes")
+         local s = p:read '*a'
+         p:close()
+         return s == 'yes\n'
+      end
+  - after: |
+      os.execute('rm -rf ' .. tmpdir)
+
+  - it builds every generated file, without making it executable: |
+      expect(luke('--file=' .. fname)).to_succeed()
+      expect(slurp(tmpdir .. '/b.txt')).to_be 'example\n'
+      expect(slurp(tmpdir .. '/doc/a.out')).to_be 'a\n'
+      expect(isexecutable(tmpdir .. '/doc/a.out')).to_be(false)
+  - it rebuilds a generated file named as a target: |
+      p = luke('--file=' .. fname, tmpdir .. '/doc/a.out')
+      expect(p).to_succeed_with('cat ' .. tmpdir .. '/a.txt > ' .. tmpdir .. '/doc/a.out\n')
+      expect(slurp(tmpdir .. '/b.txt')).to_be(nil)
+  - it names an array entry for the path of its source: |
+      expect(luke('--file=' .. fname, tmpdir .. '/b.txt')).to_succeed()
+      expect(slurp(tmpdir .. '/b.txt')).to_be 'example\n'
+  - it never installs generated files: |
+      p = luke('--file=' .. fname, 'PREFIX=' .. tmpdir .. '/inst', 'install')
+      expect(p).to_succeed()
+      expect(p.output).not_to_contain(tmpdir .. '/inst/bin')
+  - it diagnoses malformed entries: |
+      spit(fname, "modules = {x = 'x.lua'}\nfiles = {['doc/x.1'] = {command = 'true'}}")
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "bad files['doc/x.1']: no sources"

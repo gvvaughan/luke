@@ -189,34 +189,37 @@ return {
          parsed.targets = {}
       end
 
-      local bin = luke.bin or {}
-      local installbin = (luke.install or {}).bin or {}
+      local sections = script_sections(luke)
+      local installbin = sections.install
+      local rulesets = {luke.modules, sections.bin, sections.files, installbin}
+
+      local function hasrule(target)
+         return target == 'install' or any(map(rulesets, bind(get, {[2]=target})))
+      end
 
       local targets = call(function()
          if isempty(parsed.targets) or contains(parsed.targets, 'all') then
-            return except(flatten(parsed.targets, keys(luke.modules), keys(bin), keys(installbin)), 'all')
+            return except(flatten(parsed.targets, map(rulesets, keys)), 'all')
          end
-         local r = filter(parsed.targets, function(target)
-            if target ~= 'install' and luke.modules[target] == nil
-                  and bin[target] == nil and installbin[target] == nil then
-               fatal("no rule to make target '%s'", target)
-            end
-            return true
-         end)
-         assert(len(r) > 0, "no build targets specified")
-         return r
+         local unknown = except(parsed.targets, hasrule)
+         diagnose(isempty(unknown), "no rule to make target '%s'", unknown[1])
+         assert(len(parsed.targets) > 0, "no build targets specified")
+         return parsed.targets
       end)
 
-      -- Each target names every module and script called that, and
-      -- `install` alone installs every module and installable script.
+      -- Each target names every module, script and file called that,
+      -- and `install` alone installs every module and installable
+      -- script.
       local named = except(targets, 'install')
       local build = pluck(named, luke.modules)
-      local scripts = {build = {}, install = {}}
-      map({{bin, false}, {installbin, true}}, function(section)
-         map(keys(pluck(named, section[1])), function(name)
-            append(scripts.build, {name = name, installed = section[2]})
-         end)
-      end)
+      local scripts = {
+         build = reduce(keys(sections), list(), function(entries, section)
+            return reduce(keys(pluck(named, sections[section])), entries, function(entries, name)
+               return append(entries, {name = name, section = section})
+            end)
+         end),
+         install = {},
+      }
       local install
       if contains(targets, 'install') then
          if isempty(named) then

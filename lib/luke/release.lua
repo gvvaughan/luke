@@ -111,9 +111,7 @@ end
 -- The steps for copying each directory built for the lukefile
 -- `gh-pages.copy` table into the gh-pages *worktree*.
 local function copy_steps(L, env, worktree, copy)
-   local published = keys(copy)
-   sort(published)
-   return map(published, function(dir)
+   return map(sorted(keys(copy)), function(dir)
       local dest = worktree .. '/' .. dir
       return bind(run, {L, env, 'rm -rf', dest, '&& $MAKEDIRS', dest, '&& cp -R', copy[dir] .. '/.', dest})
    end)
@@ -180,6 +178,15 @@ local function preconditions(env, release, version)
 end
 
 
+-- The targets of every generated file in *luke*, which are committed to
+-- the release branch.
+local function generated(luke)
+   return map(sorted(keys(luke.files)), function(name)
+      return script_target(name, luke.files[name])
+   end)
+end
+
+
 return {
    -- Cut a release of `L.release`, configured by the lukefile `release`
    -- table, calling *build* to build everything for that version.
@@ -205,7 +212,7 @@ return {
       local rules = L.luke.release or {}
       local news, rockspec = rules.news, rules.rockspec
       local released = rockspec and rockspec_name(rockspec, version)
-      local added = flatten(rules.add, released)
+      local added = flatten(rules.add, generated(L.luke), released)
       local ghpages = rules['gh-pages']
       local worktree = tmpname()
       rm(worktree)

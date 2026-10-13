@@ -42,6 +42,7 @@ local LUKEFILE = fields({
    variables             = table,
 
    bin                   = scripts,
+   files                 = files,
    install               = fields {
       bin = scripts,
    },
@@ -226,6 +227,16 @@ return {
       return collect_variables(luke, {})
    end,
 
+   -- The scripts, programs and generated files of *luke*, by the
+   -- section name that build entries are looked up with.
+   script_sections = function(luke)
+      return {
+         bin     = luke.bin or {},
+         files   = luke.files or {},
+         install = (luke.install or {}).bin or {},
+      }
+   end,
+
    -- If *source* ends with '.in', copy it to a file without the suffix,
    -- expanding all '@varname@' templates; return the resulting path.
    fill_template = function(L, env, source)
@@ -236,9 +247,7 @@ return {
    -- table, and execute each in topological order.
    run_configs = function(L, env, luke)
       local r = deepcopy(luke)
-      local all_configs = collect_configs(r)
-      sort(all_configs, config_cmp)
-      map(all_configs, function(config)
+      map(sorted(collect_configs(r), config_cmp), function(config)
          local prefix = case(config.section, {
             external_dependencies = function() return config.module end,
          })

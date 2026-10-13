@@ -21,16 +21,15 @@ end
 
 -- The rules for script *entry*, as selected by `validate_arguments`.
 local function script_rules(L, entry)
-   if entry.installed then
-      return L.luke.install.bin[entry.name]
-   end
-   return L.luke.bin[entry.name]
+   return script_sections(L.luke)[entry.section][entry.name]
 end
 
 
+-- Build the script, program or generated file for *entry*, making all
+-- but generated files executable.
 local function build_script(L, env, substitute, entry)
    local rules = script_rules(L, entry)
-   local target = script_target(entry.name, rules, L.luke.variables.objdir, entry.installed)
+   local target = script_target(entry.name, rules, L.luke.variables.objdir, entry.section == 'install')
 
    if isstring(rules) then
       fill_template(L, substitute, rules)
@@ -46,7 +45,7 @@ local function build_script(L, env, substitute, entry)
       end
    end
 
-   return make_executable(L, env, target)
+   return choose(entry.section == 'files', 0, bind(make_executable, {L, env, target}))
 end
 
 

@@ -86,6 +86,19 @@ specify luke.schema:
       expect(schema.rules(42, 'p')).
          to_raise 'bad p: string or table expected, got number'
 
+- describe files:
+  - it names array entries after the path of their source: |
+      schema = setup()
+      expect(schema.files({'doc/demo.md.in'}, 'files')).to_equal {['doc/demo.md'] = 'doc/demo.md.in'}
+  - it normalizes command sources: |
+      schema = setup()
+      expect(schema.files({['doc/demo.1'] = {command = 'true', sources = 'demo.in'}}, 'files')).
+         to_equal {['doc/demo.1'] = {command = 'true', sources = {'demo.in'}}}
+  - it diagnoses entries at their path: |
+      schema = setup()
+      expect(schema.files({['doc/demo.1'] = {command = 'true'}}, 'files')).
+         to_raise "bad files['doc/demo.1']: no sources"
+
 - describe scripts:
   - it names array entries after their source: |
       schema = setup()

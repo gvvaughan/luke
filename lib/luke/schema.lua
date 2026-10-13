@@ -146,33 +146,54 @@ local function program(x, path)
 end
 
 
--- Like the rockspec `build.install.bin` table, map each script name to
--- its source path; an array entry is named for its source, without any
--- '.in' suffix.  A table-valued entry is a rule for building a program.
-local function scripts(x, path)
-   mkcheck 'table'(x, path)
-   if x ~= nil then
-      local r = {}
-      for k, source in next, x do
-         local entry = index(path, k)
-         if istable(source) then
-            if not isstring(k) then
-               bad(entry, 'programs need a name')
-            end
-            r[k] = program(source, entry)
-         elseif isstring(source) then
-            r[isstring(k) and k or (gsub(basename(source), '%.in$', ''))] = source
-         else
-            bad(entry, 'string or table expected, got %s', type(source))
-         end
-      end
-      return r
+-- Like the rockspec `build.install.bin` table, map each name to its
+-- source path, naming an array entry with *mkname* from its source.  A
+-- table-valued entry is a rule for building a program.
+local function mkscripts(mkname)
+   -- The name and normalized rules for entry *k* at *path*.
+   local function entry(k, source, path)
+      return case(type(source), {
+         ['string'] = function()
+            return choose(isstring(k), k, bind(mkname, {source})), source
+         end,
+
+         ['table'] = function()
+            local name = choose(isstring(k), k, bind(bad, {path, 'programs need a name'}))
+            return name, program(source, path)
+         end,
+
+         function(kind)
+            bad(path, 'string or table expected, got %s', kind)
+         end,
+      })
+   end
+
+   return function(x, path)
+      return mkcheck 'table'(x, path) and reduce(keys(x), {}, function(r, k)
+         local name, rules = entry(k, x[k], index(path, k))
+         r[name] = rules
+      end)
    end
 end
 
 
+-- Scripts, with array entries named for their source, without the
+-- directory or any '.in' suffix.
+local scripts = mkscripts(function(source)
+   return (gsub(basename(source), '%.in$', ''))
+end)
+
+
+-- Generated files, with array entries named for the path of their
+-- source, without any '.in' suffix.
+local files = mkscripts(function(source)
+   return (gsub(source, '%.in$', ''))
+end)
+
+
 return {
    fields  = fields,
+   files   = files,
    list_of = list_of,
    map_of  = map_of,
    mkcheck = mkcheck,

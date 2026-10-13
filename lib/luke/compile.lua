@@ -184,8 +184,7 @@ return {
       end
 
       if rules.command ~= nil then
-         local names = keys(rules.env)
-         sort(names)
+         local names = sorted(keys(rules.env))
          -- Export env for the whole command, and let `$NAME` in the
          -- command itself expand to the same value.
          -- TODO: values are interpolated inside single quotes, so one
