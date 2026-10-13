@@ -739,13 +739,26 @@ end
 return{filter_platforms=filter_platforms,platforms=supported,toplatforms=toplatforms,}
 end
 package.preload['luke.release']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.functional','type.context-manager',}local function git(env,...)local status,err,out=spawn(env,'git',...)if status==0 then
+local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.environment','luke.functional','type.context-manager',date=os.date,}local PLACEHOLDER='\n(## [^\n]*%?%.%?[^\n]*\n)'local function git(env,...)local status,err,out=spawn(env,'git',...)if status==0 then
 return(gsub(out,'\n$',''))end
 end
-local function has_placeholder(text)local header,body=match('\n'..text,'\n(## [^\n]*)\n(.*)')if header==nil or find(header,'?.?',1,true)==nil then
+local function has_placeholder(text)local header,body=match('\n'..text,'\n(## [^\n]*\n)(.*)')if header==nil or match('\n'..header,PLACEHOLDER)==nil then
 return false
 end
 return match(match(body,'^(.-)\n## ')or body,'%S')~=nil
+end
+local function add_release_header(text,version,date)local header=format('## Noteworthy changes in release %s (%s) [stable]',version,date)return(gsub(text,PLACEHOLDER..'\n*','\n%1\n\n'..header..'\n\n',1))end
+local function remove_placeholder(text)return(gsub(text,PLACEHOLDER..'\n?','\n',1))end
+local function run(L,env,...)local command=concat({...},' ')L.write(interpolate(env,command),'\n')if L.dryrun then
+return 0
+end
+local status,err=spawn(env,command)if status~=0 then
+stderr:write(err,'\n')end
+return status
+end
+local function edit(L,path,fn)L.write('updating '..path,'\n')if not L.dryrun then
+local content=fn(slurp(File(path)))with(File(path,'w'),function(h)h:write(content)end)end
+return 0
 end
 local function preconditions(env,release,version)local branch,tag='release-v'..version,'v'..version
 local checks={{'the working tree is clean',function()return git(env,'status --porcelain')==''end},{'master is checked out',function()return git(env,'symbolic-ref --short HEAD')=='master'end},{'master is up to date with origin',function()return git(env,'fetch --quiet origin')~=nil
@@ -763,12 +776,13 @@ end
 end)if failed~=nil then
 fatal('cannot release %s: check failed: %s',version,failed)return 1
 end
-return 0
+local news=(L.luke.release or{}).news
+local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=date'%Y-%m-%d'})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}))return dropuntil(steps,isnonzero,call)or 0
 end,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/00d5368',versiontext=[[
-luke (Luke) gvv/00d5368
+return{VERSION='gvv/77c38a1',versiontext=[[
+luke (Luke) gvv/77c38a1
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
