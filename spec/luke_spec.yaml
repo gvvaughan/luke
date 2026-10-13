@@ -172,6 +172,10 @@ specify luke:
          to_succeed_while_containing('cp ' .. tmpdir .. '/other.lua ' .. installed)
       expect(slurp(installed .. 'example.lua')).to_be "return 'example 1.0'\n"
       expect(slurp(installed .. 'other.lua')).to_be "return 'other'\n"
+  - it makes no bin directory without scripts to install: |
+      p = luke('--file=' .. fname, 'PREFIX=' .. tmpdir, 'all', 'install')
+      expect(p).to_succeed()
+      expect(p.output).not_to_contain('mkdir -p ' .. tmpdir .. '/bin')
   - it installs only the given targets: |
       expect(luke('--file=' .. fname, 'PREFIX=' .. tmpdir, 'other', 'install')).
          to_succeed()
@@ -328,6 +332,20 @@ specify luke:
       expect(slurp(tmpdir .. '/b.txt')).to_be 'example\n'
       expect(slurp(tmpdir .. '/out/gen')).to_be 'a\nexample\nhi example\n'
       expect(isexecutable(tmpdir .. '/out/gen')).to_be(true)
+  - it runs a program command without env as is: |
+      spit(fname, [[
+         package = 'example'
+         version = '1.0'
+         modules = {other = ']] .. tmpdir .. [[/other.lua'}
+         bin = {
+            [']] .. tmpdir .. [[/gen'] = {
+               command = 'cat $sources > $target',
+               sources = {']] .. tmpdir .. [[/a.txt'},
+            },
+         }
+      ]])
+      expect(luke('--file=' .. fname, tmpdir .. '/gen')).
+         to_succeed_with('cat ' .. tmpdir .. '/a.txt > ' .. tmpdir .. '/gen\nchmod +x ' .. tmpdir .. '/gen\n')
   - it compiles and links C programs beneath objdir: |
       expect(luke('--file=' .. fname, 'hello')).to_succeed()
       expect(isexecutable(tmpdir .. '/obj/hello')).to_be(true)

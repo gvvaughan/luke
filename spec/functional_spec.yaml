@@ -5,6 +5,25 @@ before:
   functional = require 'luke.functional'
 
 specify luke.functional:
+- describe isempty:
+  - before:
+      isempty = functional.isempty
+
+  - it is true for an empty table:
+      expect(isempty {}).to_be(true)
+  - it is true for an empty list:
+      expect(isempty(list())).to_be(true)
+      expect(isempty(functional.keys {})).to_be(true)
+  - it is false for a table with elements:
+      expect(isempty {1}).to_be(false)
+      expect(isempty {a=1}).to_be(false)
+      expect(isempty(list(1))).to_be(false)
+  - it is false for a table with only a non-zero n field:
+      expect(isempty {n=1}).to_be(false)
+  - it is false for anything else:
+      expect(isempty(nil)).to_be(false)
+      expect(isempty '').to_be(false)
+
 - describe keys:
   - before:
       keys = functional.keys

@@ -419,7 +419,10 @@ return r
 end,get=function(dict,key)return(dict or{})[key]end,hoist=function(keylist,dict)local r={}for keyu in each(keylist)do
 merge(r,dict[unpack(keyu)])end
 return next(r)and r or nil
-end,id=function(...)return...end,isempty=function(x)return type(x)=='table'and not next(x)end,isfile=isfile,isfunction=function(x)return type(x)=='function'end,isnil=function(x)return x==nil
+end,id=function(...)return...end,isempty=function(x)if type(x)~='table'then
+return false
+end
+local k=next(x)return k==nil or(k=='n'and x.n==0 and next(x,k)==nil)end,isfile=isfile,isfunction=function(x)return type(x)=='function'end,isnil=function(x)return x==nil
 end,isstring=function(x)return type(x)=='string'end,istable=function(x)return type(x)=='table'end,isnonzero=function(x)return x~=0
 end,keys=function(iterable)local r=list()for k in next,iterable or{}do
 append(r,k)end
@@ -804,8 +807,8 @@ return status
 end,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/7091055',versiontext=[[
-luke (Luke) gvv/7091055
+return{VERSION='gvv/1d2605f',versiontext=[[
+luke (Luke) gvv/1d2605f
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

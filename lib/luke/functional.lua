@@ -241,8 +241,14 @@ return {
       return ...
    end,
 
+   -- Whether *x* is a table with no elements, counting a `list` with
+   -- only its `n = 0` field as empty.
    isempty = function(x)
-      return type(x) == 'table' and not next(x)
+      if type(x) ~= 'table' then
+         return false
+      end
+      local k = next(x)
+      return k == nil or (k == 'n' and x.n == 0 and next(x, k) == nil)
    end,
 
    isfile = isfile,
