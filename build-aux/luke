@@ -497,7 +497,7 @@ return status
 end,}
 end
 package.preload['luke.lukefile']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','type.context-manager','type.path',}local function has_anykey(t,keylist)return any(map(keylist,function(k)return t[k]~=nil
+local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local string,table=mkcheck'string',mkcheck'table'local LUKEFILE=fields({package=string,version=string,defines=table,external_dependencies=table,incdirs=list_of(string),ldocs=rules,libdirs=list_of(string),libraries=list_of(id),modules=map_of(rules),substitute=table,variables=table,bin=scripts,install=fields{bin=scripts,},release=fields{add=list_of(string),news=string,rockspec=string,['gh-pages']=fields{config=string,copy=map_of(string),},},},true)local function has_anykey(t,keylist)return any(map(keylist,function(k)return t[k]~=nil
 end))end
 local function isconfig(x)return istable(x)and has_anykey(x,configure)end
 local function collect_configs(luke,modulename,configs,sectionname)configs=configs or{}for k,v in next,luke do
@@ -532,54 +532,7 @@ end
 return variables
 end
 local function normalize_configs(config)return cond({[not istable(config)]=config,},{[not isconfig(config)]=function()return mapvalues(config,normalize_configs)end,},{[true]=function()local keymap={include='includes',prog='progs',library='libraries',}return foldkeys(keymap,config,function(a,b)local r=istable(a)and copy(a)or{a}b=istable(b)and b or{b}return reduce(b,r,function(v)append(r,v)end)end)end,})end
-local function normalize_rules(rules)return case(type(rules),{['nil']=nop,['string']=function()return{sources={rules}}end,['table']=function()if len(rules)>0 then
-return{sources=rules}elseif isstring(rules.sources)then
-return merge({sources={rules.sources}},normalize_configs(rules))end
-return normalize_configs(rules)end,function(v)fatal("unsupported rule type '%s'",v)end,})end
-local function check_program(tablename,name,rules)local function bad(...)fatal("bad %s entry '%s': %s",tablename,name,format(...))end
-if isempty(rules.sources or{})then
-bad'no sources'end
-map(rules.sources,function(source)if not isstring(source)then
-bad('source string expected, got %s',type(source))end
-end)if rules.command~=nil and not isstring(rules.command)then
-bad('command string expected, got %s',type(rules.command))end
-if rules.env~=nil then
-if not istable(rules.env)then
-bad('env table expected, got %s',type(rules.env))end
-for k,v in next,rules.env do
-if not isstring(k)or not isstring(v)then
-bad'env must map names to strings'end
-end
-end
-return rules
-end
-local function normalize_scripts(scripts,tablename)if scripts==nil then
-return nil
-end
-if not istable(scripts)then
-fatal("%s must be a table, not a %s",tablename,type(scripts))end
-local r={}for k,source in next,scripts do
-if istable(source)then
-if not isstring(k)then
-fatal("bad %s entry %s: programs need a name",tablename,str(k))end
-r[k]=check_program(tablename,k,normalize_rules(source))elseif isstring(source)then
-local name=isstring(k)and k or(gsub(basename(source),'%.in$',''))r[name]=source
-else
-fatal("bad %s entry '%s': string or table expected, got %s",tablename,str(k),type(source))end
-end
-return r
-end
-local function mkcheck(kind)return function(x)if type(x)~=kind then
-return format('%s expected, got %s',kind,type(x))end
-end
-end
-local function each_of(check)return function(t)return mkcheck'table'(t)or dropuntil(values(t),check)end
-end
-local function fields(schema)return function(t)return mkcheck'table'(t)or dropuntil(keys(t),function(k)local check=schema[k]if check==nil then
-return format("unsupported key '%s'",str(k))end
-local err=check(t[k])return err and format('%s: %s',k,err)end)end
-end
-local check_release=fields{files=each_of(mkcheck'string'),news=mkcheck'string',rockspec=mkcheck'string',['gh-pages']=fields{config=mkcheck'string',copy=each_of(mkcheck'string'),},}local function unwrap_external_dependencies(luke)if istable(luke.external_dependencies)then
+local function unwrap_external_dependencies(luke)if istable(luke.external_dependencies)then
 for prefix,config in next,luke.external_dependencies do
 if istable(config)and next(config)and config.library~=''then
 luke.incdirs=append(luke.incdirs or{},format('$%s_INCDIR',prefix))luke.libdirs=append(luke.libdirs or{},format('$%s_LIBDIR',prefix))luke.libraries=append(luke.libraries or{},config.library)end
@@ -597,18 +550,7 @@ end
 local ok,err=pcall(chunk)if not ok then
 return nil,"Error running file: "..err
 end
-r=filter_platforms(r)r.external_dependencies=normalize_configs(r.external_dependencies)r.ldocs=normalize_rules(r.ldocs)r.modules=mapvalues(r.modules,normalize_rules)r.bin=normalize_scripts(r.bin,'bin')if r.install~=nil then
-if not istable(r.install)then
-fatal("install must be a table, not a %s",type(r.install))end
-for k in next,r.install do
-if k~='bin'then
-fatal("unsupported install table '%s'",str(k))end
-end
-r.install.bin=normalize_scripts(r.install.bin,'install.bin')end
-if r.release~=nil then
-local err=check_release(r.release)diagnose(err==nil,'bad release table: %s',err)end
-return r
-end,collect_variables=function(luke)return collect_variables(luke,{})end,fill_template=function(L,env,source)return rewrite_template_files(L,env,source)end,run_configs=function(L,env,luke)local r=deepcopy(luke)local all_configs=collect_configs(r)sort(all_configs,config_cmp)map(all_configs,function(config)local prefix=case(config.section,{external_dependencies=function()return config.module end,})config.t[config.k]=configure(L,env,config.t[config.k],prefix)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local r=copy(luke)local rewrite=bind(rewrite_template_files,{L,env})r.modules=mapvalues(r.modules,function(rules)rules.sources=map(rules.sources,rewrite)end)if r.ldocs then
+return LUKEFILE(normalize_configs(filter_platforms(r)),'')end,collect_variables=function(luke)return collect_variables(luke,{})end,fill_template=function(L,env,source)return rewrite_template_files(L,env,source)end,run_configs=function(L,env,luke)local r=deepcopy(luke)local all_configs=collect_configs(r)sort(all_configs,config_cmp)map(all_configs,function(config)local prefix=case(config.section,{external_dependencies=function()return config.module end,})config.t[config.k]=configure(L,env,config.t[config.k],prefix)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local r=copy(luke)local rewrite=bind(rewrite_template_files,{L,env})r.modules=mapvalues(r.modules,function(rules)rules.sources=map(rules.sources,rewrite)end)if r.ldocs then
 r.ldocs.sources=map(r.ldocs.sources,rewrite)end
 return r
 end,}
@@ -795,7 +737,7 @@ end)if failed~=nil then
 fatal('cannot release %s: check failed: %s',version,failed)return 1
 end
 local rules=L.luke.release or{}local news,rockspec=rules.news,rules.rockspec
-local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.files,released)local ghpages=rules['gh-pages']local worktree=tmpname()rm(worktree)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=date'%Y-%m-%d'})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),function()if L.dryrun then
+local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.add,released)local ghpages=rules['gh-pages']local worktree=tmpname()rm(worktree)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=date'%Y-%m-%d'})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),function()if L.dryrun then
 L.write(format('building with version=%s',version),'\n')return 0
 end
 return build()end,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and bind(run,{L,env,'git add -f',unpack(added)})or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(run,{L,env,'git tag','v'..version}),ghpages and{bind(run,{L,env,'git worktree add --quiet',worktree,'gh-pages'}),copy_steps(L,env,worktree,ghpages.copy or{}),ghpages.config and bind(edit,{L,worktree..'/'..ghpages.config,bind(set_release_no,{[2]=version})})or nil,bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m 'gh-pages: update to $package %s.'",version)}),bind(run,{L,env,'git worktree remove',worktree}),},bind(run,{L,env,'git checkout --quiet master'}))local status=dropuntil(steps,isnonzero,call)or 0
@@ -806,9 +748,74 @@ end
 return status
 end,}
 end
+package.preload['luke.schema']=function()
+local _ENV=require'luke.normalize'{'luke._base','luke.functional','type.path',}local function bad(path,...)fatal('bad %s: %s',path,format(...))end
+local function index(path,k)if isstring(k)and match(k,'^[%a_][%w_]*$')then
+return path==''and k or path..'.'..k
+end
+return format(isstring(k)and"%s['%s']"or'%s[%s]',path,str(k))end
+local function mkcheck(kind)return function(x,path)if x~=nil and type(x)~=kind then
+bad(path,'%s expected, got %s',kind,type(x))end
+return x
+end
+end
+local function list_of(normalize)return function(x,path)if isstring(x)then
+x={x}end
+mkcheck'table'(x,path)if x~=nil then
+local r={}for i=1,len(x)do
+r[i]=normalize(x[i],index(path,i))end
+return r
+end
+end
+end
+local function map_of(normalize,names)return function(x,path)mkcheck'table'(x,path)if x~=nil then
+local r={}for k,v in next,x do
+if names~=nil then
+names(k,index(path,k))end
+r[k]=normalize(v,index(path,k))end
+return r
+end
+end
+end
+local function fields(schema,open)return function(x,path)mkcheck'table'(x,path)if x~=nil then
+local r={}for k,v in next,x do
+local normalize=schema[k]if normalize~=nil then
+r[k]=normalize(v,index(path,k))elseif open then
+r[k]=v
+else
+bad(path,"unsupported key '%s'",str(k))end
+end
+return r
+end
+end
+end
+local function rules(x,path)return case(type(x),{['nil']=nop,['string']=function()return{sources={x}}end,['table']=function()if len(x)>0 then
+return{sources=x}elseif isstring(x.sources)then
+return merge({sources={x.sources}},x)end
+return x
+end,function(kind)bad(path,'string or table expected, got %s',kind)end,})end
+local function program(x,path)local r=rules(x,path)if isempty(r.sources or{})then
+bad(path,'no sources')end
+r.sources=list_of(mkcheck'string')(r.sources,index(path,'sources'))mkcheck'string'(r.command,index(path,'command'))map_of(mkcheck'string',mkcheck'string')(r.env,index(path,'env'))return r
+end
+local function scripts(x,path)mkcheck'table'(x,path)if x~=nil then
+local r={}for k,source in next,x do
+local entry=index(path,k)if istable(source)then
+if not isstring(k)then
+bad(entry,'programs need a name')end
+r[k]=program(source,entry)elseif isstring(source)then
+r[isstring(k)and k or(gsub(basename(source),'%.in$',''))]=source
+else
+bad(entry,'string or table expected, got %s',type(source))end
+end
+return r
+end
+end
+return{fields=fields,list_of=list_of,map_of=map_of,mkcheck=mkcheck,rules=rules,scripts=scripts,}
+end
 package.preload['luke.version']=function()
-return{VERSION='gvv/1d2605f',versiontext=[[
-luke (Luke) gvv/1d2605f
+return{VERSION='gvv/46c1ab8',versiontext=[[
+luke (Luke) gvv/46c1ab8
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

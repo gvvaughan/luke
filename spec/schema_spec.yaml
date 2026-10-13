@@ -1,0 +1,104 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before: |
+  -- Return a fresh luke.schema, whose diagnostics raise errors rather
+  -- than kill the spec runner.
+  function setup()
+     replace(require 'luke._base', 'fatal', function(fmt, ...)
+        error(string.format(fmt, ...), 0)
+     end)
+     return reload 'luke.schema'
+  end
+
+specify luke.schema:
+- after:
+    restore()
+
+- describe mkcheck:
+  - it accepts a value of the given type: |
+      schema = setup()
+      expect(schema.mkcheck 'string'('x', 'p')).to_be 'x'
+  - it accepts nil: |
+      schema = setup()
+      expect(schema.mkcheck 'string'(nil, 'p')).to_be(nil)
+  - it diagnoses another type at its path: |
+      schema = setup()
+      expect(schema.mkcheck 'string'(1, 'p')).
+         to_raise 'bad p: string expected, got number'
+
+- describe list_of:
+  - it treats a string as a list of one: |
+      schema = setup()
+      expect(schema.list_of(schema.mkcheck 'string')('x', 'p')).to_equal {'x'}
+  - it normalizes every element: |
+      schema = setup()
+      expect(schema.list_of(schema.mkcheck 'string') {'x', 'y'}).to_equal {'x', 'y'}
+  - it diagnoses an element at its index: |
+      schema = setup()
+      expect(schema.list_of(schema.mkcheck 'string')({'x', 2}, 'p')).
+         to_raise 'bad p[2]: string expected, got number'
+
+- describe map_of:
+  - it normalizes every value: |
+      schema = setup()
+      expect(schema.map_of(schema.list_of(schema.mkcheck 'string'))({a = 'x'}, 'p')).
+         to_equal {a = {'x'}}
+  - it diagnoses a value at its key: |
+      schema = setup()
+      expect(schema.map_of(schema.mkcheck 'string')({['a.b'] = 1}, 'p')).
+         to_raise "bad p['a.b']: string expected, got number"
+  - it diagnoses names that fail the names normalizer: |
+      schema = setup()
+      expect(schema.map_of(schema.mkcheck 'string', schema.mkcheck 'string')({'x'}, 'p')).
+         to_raise 'bad p[1]: string expected, got number'
+
+- describe fields:
+  - it normalizes each known key: |
+      schema = setup()
+      expect(schema.fields {a = schema.list_of(schema.mkcheck 'string')}({a = 'x'}, '')).
+         to_equal {a = {'x'}}
+  - it diagnoses unknown keys: |
+      schema = setup()
+      expect(schema.fields {}({b = 1}, 'p')).
+         to_raise "bad p: unsupported key 'b'"
+  - it lets unknown keys through when open: |
+      schema = setup()
+      expect(schema.fields({}, true)({b = 1}, '')).to_equal {b = 1}
+  - it writes paths beneath the top level without a leading dot: |
+      schema = setup()
+      expect(schema.fields {a = schema.mkcheck 'string'}({a = 1}, '')).
+         to_raise 'bad a: string expected, got number'
+
+- describe rules:
+  - it accepts a single source: |
+      schema = setup()
+      expect(schema.rules('a.lua', 'p')).to_equal {sources = {'a.lua'}}
+  - it accepts a list of sources: |
+      schema = setup()
+      expect(schema.rules({'a.c', 'b.c'}, 'p')).to_equal {sources = {'a.c', 'b.c'}}
+  - it accepts a single sources string among other settings: |
+      schema = setup()
+      expect(schema.rules({sources = 'a.c', libraries = {'m'}}, 'p')).
+         to_equal {sources = {'a.c'}, libraries = {'m'}}
+  - it diagnoses other types: |
+      schema = setup()
+      expect(schema.rules(42, 'p')).
+         to_raise 'bad p: string or table expected, got number'
+
+- describe scripts:
+  - it names array entries after their source: |
+      schema = setup()
+      expect(schema.scripts({'bin/tool.in'}, 'bin')).to_equal {tool = 'bin/tool.in'}
+  - it normalizes program sources: |
+      schema = setup()
+      expect(schema.scripts({prog = {sources = 'a.c'}}, 'bin')).
+         to_equal {prog = {sources = {'a.c'}}}
+  - it diagnoses programs without a name: |
+      schema = setup()
+      expect(schema.scripts({{sources = 'a.c'}}, 'bin')).
+         to_raise 'bad bin[1]: programs need a name'
+  - it diagnoses non-string program commands: |
+      schema = setup()
+      expect(schema.scripts({prog = {sources = 'a.c', command = {}}}, 'bin')).
+         to_raise 'bad bin.prog.command: string expected, got table'

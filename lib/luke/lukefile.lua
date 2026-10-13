@@ -9,9 +9,55 @@ local _ENV = require 'luke.normalize' {
    'luke.environment',
    'luke.platforms',
    'luke.functional',
+   'luke.schema',
    'type.context-manager',
    'type.path',
 }
+
+
+--[[
+ The lukefile schema: every key luke understands, with the normalizer
+ that turns its value into the form the rest of luke relies on, after
+ platform overrides are filtered and probe tables are normalized.
+ Normalizers diagnose malformed values, and come from `luke.schema`.
+]]
+
+local string, table = mkcheck 'string', mkcheck 'table'
+
+-- TODO: lukefile keys luke does not understand are let through, as a
+-- rockspec-style lukefile may have fields for other tools; diagnose
+-- misspellings of the keys below.
+local LUKEFILE = fields({
+   package               = string,
+   version               = string,
+
+   defines               = table,
+   external_dependencies = table,
+   incdirs               = list_of(string),
+   ldocs                 = rules,
+   libdirs               = list_of(string),
+   libraries             = list_of(id),
+   modules               = map_of(rules),
+   substitute            = table,
+   variables             = table,
+
+   bin                   = scripts,
+   install               = fields {
+      bin = scripts,
+   },
+
+   -- How `luke release` updates NEWS, writes the release rockspec,
+   -- commits generated files, and updates the gh-pages branch.
+   release               = fields {
+      add          = list_of(string),
+      news         = string,
+      rockspec     = string,
+      ['gh-pages'] = fields {
+         config = string,
+         copy   = map_of(string),
+      },
+   },
+}, true)
 
 
 local function has_anykey(t, keylist)
@@ -138,138 +184,6 @@ local function normalize_configs(config)
 end
 
 
-local function normalize_rules(rules)
-   return case(type(rules), {
-      ['nil'] = nop,
-
-      ['string'] = function()
-         return {sources={rules}}
-      end,
-
-      ['table'] = function()
-         if len(rules) > 0 then
-            return {sources=rules}
-         elseif isstring(rules.sources) then
-            return merge({sources = {rules.sources}}, normalize_configs(rules))
-         end
-         return normalize_configs(rules)
-      end,
-
-      function(v)
-         fatal("unsupported rule type '%s'", v)
-      end,
-   })
-end
-
-
--- Diagnose a malformed table-valued script entry, a rule for building a
--- program from several sources.
-local function check_program(tablename, name, rules)
-   local function bad(...)
-      fatal("bad %s entry '%s': %s", tablename, name, format(...))
-   end
-   if isempty(rules.sources or {}) then
-      bad 'no sources'
-   end
-   map(rules.sources, function(source)
-      if not isstring(source) then
-         bad('source string expected, got %s', type(source))
-      end
-   end)
-   if rules.command ~= nil and not isstring(rules.command) then
-      bad('command string expected, got %s', type(rules.command))
-   end
-   if rules.env ~= nil then
-      if not istable(rules.env) then
-         bad('env table expected, got %s', type(rules.env))
-      end
-      for k, v in next, rules.env do
-         if not isstring(k) or not isstring(v) then
-            bad 'env must map names to strings'
-         end
-      end
-   end
-   return rules
-end
-
-
--- Like the rockspec `build.install.bin` table, map each script name to
--- its source path; an array entry is named for its source, without any
--- '.in' suffix.  A table-valued entry is a rule for building a program
--- from its `sources`, with an optional `command` and `env`.
-local function normalize_scripts(scripts, tablename)
-   if scripts == nil then
-      return nil
-   end
-   if not istable(scripts) then
-      fatal("%s must be a table, not a %s", tablename, type(scripts))
-   end
-   local r = {}
-   for k, source in next, scripts do
-      if istable(source) then
-         if not isstring(k) then
-            fatal("bad %s entry %s: programs need a name", tablename, str(k))
-         end
-         r[k] = check_program(tablename, k, normalize_rules(source))
-      elseif isstring(source) then
-         local name = isstring(k) and k or (gsub(basename(source), '%.in$', ''))
-         r[name] = source
-      else
-         fatal("bad %s entry '%s': string or table expected, got %s", tablename, str(k), type(source))
-      end
-   end
-   return r
-end
-
-
--- Checkers for lukefile values: each returns nil for a valid value, or
--- else a description of what is wrong with it.
-local function mkcheck(kind)
-   return function(x)
-      if type(x) ~= kind then
-         return format('%s expected, got %s', kind, type(x))
-      end
-   end
-end
-
-
--- A table whose every value passes *check*.
-local function each_of(check)
-   return function(t)
-      return mkcheck 'table'(t) or dropuntil(values(t), check)
-   end
-end
-
-
--- A table with only the keys in *schema*, each with a value that passes
--- the check for that key.
-local function fields(schema)
-   return function(t)
-      return mkcheck 'table'(t) or dropuntil(keys(t), function(k)
-         local check = schema[k]
-         if check == nil then
-            return format("unsupported key '%s'", str(k))
-         end
-         local err = check(t[k])
-         return err and format('%s: %s', k, err)
-      end)
-   end
-end
-
-
--- How `luke release` updates NEWS, writes the release rockspec, commits
--- generated files, and updates the gh-pages branch.
-local check_release = fields {
-   files        = each_of(mkcheck 'string'),
-   news         = mkcheck 'string',
-   rockspec     = mkcheck 'string',
-   ['gh-pages'] = fields {
-      config = mkcheck 'string',
-      copy   = each_of(mkcheck 'string'),
-   },
-}
-
-
 local function unwrap_external_dependencies(luke)
    if istable(luke.external_dependencies) then
       for prefix, config in next, luke.external_dependencies do
@@ -305,27 +219,7 @@ return {
       if not ok then
          return nil, "Error running file: " .. err
       end
-      r = filter_platforms(r)
-      r.external_dependencies = normalize_configs(r.external_dependencies)
-      r.ldocs = normalize_rules(r.ldocs)
-      r.modules = mapvalues(r.modules, normalize_rules)
-      r.bin = normalize_scripts(r.bin, 'bin')
-      if r.install ~= nil then
-         if not istable(r.install) then
-            fatal("install must be a table, not a %s", type(r.install))
-         end
-         for k in next, r.install do
-            if k ~= 'bin' then
-               fatal("unsupported install table '%s'", str(k))
-            end
-         end
-         r.install.bin = normalize_scripts(r.install.bin, 'install.bin')
-      end
-      if r.release ~= nil then
-         local err = check_release(r.release)
-         diagnose(err == nil, 'bad release table: %s', err)
-      end
-      return r
+      return LUKEFILE(normalize_configs(filter_platforms(r)), '')
    end,
 
    collect_variables = function(luke)

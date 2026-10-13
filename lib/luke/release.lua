@@ -205,7 +205,7 @@ return {
       local rules = L.luke.release or {}
       local news, rockspec = rules.news, rules.rockspec
       local released = rockspec and rockspec_name(rockspec, version)
-      local added = flatten(rules.files, released)
+      local added = flatten(rules.add, released)
       local ghpages = rules['gh-pages']
       local worktree = tmpname()
       rm(worktree)

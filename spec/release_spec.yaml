@@ -373,7 +373,7 @@ specify luke.release:
         expect(slurp(RELEASED)).to_be "local _MODREV, _SPECREV = '1.0', '-1'\n\npackage = 'demo'\n"
     - it replaces the development rockspec, and adds generated files: |
         release = setup(passing())
-        L = mkL {rockspec = ROCKSPEC, files = {'lib/demo.lua'}}
+        L = mkL {rockspec = ROCKSPEC, add = {'lib/demo.lua'}}
         expect(release(L, env, build)).to_be(0)
         expect(L.write[2]).to_be('creating ' .. RELEASED)
         expect(L.write[3]).to_be('git rm --quiet ' .. ROCKSPEC)
