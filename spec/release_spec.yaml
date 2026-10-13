@@ -387,6 +387,37 @@ specify luke.release:
         release = setup(spawned)
         L = mkL {['gh-pages'] = ghpages {['my docs'] = 'doc/my docs/'}}
         expect(release(L, env, build)).to_be(0)
+    - it removes the worktree when a gh-pages step fails: |
+        spawned = with_ghpages(passing(), 'release-no: @version@\n')
+        spawned['rm -rf WORKTREE/api && $MAKEDIRS WORKTREE && cp -R doc/api/ WORKTREE/api'] = list(1, '', '')
+        spawned['git worktree remove --force WORKTREE'] = function(worktree)
+           os.execute("rm -rf '" .. worktree .. "'")
+           return 0, '', ''
+        end
+        spawned["git -C WORKTREE add -A && git -C WORKTREE commit -m 'gh-pages: update to $package 1.0.'"] = nil
+        release = setup(spawned)
+        L = mkL(rules)
+        expect(release(L, env, build)).to_be(1)
+        expect(L.write[#L.write]).to_match '^git worktree remove %-%-force %S+$'
+    - it removes no worktree when a step fails before adding one: |
+        spawned = with_ghpages(passing(), 'release-no: @version@\n')
+        spawned['git tag v1.0'] = list(1, '', '')
+        spawned['git worktree add --quiet WORKTREE gh-pages'] = nil
+        release = setup(spawned)
+        L = mkL(rules)
+        expect(release(L, env, build)).to_be(1)
+        expect(L.write[#L.write]).to_be 'git tag v1.0'
+    - it removes the worktree when the gh-pages commit fails: |
+        spawned = with_ghpages(passing(), 'release-no: @version@\n')
+        spawned["git -C WORKTREE add -A && git -C WORKTREE commit -m 'gh-pages: update to $package 1.0.'"] = list(1, '', '')
+        spawned['git worktree remove --force WORKTREE'] = function(worktree)
+           os.execute("rm -rf '" .. worktree .. "'")
+           return 0, '', ''
+        end
+        release = setup(spawned)
+        L = mkL(rules)
+        expect(release(L, env, build)).to_be(1)
+        expect(L.write[#L.write]).to_match '^git worktree remove %-%-force %S+$'
     - it pushes gh-pages too: |
         release = setup(with_ghpages(passing(), 'release-no: @version@\n'))
         L = mkL(rules)

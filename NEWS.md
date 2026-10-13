@@ -57,3 +57,6 @@
   - Two entries in `bin`, `install.bin`, `files` or `gh-pages` for the
     same name, such as an array entry named for its source and a key
     with that name, are diagnosed, rather than one being dropped.
+
+  - When a `luke release` step fails while updating `gh-pages`, Luke
+    removes the temporary worktree it was updating.

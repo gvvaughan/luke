@@ -263,8 +263,6 @@ return {
          not isempty(added) and bind(run, {L, env, 'git add -f', unpack(added)}) or nil,
          bind(run, {L, env, format("git commit -a -m 'Release v%s.'", version)}),
          bind(run, {L, env, 'git tag', 'v' .. version}),
-         -- TODO: when a gh-pages step fails, the worktree is left behind,
-         -- until `git worktree prune` after removing it by hand.
          ghpages and {
             bind(run, {L, env, 'git worktree add --quiet', worktree, 'gh-pages'}),
             publish_steps(L, env, makeenv({version = version}, L.clidefs, L.luke.substitute, SHELLENV),
@@ -277,6 +275,12 @@ return {
       )
 
       local status = dropuntil(steps, isnonzero, call) or 0
+
+      -- Remove the gh-pages worktree that a failed step leaves behind,
+      -- with whatever was copied into it.
+      choose(status ~= 0 and exists(worktree), function()
+         run(L, env, 'git worktree remove --force', worktree)
+      end)
       if status == 0 then
          local pushed = flatten('master', 'release-v' .. version, 'v' .. version, ghpages and 'gh-pages')
          L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',

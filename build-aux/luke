@@ -749,7 +749,7 @@ local released=rockspec and rockspec_name(rockspec,version)local added=flatten(r
 L.write(format('building with version=%s',version),'\n')return 0
 end
 return build()end,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and bind(run,{L,env,'git add -f',unpack(added)})or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(run,{L,env,'git tag','v'..version}),ghpages and{bind(run,{L,env,'git worktree add --quiet',worktree,'gh-pages'}),publish_steps(L,env,makeenv({version=version},L.clidefs,L.luke.substitute,SHELLENV),worktree,ghpages),bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m 'gh-pages: update to $package %s.'",version)}),bind(run,{L,env,'git worktree remove',worktree}),},bind(run,{L,env,'git checkout --quiet master'}))local status=dropuntil(steps,isnonzero,call)or 0
-if status==0 then
+choose(status~=0 and exists(worktree),function()run(L,env,'git worktree remove --force',worktree)end)if status==0 then
 local pushed=flatten('master','release-v'..version,'v'..version,ghpages and'gh-pages')L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',version,concat(pushed,' ')))if released~=nil then
 L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout master\n',version,released))end
 end
@@ -820,8 +820,8 @@ end
 return{copies=copies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/8c391d8',versiontext=[[
-luke (Luke) gvv/8c391d8
+return{VERSION='gvv/40cbc4b',versiontext=[[
+luke (Luke) gvv/40cbc4b
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
