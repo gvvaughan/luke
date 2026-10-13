@@ -3,7 +3,7 @@
 
 before: |
   E = require 'luke.environment'
-  env = E.makeenv(E.DEFAULTENV, E.SHELLENV)
+  env = E.makeenv({package = 'demo'}, E.DEFAULTENV, E.SHELLENV)
 
   -- The git results for a release that passes every check, and runs
   -- every command successfully.
@@ -23,24 +23,55 @@ before: |
         ['git add -f lib/demo.lua ' .. RELEASED] = list(0, '', ''),
         ["git commit -a -m 'Release v1.0.'"] = list(0, '', ''),
         ['git tag v1.0'] = list(0, '', ''),
+        ['git checkout --quiet master'] = list(0, '', ''),
      }
+  end
+
+  -- The results of passing() with a gh-pages branch whose _config.yml
+  -- has *config*, and which runs every gh-pages command successfully.
+  function ghpassing(config)
+     local r = passing()
+     r['git rev-parse refs/heads/gh-pages'] = list(0, '', 'fed789\n')
+     r['git rev-parse origin/gh-pages'] = list(0, '', 'fed789\n')
+     r['git show gh-pages:_config.yml'] = list(0, '', config)
+     r['git worktree add --quiet WORKTREE gh-pages'] = function(worktree)
+        os.execute("mkdir '" .. worktree .. "'")
+        local h = assert(io.open(worktree .. '/_config.yml', 'w'))
+        h:write(config)
+        h:close()
+        return 0, '', ''
+     end
+     r['rm -rf WORKTREE/api && $MAKEDIRS WORKTREE/api && cp -R doc/. WORKTREE/api'] = list(0, '', '')
+     r["git -C WORKTREE add -A && git -C WORKTREE commit -m 'gh-pages: update to $package 1.0.'"] = list(0, '', '')
+     r['git worktree remove WORKTREE'] = function(worktree)
+        os.execute("rm -rf '" .. worktree .. "'")
+        return 0, '', ''
+     end
+     return r
   end
 
   -- Return a fresh release function, with luke._base.fatal stubbed out
   -- so as not to kill the spec runner, and spawn answering each command
-  -- from *spawned*, or the results of calling a function there, along
-  -- with stubs to inspect.  Examples see deep
+  -- from *spawned*, or the results of calling a function there with the
+  -- gh-pages worktree, along with stubs to inspect.  Commands name that
+  -- worktree as WORKTREE in *spawned*.  Examples see deep
   -- copies of anything set up in `before`, so call this from each
   -- example rather than sharing stubs.
   function setup(spawned)
      local fatal = Stub()
      replace(require 'luke._base', 'fatal', fatal)
 
+     local worktree
      replace(require 'luke.compile', 'spawn', function(env, ...)
-        local r = spawned[table.concat({...}, ' ')]
-        assert(r ~= nil, 'unexpected command: ' .. table.concat({...}, ' '))
+        local command = table.concat({...}, ' ')
+        worktree = worktree or command:match '^git worktree add %-%-quiet (%S+) gh%-pages$'
+        if worktree ~= nil then
+           command = command:gsub(worktree:gsub('%p', '%%%0'), 'WORKTREE')
+        end
+        local r = spawned[command]
+        assert(r ~= nil, 'unexpected command: ' .. command)
         if type(r) == 'function' then
-           return r()
+           return r(worktree)
         end
         return unpack(r)
      end)
@@ -52,7 +83,12 @@ before: |
   -- An `L` for releasing version 1.0, with *rules* as its lukefile
   -- `release` table.
   function mkL(rules)
-     return {release = '1.0', verbose = Stub(), write = Stub(), luke = {release = rules}}
+     return {
+        release = '1.0',
+        verbose = Stub(),
+        write = Stub(),
+        luke = {package = 'demo', release = rules},
+     }
   end
 
   -- Every NEWS file in these examples.
@@ -173,6 +209,22 @@ specify luke.release:
         expect(release(mkL {news = fname}, env, build)).to_be(1)
         os.remove(NEWS)
 
+  - context with gh-pages:
+    - it diagnoses gh-pages behind or ahead of origin: |
+        spawned = ghpassing 'release-no: 0.9\n'
+        spawned['git rev-parse origin/gh-pages'] = list(0, '', 'abc123\n')
+        release = setup(spawned)
+        expect(release(mkL {['gh-pages'] = {}}, env, build)).to_be(1)
+    - it diagnoses a missing gh-pages branch: |
+        spawned = ghpassing 'release-no: 0.9\n'
+        spawned['git rev-parse refs/heads/gh-pages'] = list(128, '', '')
+        spawned['git rev-parse origin/gh-pages'] = list(128, '', '')
+        release = setup(spawned)
+        expect(release(mkL {['gh-pages'] = {}}, env, build)).to_be(1)
+    - it diagnoses a gh-pages config without release-no: |
+        release = setup(ghpassing 'name: Demo\n')
+        expect(release(mkL {['gh-pages'] = {config = '_config.yml'}}, env, build)).to_be(1)
+
   - context with a rockspec:
     - after: |
         os.remove(ROCKSPEC)
@@ -265,6 +317,48 @@ specify luke.release:
       expect(release(L, env, build)).to_be(0)
       expect(L.write[2]).to_be "git commit -a -m 'Release v1.0.'"
       expect(L.write[3]).to_be 'git tag v1.0'
+  - it returns to master, and says how to publish the release: |
+      release = setup(passing())
+      L = mkL()
+      expect(release(L, env, build)).to_be(0)
+      expect(L.write[4]).to_be 'git checkout --quiet master'
+      expect(L.write[5]).to_contain 'git push origin master release-v1.0 v1.0\n'
+      expect(L.write[6]).to_be(nil)
+  - it says nothing about publishing a failed release: |
+      release = setup(passing())
+      L = mkL()
+      expect(release(L, env, function() return 2 end)).to_be(2)
+      expect(L.write[1]).to_be 'git checkout -b release-v1.0'
+      expect(L.write[2]).to_be(nil)
+
+  - context with gh-pages:
+    - before: |
+        rules = {['gh-pages'] = {config = '_config.yml', copy = {api = 'doc'}}}
+
+    - it updates gh-pages in a worktree: |
+        spawned = ghpassing 'name: Demo\nrelease-no: 0.9\n'
+        spawned["git -C WORKTREE add -A && git -C WORKTREE commit -m 'gh-pages: update to $package 1.0.'"] = function(worktree)
+           published = slurp(worktree .. '/_config.yml')
+           return 0, '', ''
+        end
+        release = setup(spawned)
+        L = mkL(rules)
+        expect(release(L, env, build)).to_be(0)
+        expect(published).to_be 'name: Demo\nrelease-no: 1.0\n'
+        expect(L.write[4]).to_match '^git worktree add %-%-quiet %S+ gh%-pages$'
+        expect(L.write[5]).to_match '^rm %-rf %S+/api && mkdir %-p %S+/api && cp %-R doc/%. %S+/api$'
+    - it pushes gh-pages too: |
+        release = setup(ghpassing 'release-no: 0.9\n')
+        L = mkL(rules)
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[#L.write]).to_contain 'git push origin master release-v1.0 v1.0 gh-pages\n'
+    - it creates no worktree with --dry-run: |
+        spawned = ghpassing 'release-no: 0.9\n'
+        spawned['git worktree add --quiet WORKTREE gh-pages'] = nil
+        release = setup(spawned)
+        L = mkL(rules)
+        L.dryrun = true
+        expect(release(L, env, build)).to_be(0)
 
   - context with a rockspec:
     - before: |
@@ -284,6 +378,11 @@ specify luke.release:
         expect(L.write[2]).to_be('creating ' .. RELEASED)
         expect(L.write[3]).to_be('git rm --quiet ' .. ROCKSPEC)
         expect(L.write[4]).to_be('git add -f lib/demo.lua ' .. RELEASED)
+    - it says how to upload the release rockspec: |
+        release = setup(passing())
+        L = mkL {rockspec = ROCKSPEC}
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[#L.write]).to_contain('luarocks upload ' .. RELEASED .. '\n')
     - it writes no rockspec with --dry-run: |
         release = setup(passing())
         L = mkL {rockspec = ROCKSPEC}

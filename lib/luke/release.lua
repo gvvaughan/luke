@@ -102,6 +102,24 @@ local function set_modrev(text, version)
 end
 
 
+-- Jekyll _config.yml *text*, set to publish *version*.
+local function set_release_no(text, version)
+   return sub(gsub('\n' .. text, '\nrelease%-no:[^\n]*', '\nrelease-no: ' .. version, 1), 2)
+end
+
+
+-- The steps for copying each directory built for the lukefile
+-- `gh-pages.copy` table into the gh-pages *worktree*.
+local function copy_steps(L, env, worktree, copy)
+   local published = keys(copy)
+   sort(published)
+   return map(published, function(dir)
+      local dest = worktree .. '/' .. dir
+      return bind(run, {L, env, 'rm -rf', dest, '&& $MAKEDIRS', dest, '&& cp -R', copy[dir] .. '/.', dest})
+   end)
+end
+
+
 -- Each check that must pass before cutting a release of *version*, as a
 -- description and a predicate.
 local function preconditions(env, release, version)
@@ -133,6 +151,19 @@ local function preconditions(env, release, version)
       append(checks, {format('%s has no %s release yet', release.news, version), function()
          return news ~= nil and find(news, 'release ' .. version .. ' (', 1, true) == nil
       end})
+   end
+
+   local ghpages = release['gh-pages']
+   if ghpages ~= nil then
+      append(checks, {'gh-pages is up to date with origin', function()
+         local ref = git(env, 'rev-parse refs/heads/gh-pages')
+         return ref ~= nil and ref == git(env, 'rev-parse origin/gh-pages')
+      end})
+      if ghpages.config ~= nil then
+         append(checks, {format('gh-pages %s sets release-no', ghpages.config), function()
+            return match('\n' .. (git(env, 'show gh-pages:' .. ghpages.config) or ''), '\nrelease%-no:') ~= nil
+         end})
+      end
    end
 
    if release.rockspec ~= nil then
@@ -175,6 +206,9 @@ return {
       local news, rockspec = rules.news, rules.rockspec
       local released = rockspec and rockspec_name(rockspec, version)
       local added = flatten(rules.files, released)
+      local ghpages = rules['gh-pages']
+      local worktree = tmpname()
+      rm(worktree)
 
       -- TODO: before branching, rename any PACKAGE-git-1.rockspec to
       -- PACKAGE-dev-1.rockspec, setting its _MODREV from 'git' to 'dev'.
@@ -198,9 +232,30 @@ return {
          },
          not isempty(added) and bind(run, {L, env, 'git add -f', unpack(added)}) or nil,
          bind(run, {L, env, format("git commit -a -m 'Release v%s.'", version)}),
-         bind(run, {L, env, 'git tag', 'v' .. version})
+         bind(run, {L, env, 'git tag', 'v' .. version}),
+         -- TODO: when a gh-pages step fails, the worktree is left behind,
+         -- until `git worktree prune` after removing it by hand.
+         ghpages and {
+            bind(run, {L, env, 'git worktree add --quiet', worktree, 'gh-pages'}),
+            copy_steps(L, env, worktree, ghpages.copy or {}),
+            ghpages.config and bind(edit, {L, worktree .. '/' .. ghpages.config, bind(set_release_no, {[2]=version})}) or nil,
+            bind(run, {L, env, 'git -C', worktree, "add -A && git -C", worktree,
+               format("commit -m 'gh-pages: update to $package %s.'", version)}),
+            bind(run, {L, env, 'git worktree remove', worktree}),
+         },
+         bind(run, {L, env, 'git checkout --quiet master'})
       )
 
-      return dropuntil(steps, isnonzero, call) or 0
+      local status = dropuntil(steps, isnonzero, call) or 0
+      if status == 0 then
+         local pushed = flatten('master', 'release-v' .. version, 'v' .. version, ghpages and 'gh-pages')
+         L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',
+            version, concat(pushed, ' ')))
+         if released ~= nil then
+            L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout master\n',
+               version, released))
+         end
+      end
+      return status
    end,
 }

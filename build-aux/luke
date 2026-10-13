@@ -763,6 +763,9 @@ return 0
 end
 local function rockspec_name(rockspec,version)return(gsub(rockspec,DEVROCKSPEC,'%1'..version..'%2'))end
 local function set_modrev(text,version)return(gsub(text,MODREV,'%1'..version..'%2',1))end
+local function set_release_no(text,version)return sub(gsub('\n'..text,'\nrelease%-no:[^\n]*','\nrelease-no: '..version,1),2)end
+local function copy_steps(L,env,worktree,copy)local published=keys(copy)sort(published)return map(published,function(dir)local dest=worktree..'/'..dir
+return bind(run,{L,env,'rm -rf',dest,'&& $MAKEDIRS',dest,'&& cp -R',copy[dir]..'/.',dest})end)end
 local function preconditions(env,release,version)local branch,tag='release-v'..version,'v'..version
 local checks={{'the working tree is clean',function()return git(env,'status --porcelain')==''end},{'master is checked out',function()return git(env,'symbolic-ref --short HEAD')=='master'end},{'master is up to date with origin',function()return git(env,'fetch --quiet origin')~=nil
 and git(env,'rev-parse HEAD')==git(env,'rev-parse origin/master')end},{format('branch %s is unused',branch),function()return git(env,'rev-parse --verify --quiet refs/heads/'..branch)==nil
@@ -770,6 +773,11 @@ end},{format('tag %s is unused',tag),function()return git(env,'rev-parse --verif
 end},}if release.news~=nil then
 local news=slurp(File(release.news))append(checks,{format('%s has news under a placeholder header',release.news),function()return news~=nil and has_placeholder(news)end})append(checks,{format('%s has no %s release yet',release.news,version),function()return news~=nil and find(news,'release '..version..' (',1,true)==nil
 end})end
+local ghpages=release['gh-pages']if ghpages~=nil then
+append(checks,{'gh-pages is up to date with origin',function()local ref=git(env,'rev-parse refs/heads/gh-pages')return ref~=nil and ref==git(env,'rev-parse origin/gh-pages')end})if ghpages.config~=nil then
+append(checks,{format('gh-pages %s sets release-no',ghpages.config),function()return match('\n'..(git(env,'show gh-pages:'..ghpages.config)or''),'\nrelease%-no:')~=nil
+end})end
+end
 if release.rockspec~=nil then
 local rockspec=slurp(File(release.rockspec))append(checks,{format('%s is a development rockspec',release.rockspec),function()return match(release.rockspec,DEVROCKSPEC)~=nil
 end})append(checks,{format('%s sets _MODREV on its first line',release.rockspec),function()return rockspec~=nil and match(rockspec,MODREV)~=nil
@@ -784,15 +792,20 @@ end)if failed~=nil then
 fatal('cannot release %s: check failed: %s',version,failed)return 1
 end
 local rules=L.luke.release or{}local news,rockspec=rules.news,rules.rockspec
-local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.files,released)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=date'%Y-%m-%d'})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),function()if L.dryrun then
+local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.files,released)local ghpages=rules['gh-pages']local worktree=tmpname()rm(worktree)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=date'%Y-%m-%d'})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),function()if L.dryrun then
 L.write(format('building with version=%s',version),'\n')return 0
 end
-return build()end,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and bind(run,{L,env,'git add -f',unpack(added)})or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(run,{L,env,'git tag','v'..version}))return dropuntil(steps,isnonzero,call)or 0
+return build()end,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and bind(run,{L,env,'git add -f',unpack(added)})or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(run,{L,env,'git tag','v'..version}),ghpages and{bind(run,{L,env,'git worktree add --quiet',worktree,'gh-pages'}),copy_steps(L,env,worktree,ghpages.copy or{}),ghpages.config and bind(edit,{L,worktree..'/'..ghpages.config,bind(set_release_no,{[2]=version})})or nil,bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m 'gh-pages: update to $package %s.'",version)}),bind(run,{L,env,'git worktree remove',worktree}),},bind(run,{L,env,'git checkout --quiet master'}))local status=dropuntil(steps,isnonzero,call)or 0
+if status==0 then
+local pushed=flatten('master','release-v'..version,'v'..version,ghpages and'gh-pages')L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',version,concat(pushed,' ')))if released~=nil then
+L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout master\n',version,released))end
+end
+return status
 end,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/c390f1b',versiontext=[[
-luke (Luke) gvv/c390f1b
+return{VERSION='gvv/7091055',versiontext=[[
+luke (Luke) gvv/7091055
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
