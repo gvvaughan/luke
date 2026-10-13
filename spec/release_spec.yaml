@@ -5,14 +5,28 @@ before: |
   E = require 'luke.environment'
   env = E.makeenv({package = 'demo'}, E.DEFAULTENV, E.SHELLENV)
 
+  -- *r*, where running *command* changes the result of git *query* to
+  -- *result*, as checking the release again after a failure sees.
+  function changes(r, command, query, result)
+     local results = r[command]
+     r[command] = function(worktree)
+        r[query] = result
+        if type(results) == 'function' then
+           return results(worktree)
+        end
+        return unpack(results)
+     end
+     return r
+  end
+
   -- The git results for a release that passes every check, and runs
-  -- every command successfully.
+  -- every command successfully, changing the repository as it goes.
   function passing()
-     return {
+     local r = {
         ['git status --porcelain'] = list(0, '', ''),
         ['git symbolic-ref --short HEAD'] = list(0, '', 'master\n'),
         ['git fetch --quiet origin'] = list(0, '', ''),
-        ['git rev-parse HEAD'] = list(0, '', 'abc123\n'),
+        ['git rev-parse refs/heads/master'] = list(0, '', 'abc123\n'),
         ['git rev-parse origin/master'] = list(0, '', 'abc123\n'),
         ['git rev-parse --verify --quiet refs/heads/release-v1.0'] = list(1, '', ''),
         ['git rev-parse --verify --quiet refs/tags/v1.0'] = list(1, '', ''),
@@ -25,11 +39,21 @@ before: |
         ['git tag v1.0'] = list(0, '', ''),
         ['git checkout --quiet master'] = list(0, '', ''),
      }
+     changes(r, "git commit -m 'maint: update NEWS.md for 1.0.' " .. NEWS,
+        'git rev-parse refs/heads/master', list(0, '', 'def456\n'))
+     changes(r, 'git checkout -b release-v1.0',
+        'git rev-parse --verify --quiet refs/heads/release-v1.0', list(0, '', 'bcd234\n'))
+     changes(r, 'git checkout -b release-v1.0',
+        'git symbolic-ref --short HEAD', list(0, '', 'release-v1.0\n'))
+     changes(r, 'git tag v1.0', 'git rev-parse --verify --quiet refs/tags/v1.0', list(0, '', 'bcd234\n'))
+     return r
   end
 
   -- The results in *r*, with *branch* checked out, rather than master.
   function on_branch(r, branch)
      r['git symbolic-ref --short HEAD'] = list(0, '', branch .. '\n')
+     r['git rev-parse refs/heads/master'] = nil
+     r['git rev-parse refs/heads/' .. branch] = list(0, '', 'abc123\n')
      r['git rev-parse origin/master'] = nil
      r['git rev-parse origin/' .. branch] = list(0, '', 'abc123\n')
      r['git checkout --quiet master'] = nil
@@ -56,6 +80,8 @@ before: |
      r['rm -rf WORKTREE/api && $MAKEDIRS WORKTREE && cp -R doc/api/ WORKTREE/api'] = list(0, '', '')
      r['rm -rf WORKTREE/index.md && $MAKEDIRS WORKTREE && cp -R doc/demo.md WORKTREE/index.md'] = list(0, '', '')
      r["git -C WORKTREE add -A && git -C WORKTREE commit -m '" .. branch .. ": update to $package 1.0.'"] = list(0, '', '')
+     changes(r, "git -C WORKTREE add -A && git -C WORKTREE commit -m '" .. branch .. ": update to $package 1.0.'",
+        'git rev-parse refs/heads/' .. branch, list(0, '', 'cde345\n'))
      r['git worktree remove WORKTREE'] = function(worktree)
         os.execute("rm -rf '" .. worktree .. "'")
         return 0, '', ''
@@ -367,7 +393,67 @@ specify luke.release:
       L = mkL()
       expect(release(L, env, function() return 2 end)).to_be(2)
       expect(L.write[1]).to_be 'git checkout -b release-v1.0'
-      expect(L.write[2]).to_be(nil)
+      expect(L.write[#L.write]).not_to_contain 'git push'
+
+  - context after a failure:
+    - before: |
+        fname = news(PLACEHOLDER .. '  - a change\n')
+
+    - it says nothing when nothing needs undoing: |
+        spawned = passing()
+        spawned['git checkout -b release-v1.0'] = list(1, '', '')
+        release = setup(spawned)
+        L = mkL()
+        expect(release(L, env, build)).to_be(1)
+        expect(L.write[2]).to_be(nil)
+    - it says how to undo the NEWS commit on master: |
+        spawned = passing()
+        spawned['git checkout -b release-v1.0'] = list(1, '', '')
+        release = setup(spawned)
+        L = mkL {news = fname}
+        expect(release(L, env, build)).to_be(1)
+        expect(L.write[#L.write]).to_be('\nRelease v1.0 failed.  To undo it before trying again:\n\n' ..
+           '   git reset --hard origin/master\n')
+    - it says how to undo a NEWS edit that was not committed: |
+        spawned = passing()
+        spawned["git commit -m 'maint: update NEWS.md for 1.0.' " .. NEWS] = function()
+           spawned['git status --porcelain'] = list(0, '', ' M ' .. NEWS .. '\n')
+           return 1, '', ''
+        end
+        release = setup(spawned)
+        L = mkL {news = fname}
+        expect(release(L, env, build)).to_be(1)
+        expect(L.write[#L.write]).to_be('\nRelease v1.0 failed.  To undo it before trying again:\n\n' ..
+           '   git checkout --force master\n')
+    - it says how to undo the release branch: |
+        release = setup(passing())
+        L = mkL {news = fname}
+        expect(release(L, env, function() return 2 end)).to_be(2)
+        expect(L.write[#L.write]).to_be('\nRelease v1.0 failed.  To undo it before trying again:\n\n' ..
+           '   git checkout --force master\n' ..
+           '   git reset --hard origin/master\n' ..
+           '   git branch -D release-v1.0\n')
+    - it says how to undo the release tag: |
+        spawned = with_ghpages(passing(), 'release-no: @version@\n')
+        spawned['git worktree add --quiet WORKTREE gh-pages'] = list(1, '', '')
+        release = setup(spawned)
+        L = mkL {['gh-pages'] = GHPAGES}
+        expect(release(L, env, build)).to_be(1)
+        expect(L.write[#L.write]).to_be('\nRelease v1.0 failed.  To undo it before trying again:\n\n' ..
+           '   git checkout --force master\n' ..
+           '   git branch -D release-v1.0\n' ..
+           '   git tag -d v1.0\n')
+    - it says how to undo the gh-pages commit: |
+        spawned = with_ghpages(passing(), 'release-no: @version@\n')
+        spawned['git checkout --quiet master'] = list(1, '', '')
+        release = setup(spawned)
+        L = mkL {['gh-pages'] = GHPAGES}
+        expect(release(L, env, build)).to_be(1)
+        expect(L.write[#L.write]).to_be('\nRelease v1.0 failed.  To undo it before trying again:\n\n' ..
+           '   git checkout --force master\n' ..
+           '   git branch -D release-v1.0\n' ..
+           '   git tag -d v1.0\n' ..
+           '   git branch -f gh-pages origin/gh-pages\n')
 
   - context with gh-pages:
     - before: |
@@ -422,7 +508,7 @@ specify luke.release:
         release = setup(spawned)
         L = mkL(rules)
         expect(release(L, env, build)).to_be(1)
-        expect(L.write[#L.write]).to_match '^git worktree remove %-%-force %S+$'
+        expect(L.write[#L.write - 1]).to_match '^git worktree remove %-%-force %S+$'
     - it removes no worktree when a step fails before adding one: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
         spawned['git tag v1.0'] = list(1, '', '')
@@ -430,7 +516,7 @@ specify luke.release:
         release = setup(spawned)
         L = mkL(rules)
         expect(release(L, env, build)).to_be(1)
-        expect(L.write[#L.write]).to_be 'git tag v1.0'
+        expect(L.write[#L.write - 1]).to_be 'git tag v1.0'
     - it removes the worktree when the gh-pages commit fails: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
         spawned["git -C WORKTREE add -A && git -C WORKTREE commit -m 'gh-pages: update to $package 1.0.'"] = list(1, '', '')
@@ -441,7 +527,7 @@ specify luke.release:
         release = setup(spawned)
         L = mkL(rules)
         expect(release(L, env, build)).to_be(1)
-        expect(L.write[#L.write]).to_match '^git worktree remove %-%-force %S+$'
+        expect(L.write[#L.write - 1]).to_match '^git worktree remove %-%-force %S+$'
     - it copies to the branch that the release table key names: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n', 'docs')
         spawned["git -C WORKTREE add -A && git -C WORKTREE commit -m 'docs: update to $package 1.0.'"] = function(worktree)

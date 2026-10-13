@@ -532,8 +532,10 @@ is:
 Every key is optional, and Luke skips the steps for any that are
 missing.  `release` cannot be combined with other targets, and Luke
 pushes nothing: it prints the commands to publish the release when it
-is done.  With `--dry-run`, Luke still makes its checks, but then only
-prints the commands it would run and the files it would write.
+is done.  If a step fails, Luke prints the commands that undo what the
+release has done so far instead, so that its checks pass again.  With
+`--dry-run`, Luke still makes its checks, but then only prints the
+commands it would run and the files it would write.
 
 ### 8.1. Checks
 

@@ -138,26 +138,35 @@ end
 
 
 -- Each check that must pass before cutting a release of *version* from
--- *main*, the branch checked out, as a description and a predicate.
+-- *main*, the branch checked out, as a description, a predicate, and
+-- the command that undoes what a failed release did to make it fail,
+-- if any.
 local function preconditions(env, release, version, main)
    local branch, tag = 'release-v' .. version, 'v' .. version
+   local name = choose(main ~= nil, main, 'the branch')
+   local checkout = format('git checkout --force %s', name)
    local checks = {
       {'the working tree is clean', function()
          return git(env, 'status --porcelain') == ''
-      end},
+      end, checkout},
       {'a branch is checked out', function()
          return main ~= nil
       end},
-      {format('%s is up to date with origin', choose(main ~= nil, main, 'the branch')), function()
+      {format('%s is checked out', name), function()
+         return git(env, 'symbolic-ref --short HEAD') == main
+      end, checkout},
+      {'origin can be fetched', function()
          return git(env, 'fetch --quiet origin') ~= nil
-            and git(env, 'rev-parse HEAD') == git(env, 'rev-parse origin/' .. main)
       end},
+      {format('%s is up to date with origin', name), function()
+         return git(env, 'rev-parse refs/heads/' .. main) == git(env, 'rev-parse origin/' .. main)
+      end, format('git reset --hard origin/%s', name)},
       {format('branch %s is unused', branch), function()
          return git(env, 'rev-parse --verify --quiet refs/heads/' .. branch) == nil
-      end},
+      end, 'git branch -D ' .. branch},
       {format('tag %s is unused', tag), function()
          return git(env, 'rev-parse --verify --quiet refs/tags/' .. tag) == nil
-      end},
+      end, 'git tag -d ' .. tag},
    }
 
    if release.news ~= nil then
@@ -175,7 +184,7 @@ local function preconditions(env, release, version, main)
       append(checks, {format('%s is up to date with origin', pages), function()
          local ref = git(env, 'rev-parse refs/heads/' .. pages)
          return ref ~= nil and ref == git(env, 'rev-parse origin/' .. pages)
-      end})
+      end, format('git branch -f %s origin/%s', pages, pages)})
       -- TODO: the source of a copy under another name is not checked,
       -- as the build may make it, so a missing one fails only after the
       -- release is tagged.
@@ -202,6 +211,18 @@ local function preconditions(env, release, version, main)
 end
 
 
+-- The undo command of each of *checks* that fails now, after a failed
+-- release, in order and without repeats.
+local function undo_commands(checks)
+   return reduce(filter(checks, function(check)
+      local _, predicate, undo = unpack(check)
+      return undo ~= nil and not predicate()
+   end), {}, function(r, check)
+      choose(not contains(r, check[3]), bind(append, {r, check[3]}))
+   end)
+end
+
+
 -- The targets of every generated file in *luke*, which are committed to
 -- the release branch.
 local function generated(luke)
@@ -216,7 +237,8 @@ return {
    -- table, calling *build* to build everything for that version.
    release = function(L, env, build)
       local version, main = L.release, git(env, 'symbolic-ref --short HEAD')
-      local failed = dropuntil(preconditions(env, L.luke.release or {}, version, main), function(check)
+      local checks = preconditions(env, L.luke.release or {}, version, main)
+      local failed = dropuntil(checks, function(check)
          local description, predicate = unpack(check)
          L.verbose('checking whether ', description, '... ')
          local ok = predicate()
@@ -230,9 +252,6 @@ return {
          return 1
       end
 
-      -- TODO: when a step fails after the NEWS commit on the default
-      -- branch, it is left ahead of origin, so a rerun fails the checks
-      -- above until that commit is reset by hand.
       local rules = L.luke.release or {}
       local news, rockspec = rules.news, rules.rockspec
       local released = rockspec and rockspec_name(rockspec, version)
@@ -300,6 +319,16 @@ return {
             L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout %s\n',
                version, released, main))
          end
+      else
+         -- Whatever the failed release left behind now fails the checks
+         -- it passed before.
+         local undo = undo_commands(checks)
+         choose(not isempty(undo), function()
+            L.write(format('\nRelease v%s failed.  To undo it before trying again:\n\n%s', version,
+               concat(map(undo, function(command)
+                  return '   ' .. command .. '\n'
+               end))))
+         end)
       end
       return status
    end,

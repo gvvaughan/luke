@@ -23,7 +23,8 @@
     everything, writes the release rockspec, commits generated files,
     tags the release, and copies files to each branch that the table
     names, such as `gh-pages`, filling any templates there.  `--dry-run`
-    prints what it would do.
+    prints what it would do, and after a failed step, Luke prints the
+    commands to undo the release so far.
 
   - `$gitref` is the abbreviated hash of the commit checked out, and
     `$abs_top_srcdir` the absolute path of the source tree, so that

@@ -735,14 +735,15 @@ local dest=worktree..'/'..path
 local template=match(source,'%.in$')~=nil
 return except(list(choose(optional or not template,function()return bind(run,{L,env,copy_command(source,dest,optional)})end),choose(template,function()return bind(edit,{L,choose(optional,dest,source),bind(expand,{substitute}),(gsub(dest,'%.in$',''))})end)),nil)end)end
 local function preconditions(env,release,version,main)local branch,tag='release-v'..version,'v'..version
-local checks={{'the working tree is clean',function()return git(env,'status --porcelain')==''end},{'a branch is checked out',function()return main~=nil
-end},{format('%s is up to date with origin',choose(main~=nil,main,'the branch')),function()return git(env,'fetch --quiet origin')~=nil
-and git(env,'rev-parse HEAD')==git(env,'rev-parse origin/'..main)end},{format('branch %s is unused',branch),function()return git(env,'rev-parse --verify --quiet refs/heads/'..branch)==nil
-end},{format('tag %s is unused',tag),function()return git(env,'rev-parse --verify --quiet refs/tags/'..tag)==nil
-end},}if release.news~=nil then
+local name=choose(main~=nil,main,'the branch')local checkout=format('git checkout --force %s',name)local checks={{'the working tree is clean',function()return git(env,'status --porcelain')==''end,checkout},{'a branch is checked out',function()return main~=nil
+end},{format('%s is checked out',name),function()return git(env,'symbolic-ref --short HEAD')==main
+end,checkout},{'origin can be fetched',function()return git(env,'fetch --quiet origin')~=nil
+end},{format('%s is up to date with origin',name),function()return git(env,'rev-parse refs/heads/'..main)==git(env,'rev-parse origin/'..main)end,format('git reset --hard origin/%s',name)},{format('branch %s is unused',branch),function()return git(env,'rev-parse --verify --quiet refs/heads/'..branch)==nil
+end,'git branch -D '..branch},{format('tag %s is unused',tag),function()return git(env,'rev-parse --verify --quiet refs/tags/'..tag)==nil
+end,'git tag -d '..tag},}if release.news~=nil then
 local news=slurp(File(release.news))append(checks,{format('%s has news under a placeholder header',release.news),function()return news~=nil and has_placeholder(news)end})append(checks,{format('%s has no %s release yet',release.news,version),function()return news~=nil and find(news,'release '..version..' (',1,true)==nil
 end})end
-map(branches(release),function(pages)local copies=release[pages]append(checks,{format('%s is up to date with origin',pages),function()local ref=git(env,'rev-parse refs/heads/'..pages)return ref~=nil and ref==git(env,'rev-parse origin/'..pages)end})map(filter(sorted(keys(copies)),function(path)return copies[path].optional and match(path,'%.in$')~=nil
+map(branches(release),function(pages)local copies=release[pages]append(checks,{format('%s is up to date with origin',pages),function()local ref=git(env,'rev-parse refs/heads/'..pages)return ref~=nil and ref==git(env,'rev-parse origin/'..pages)end,format('git branch -f %s origin/%s',pages,pages)})map(filter(sorted(keys(copies)),function(path)return copies[path].optional and match(path,'%.in$')~=nil
 end),function(template)append(checks,{format('%s or the release has %s',pages,template),function()return exists(template)or git(env,format('cat-file -e %s:%s',pages,template))~=nil
 end})end)end)if release.rockspec~=nil then
 local rockspec=slurp(File(release.rockspec))append(checks,{format('%s is a development rockspec',release.rockspec),function()return match(release.rockspec,DEVROCKSPEC)~=nil
@@ -750,8 +751,9 @@ end})append(checks,{format('%s sets _MODREV on its first line',release.rockspec)
 end})end
 return checks
 end
+local function undo_commands(checks)return reduce(filter(checks,function(check)local _,predicate,undo=unpack(check)return undo~=nil and not predicate()end),{},function(r,check)choose(not contains(r,check[3]),bind(append,{r,check[3]}))end)end
 local function generated(luke)return map(sorted(keys(luke.files)),function(name)return script_target(name,luke.files[name])end)end
-return{release=function(L,env,build)local version,main=L.release,git(env,'symbolic-ref --short HEAD')local failed=dropuntil(preconditions(env,L.luke.release or{},version,main),function(check)local description,predicate=unpack(check)L.verbose('checking whether ',description,'... ')local ok=predicate()L.verbose(ok and'yes\n'or'no\n')if not ok then
+return{release=function(L,env,build)local version,main=L.release,git(env,'symbolic-ref --short HEAD')local checks=preconditions(env,L.luke.release or{},version,main)local failed=dropuntil(checks,function(check)local description,predicate=unpack(check)L.verbose('checking whether ',description,'... ')local ok=predicate()L.verbose(ok and'yes\n'or'no\n')if not ok then
 return description
 end
 end)if failed~=nil then
@@ -765,7 +767,8 @@ return build()end,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=versio
 choose(status~=0,function()map(filter(sorted(values(worktrees)),exists),function(worktree)run(L,env,'git worktree remove --force',worktree)end)end)if status==0 then
 local pushed=flatten(main,'release-v'..version,'v'..version,pages)L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',version,concat(pushed,' ')))if released~=nil then
 L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout %s\n',version,released,main))end
-end
+else
+local undo=undo_commands(checks)choose(not isempty(undo),function()L.write(format('\nRelease v%s failed.  To undo it before trying again:\n\n%s',version,concat(map(undo,function(command)return'   '..command..'\n'end))))end)end
 return status
 end,}
 end
@@ -823,8 +826,8 @@ end
 return{copies=copies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/d655719',versiontext=[[
-luke (Luke) gvv/d655719
+return{VERSION='gvv/36166aa',versiontext=[[
+luke (Luke) gvv/36166aa
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
