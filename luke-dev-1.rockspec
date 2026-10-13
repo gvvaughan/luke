@@ -19,8 +19,15 @@ dependencies = {
 }
 
 source = {
-   url = 'git+https://github.com/gvvaughan/luke.git',
+   url = 'https://github.com/gvvaughan/luke/archive/v' .. _MODREV .. '.zip',
+   dir = 'luke-' .. _MODREV,
 }
+
+if _MODREV == 'dev' then
+   source = {
+      url = 'git+https://github.com/gvvaughan/luke.git',
+   }
+end
 
 -- Luke builds itself, running in strict mode from this source tree.
 -- Projects copy build-aux/luke rather than installing a luke rock, so
