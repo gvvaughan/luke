@@ -110,7 +110,9 @@ return {
       end
 
       if L.release ~= nil then
-         return release(L, env)
+         return release(L, env, function()
+            return build(L, env)
+         end)
       end
 
       if not isempty(L.luke.modules or {}) or not isempty(L.scripts.build) then

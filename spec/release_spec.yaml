@@ -18,6 +18,11 @@ before: |
         ['git rev-parse --verify --quiet refs/tags/v1.0'] = list(1, '', ''),
         ["git commit -m 'maint: update NEWS.md for 1.0.' " .. NEWS] = list(0, '', ''),
         ['git checkout -b release-v1.0'] = list(0, '', ''),
+        ['git rm --quiet ' .. ROCKSPEC] = list(0, '', ''),
+        ['git add -f ' .. RELEASED] = list(0, '', ''),
+        ['git add -f lib/demo.lua ' .. RELEASED] = list(0, '', ''),
+        ["git commit -a -m 'Release v1.0.'"] = list(0, '', ''),
+        ['git tag v1.0'] = list(0, '', ''),
      }
   end
 
@@ -71,6 +76,22 @@ before: |
 
   TODAY = os.date '%Y-%m-%d'
 
+  -- A development rockspec, and the release rockspec made from it.
+  ROCKSPEC = os.tmpname() .. '-dev-1.rockspec'
+  RELEASED = ROCKSPEC:gsub('%-dev%-1%.rockspec$', '-1.0-1.rockspec')
+
+  function rockspec(content)
+     local h = assert(io.open(ROCKSPEC, 'w'))
+     h:write(content)
+     h:close()
+     return ROCKSPEC
+  end
+
+  -- A successful build.
+  function build()
+     return 0
+  end
+
   PLACEHOLDER = '# NEWS\n\n## Noteworthy changes in release ?.? (????-??-??) [?]\n\n'
 
 specify luke.release:
@@ -80,12 +101,12 @@ specify luke.release:
 - describe preconditions:
   - it passes a clean, up to date master: |
       release, fatal = setup(passing())
-      expect(release(mkL(), env)).to_be(0)
+      expect(release(mkL(), env, build)).to_be(0)
       expect(#fatal).to_be(0)
   - it reports each check as it goes: |
       release, fatal = setup(passing())
       L = mkL()
-      release(L, env)
+      release(L, env, build)
       expect(L.verbose[1]).to_be 'checking whether '
       expect(L.verbose[#L.verbose]).to_be 'yes\n'
 
@@ -93,64 +114,75 @@ specify luke.release:
       spawned = passing()
       spawned['git status --porcelain'] = list(0, '', ' M lukefile\n')
       release, fatal = setup(spawned)
-      expect(release(mkL(), env)).to_be(1)
+      expect(release(mkL(), env, build)).to_be(1)
       expect(fatal[1]).to_be 'cannot release %s: check failed: %s'
   - it stops at the first failing check: |
       spawned = passing()
       spawned['git status --porcelain'] = list(0, '', ' M lukefile\n')
       spawned['git symbolic-ref --short HEAD'] = nil
       release, fatal = setup(spawned)
-      expect(release(mkL(), env)).to_be(1)
+      expect(release(mkL(), env, build)).to_be(1)
   - it diagnoses another branch checked out: |
       spawned = passing()
       spawned['git symbolic-ref --short HEAD'] = list(0, '', 'topic\n')
       release, fatal = setup(spawned)
-      expect(release(mkL(), env)).to_be(1)
+      expect(release(mkL(), env, build)).to_be(1)
   - it diagnoses a failed fetch: |
       spawned = passing()
       spawned['git fetch --quiet origin'] = list(128, 'no origin', '')
       release, fatal = setup(spawned)
-      expect(release(mkL(), env)).to_be(1)
+      expect(release(mkL(), env, build)).to_be(1)
   - it diagnoses master behind or ahead of origin: |
       spawned = passing()
       spawned['git rev-parse origin/master'] = list(0, '', 'def456\n')
       release, fatal = setup(spawned)
-      expect(release(mkL(), env)).to_be(1)
+      expect(release(mkL(), env, build)).to_be(1)
   - it diagnoses an existing release branch: |
       spawned = passing()
       spawned['git rev-parse --verify --quiet refs/heads/release-v1.0'] = list(0, '', 'abc123\n')
       release, fatal = setup(spawned)
-      expect(release(mkL(), env)).to_be(1)
+      expect(release(mkL(), env, build)).to_be(1)
   - it diagnoses an existing release tag: |
       spawned = passing()
       spawned['git rev-parse --verify --quiet refs/tags/v1.0'] = list(0, '', 'abc123\n')
       release, fatal = setup(spawned)
-      expect(release(mkL(), env)).to_be(1)
+      expect(release(mkL(), env, build)).to_be(1)
 
   - context with news:
     - it passes news under a placeholder header: |
         fname = news(PLACEHOLDER .. '  - a change\n\n## Noteworthy changes in release 0.9 (2026-01-01) [stable]\n')
         release, fatal = setup(passing())
-        expect(release(mkL {news = fname}, env)).to_be(0)
+        expect(release(mkL {news = fname}, env, build)).to_be(0)
         os.remove(NEWS)
     - it diagnoses a missing news file: |
         release, fatal = setup(passing())
-        expect(release(mkL {news = '/no/such/NEWS.md'}, env)).to_be(1)
+        expect(release(mkL {news = '/no/such/NEWS.md'}, env, build)).to_be(1)
     - it diagnoses a release header in place of the placeholder: |
         fname = news '# NEWS\n\n## Noteworthy changes in release 0.9 (2026-01-01) [stable]\n\n  - a change\n'
         release, fatal = setup(passing())
-        expect(release(mkL {news = fname}, env)).to_be(1)
+        expect(release(mkL {news = fname}, env, build)).to_be(1)
         os.remove(NEWS)
     - it diagnoses a placeholder with no news under it: |
         fname = news(PLACEHOLDER .. '\n## Noteworthy changes in release 0.9 (2026-01-01) [stable]\n\n  - old\n')
         release, fatal = setup(passing())
-        expect(release(mkL {news = fname}, env)).to_be(1)
+        expect(release(mkL {news = fname}, env, build)).to_be(1)
         os.remove(NEWS)
     - it diagnoses news that already has this release: |
         fname = news(PLACEHOLDER .. '  - a change\n\n## Noteworthy changes in release 1.0 (2026-01-01) [stable]\n')
         release, fatal = setup(passing())
-        expect(release(mkL {news = fname}, env)).to_be(1)
+        expect(release(mkL {news = fname}, env, build)).to_be(1)
         os.remove(NEWS)
+
+  - context with a rockspec:
+    - after: |
+        os.remove(ROCKSPEC)
+    - it diagnoses a rockspec that is not for development: |
+        release = setup(passing())
+        expect(release(mkL {rockspec = 'demo-1.0-1.rockspec'}, env, build)).to_be(1)
+    - it diagnoses a rockspec without _MODREV on its first line: |
+        rockspec "package = 'demo'\nversion = 'dev-1'\n"
+        release = setup(passing())
+        expect(release(mkL {rockspec = ROCKSPEC}, env, build)).to_be(1)
 
 - describe steps:
   - before: |
@@ -165,35 +197,35 @@ specify luke.release:
          return 0, '', ''
       end
       release = setup(spawned)
-      expect(release(mkL {news = fname}, env)).to_be(0)
+      expect(release(mkL {news = fname}, env, build)).to_be(0)
       expect(committed).to_be(PLACEHOLDER ..
          '\n## Noteworthy changes in release 1.0 (' .. TODAY .. ') [stable]\n\n' ..
          '  - a change\n\n\n## Noteworthy changes in release 0.9 (2026-01-01) [stable]\n')
   - it removes the placeholder on the release branch: |
       release = setup(passing())
-      expect(release(mkL {news = fname}, env)).to_be(0)
+      expect(release(mkL {news = fname}, env, build)).to_be(0)
       expect(slurp(NEWS)).to_be('# NEWS\n\n\n## Noteworthy changes in release 1.0 (' .. TODAY .. ') [stable]\n\n' ..
          '  - a change\n\n\n## Noteworthy changes in release 0.9 (2026-01-01) [stable]\n')
   - it writes each step as it goes: |
       release = setup(passing())
       L = mkL {news = fname}
-      release(L, env)
+      release(L, env, build)
       expect(L.write[1]).to_be('updating ' .. NEWS)
       expect(L.write[2]).to_be("git commit -m 'maint: update NEWS.md for 1.0.' " .. NEWS)
       expect(L.write[3]).to_be 'git checkout -b release-v1.0'
       expect(L.write[4]).to_be('updating ' .. NEWS)
-  - it only branches without news: |
+  - it leaves NEWS alone without news: |
       release = setup(passing())
       L = mkL()
-      expect(release(L, env)).to_be(0)
+      expect(release(L, env, build)).to_be(0)
       expect(L.write[1]).to_be 'git checkout -b release-v1.0'
-      expect(L.write[2]).to_be(nil)
+      expect(L.write[2]).to_be "git commit -a -m 'Release v1.0.'"
   - it stops at the first failing command: |
       spawned = passing()
       spawned["git commit -m 'maint: update NEWS.md for 1.0.' " .. NEWS] = list(1, '', '')
       spawned['git checkout -b release-v1.0'] = nil
       release = setup(spawned)
-      expect(release(mkL {news = fname}, env)).to_be(1)
+      expect(release(mkL {news = fname}, env, build)).to_be(1)
   - it changes nothing with --dry-run: |
       spawned = passing()
       spawned["git commit -m 'maint: update NEWS.md for 1.0.' " .. NEWS] = nil
@@ -202,6 +234,59 @@ specify luke.release:
       L = mkL {news = fname}
       L.dryrun = true
       before = slurp(NEWS)
-      expect(release(L, env)).to_be(0)
+      expect(release(L, env, build)).to_be(0)
       expect(slurp(NEWS)).to_be(before)
       expect(L.write[3]).to_be 'git checkout -b release-v1.0'
+  - it builds after branching: |
+      spawned = passing()
+      spawned['git checkout -b release-v1.0'] = function()
+         branched = true
+         return 0, '', ''
+      end
+      release = setup(spawned)
+      expect(release(mkL(), env, function()
+         built = branched
+         return 0
+      end)).to_be(0)
+      expect(built).to_be(true)
+  - it stops when the build fails: |
+      spawned = passing()
+      spawned["git commit -a -m 'Release v1.0.'"] = nil
+      release = setup(spawned)
+      expect(release(mkL(), env, function() return 2 end)).to_be(2)
+  - it does not build with --dry-run: |
+      release = setup(passing())
+      L = mkL()
+      L.dryrun = true
+      expect(release(L, env, function() error 'built' end)).to_be(0)
+  - it commits and tags the release: |
+      release = setup(passing())
+      L = mkL()
+      expect(release(L, env, build)).to_be(0)
+      expect(L.write[2]).to_be "git commit -a -m 'Release v1.0.'"
+      expect(L.write[3]).to_be 'git tag v1.0'
+
+  - context with a rockspec:
+    - before: |
+        rockspec "local _MODREV, _SPECREV = 'dev', '-1'\n\npackage = 'demo'\n"
+    - after: |
+        os.remove(ROCKSPEC)
+        os.remove(RELEASED)
+
+    - it writes the release rockspec: |
+        release = setup(passing())
+        expect(release(mkL {rockspec = ROCKSPEC}, env, build)).to_be(0)
+        expect(slurp(RELEASED)).to_be "local _MODREV, _SPECREV = '1.0', '-1'\n\npackage = 'demo'\n"
+    - it replaces the development rockspec, and adds generated files: |
+        release = setup(passing())
+        L = mkL {rockspec = ROCKSPEC, files = {'lib/demo.lua'}}
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[2]).to_be('creating ' .. RELEASED)
+        expect(L.write[3]).to_be('git rm --quiet ' .. ROCKSPEC)
+        expect(L.write[4]).to_be('git add -f lib/demo.lua ' .. RELEASED)
+    - it writes no rockspec with --dry-run: |
+        release = setup(passing())
+        L = mkL {rockspec = ROCKSPEC}
+        L.dryrun = true
+        expect(release(L, env, build)).to_be(0)
+        expect(slurp(RELEASED)).to_be(nil)

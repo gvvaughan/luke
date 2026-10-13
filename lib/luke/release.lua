@@ -17,6 +17,12 @@ local _ENV = require 'luke.normalize' {
 -- The header for the next release's news, at the top of NEWS.
 local PLACEHOLDER = '\n(## [^\n]*%?%.%?[^\n]*\n)'
 
+-- The first line of a rockspec, which sets the version it builds.
+local MODREV = "^(local _MODREV, _SPECREV = ')[^']*(')"
+
+-- The name of a development rockspec, around its version.
+local DEVROCKSPEC = '^(.-%-)dev(%-%d+%.rockspec)$'
+
 
 -- The output of git with arguments *...*, without its trailing newline,
 -- or nil if git fails.
@@ -69,17 +75,30 @@ local function run(L, env, ...)
 end
 
 
--- Replace the content of *path* with the result of passing it to *fn*,
--- or with --dry-run only say so; return 0.
-local function edit(L, path, fn)
-   L.write('updating ' .. path, '\n')
+-- Write the result of passing the content of *path* to *fn* to *dest*,
+-- or else back to *path*; or with --dry-run only say so; return 0.
+local function edit(L, path, fn, dest)
+   dest = dest or path
+   L.write((dest == path and 'updating ' or 'creating ') .. dest, '\n')
    if not L.dryrun then
       local content = fn(slurp(File(path)))
-      with(File(path, 'w'), function(h)
+      with(File(dest, 'w'), function(h)
          h:write(content)
       end)
    end
    return 0
+end
+
+
+-- The release rockspec for *version*, from development *rockspec*.
+local function rockspec_name(rockspec, version)
+   return (gsub(rockspec, DEVROCKSPEC, '%1' .. version .. '%2'))
+end
+
+
+-- Rockspec *text*, set to build *version*.
+local function set_modrev(text, version)
+   return (gsub(text, MODREV, '%1' .. version .. '%2', 1))
 end
 
 
@@ -116,14 +135,24 @@ local function preconditions(env, release, version)
       end})
    end
 
+   if release.rockspec ~= nil then
+      local rockspec = slurp(File(release.rockspec))
+      append(checks, {format('%s is a development rockspec', release.rockspec), function()
+         return match(release.rockspec, DEVROCKSPEC) ~= nil
+      end})
+      append(checks, {format('%s sets _MODREV on its first line', release.rockspec), function()
+         return rockspec ~= nil and match(rockspec, MODREV) ~= nil
+      end})
+   end
+
    return checks
 end
 
 
 return {
    -- Cut a release of `L.release`, configured by the lukefile `release`
-   -- table.
-   release = function(L, env)
+   -- table, calling *build* to build everything for that version.
+   release = function(L, env, build)
       local version = L.release
       local failed = dropuntil(preconditions(env, L.luke.release or {}, version), function(check)
          local description, predicate = unpack(check)
@@ -142,14 +171,34 @@ return {
       -- TODO: when a step fails after the NEWS commit on master, master
       -- is left ahead of origin, so a rerun fails the checks above until
       -- that commit is reset by hand.
-      local news = (L.luke.release or {}).news
+      local rules = L.luke.release or {}
+      local news, rockspec = rules.news, rules.rockspec
+      local released = rockspec and rockspec_name(rockspec, version)
+      local added = flatten(rules.files, released)
+
+      -- TODO: before branching, rename any PACKAGE-git-1.rockspec to
+      -- PACKAGE-dev-1.rockspec, setting its _MODREV from 'git' to 'dev'.
       local steps = flatten(
          news and {
             bind(edit, {L, news, bind(add_release_header, {[2]=version, [3]=date '%Y-%m-%d'})}),
             bind(run, {L, env, 'git commit', format("-m 'maint: update NEWS.md for %s.'", version), news}),
          },
          bind(run, {L, env, 'git checkout -b', 'release-v' .. version}),
-         news and bind(edit, {L, news, remove_placeholder})
+         news and bind(edit, {L, news, remove_placeholder}),
+         function()
+            if L.dryrun then
+               L.write(format('building with version=%s', version), '\n')
+               return 0
+            end
+            return build()
+         end,
+         rockspec and {
+            bind(edit, {L, rockspec, bind(set_modrev, {[2]=version}), released}),
+            bind(run, {L, env, 'git rm --quiet', rockspec}),
+         },
+         not isempty(added) and bind(run, {L, env, 'git add -f', unpack(added)}) or nil,
+         bind(run, {L, env, format("git commit -a -m 'Release v%s.'", version)}),
+         bind(run, {L, env, 'git tag', 'v' .. version})
       )
 
       return dropuntil(steps, isnonzero, call) or 0
