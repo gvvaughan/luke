@@ -65,8 +65,13 @@ local function isnonnil(x)
 end
 
 
+-- Not `choose`, which would call a function-valued *x* rather than
+-- return it.
 local function mkpredicate(x)
-   return type(x) == 'function' and x or eq(x)
+   if type(x) == 'function' then
+      return x
+   end
+   return eq(x)
 end
 
 
@@ -134,6 +139,20 @@ return {
    end,
 
    call = call,
+
+   -- *consequent* if *test* is truthy, otherwise *alternative*, where
+   -- either may be falsy, unlike in `test and consequent or alternative`.
+   -- Like `cond`, a callable leg is called with *test* only when it is
+   -- chosen, so pass side effects as functions.
+   choose = function(test, consequent, alternative)
+      local leg = alternative
+      if test then
+         leg = consequent
+      end
+      if leg ~= nil then
+         return call(leg, test)
+      end
+   end,
 
    case = function(s, branches)
       if branches[s] ~= nil then
@@ -324,6 +343,13 @@ return {
          acc = block(acc, unpack(valu)) or acc
       end
       return acc
+   end,
+
+   -- A copy of *seq* sorted by *cmp*, leaving *seq* itself unchanged.
+   sorted = function(seq, cmp)
+      local r = copy(seq)
+      sort(r, cmp)
+      return r
    end,
 
    values = function(iterable)
