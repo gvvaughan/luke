@@ -9,6 +9,21 @@ specify luke.normalize:
     expect(type(normalize)).to_be 'table'
     expect(normalize.iscallable(normalize)).not_to_be(nil)
 
+- describe format:
+  - before:
+      format = normalize.format
+
+  - it formats any value as a string, as Lua 5.2 and later do:
+      expect(format('%s, %s and %s', nil, true, 42)).to_be 'nil, true and 42'
+  - it formats a table with its __tostring metamethod: |
+      expect(format('<%s>', setmetatable({}, {__tostring = function() return 'object' end}))).
+         to_be '<object>'
+  - it formats nil after an escaped percent sign:
+      expect(format('100%% %s', nil)).to_be '100% nil'
+  - it formats other conversions as string.format does: |
+      expect(format('%d%% of %5.1f is %q, %s', 50, 2.25, 'x', nil)).
+         to_be(string.format('%d%% of %5.1f is %q, ', 50, 2.25, 'x') .. 'nil')
+
 - describe int:
   - before:
       int = normalize.int

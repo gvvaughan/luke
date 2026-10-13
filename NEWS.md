@@ -62,3 +62,8 @@
 
   - When a `luke release` step fails while updating a branch such as
     `gh-pages`, Luke removes the temporary worktree it was updating.
+
+  - On Lua 5.1, a message that includes nil, a boolean or a table, such
+    as a diagnostic naming a missing value, no longer fails with "bad
+    argument to 'format'", as Luke formats such values as later Luas
+    do.

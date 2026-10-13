@@ -46,10 +46,12 @@ local ceil         = math.ceil
 local concat       = table.concat
 local config       = package.config
 local getmetatable = getmetatable
+local gmatch       = string.gmatch
 local loadstring   = rawget(_G, 'loadstring')
 local match        = string.match
 local next         = next
 local pack         = table.pack or function(...) return {n=select('#', ...), ...} end
+local pcall        = pcall
 local setfenv      = rawget(_G, 'setfenv')
 local sort         = table.sort
 local tointeger    = math.tointeger
@@ -93,6 +95,29 @@ local int = (function(f)
    -- Host tointeger is good!
    return f
 end)(tointeger)
+
+
+local format = (function(f)
+   if pcall(f, '%s', nil) then
+      -- Host format converts any `%s` argument with tostring already.
+      return f
+   end
+
+   -- Lua 5.1 formats only strings and numbers with `%s`, so convert
+   -- every other `%s` argument with tostring first, as later Luas do.
+   return function(fmt, ...)
+      local argu, i = pack(...), 0
+      for conversion in gmatch(fmt, '%%[-+ #0]*%d*%.?%d*([%a%%])') do
+         if conversion ~= '%' then
+            i = i + 1
+            if conversion == 's' then
+               argu[i] = tostring(argu[i])
+            end
+         end
+      end
+      return f(fmt, unpack(argu, 1, argu.n))
+   end
+end)(string.format)
 
 
 local function iscallable(x)
@@ -215,7 +240,7 @@ return setmetatable({
    dirsep        = dirsep,
    exit          = os.exit,
    find          = string.find,
-   format        = string.format,
+   format        = format,
    getenv        = os.getenv,
    getmetatable  = getmetatable,
    getmetamethod = getmetamethod,
