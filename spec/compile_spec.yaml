@@ -84,19 +84,19 @@ specify luke.compile:
 
 - describe spawn:
   - before:
-      env = E.makeenv({}, E.DEFAULTENV, E.SHELLENV)
+      env = E.mkenv({}, E.DEFAULTENV, E.SHELLENV)
 
   - it returns the exit status, error output and output of a command: |
       expect(list(compile.spawn(env, '(echo out; echo err >&2; exit 3)'))).
          to_equal(list(3, 'err\n', 'out\n'))
 
   - it interpolates environment variables into the command:
-      env = E.makeenv({GREETING='hello'}, E.DEFAULTENV, E.SHELLENV)
+      env = E.mkenv({GREETING='hello'}, E.DEFAULTENV, E.SHELLENV)
       expect(list(compile.spawn(env, 'echo', '$GREETING'))).to_equal(list(0, '', 'hello\n'))
 
 - describe run_command:
   - before:
-      env = E.makeenv({}, E.DEFAULTENV, E.SHELLENV)
+      env = E.mkenv({}, E.DEFAULTENV, E.SHELLENV)
 
   - it writes the command, and returns its status and output:
       L = {write = Stub()}
@@ -120,7 +120,7 @@ specify luke.compile:
 - describe install_modules:
   - before:
       dest = tmpdir()
-      env = E.makeenv({INST_LUADIR=dest .. '/share', INST_LIBDIR=dest .. '/lib'}, E.DEFAULTENV, E.SHELLENV)
+      env = E.mkenv({INST_LUADIR=dest .. '/share', INST_LIBDIR=dest .. '/lib'}, E.DEFAULTENV, E.SHELLENV)
       luke = {variables = {objdir = dest .. '/obj'}}
       L = {write = function() end}
 

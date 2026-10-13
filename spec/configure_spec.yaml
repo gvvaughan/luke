@@ -3,7 +3,7 @@
 
 before: |
   E = require 'luke.environment'
-  env = E.makeenv({CC='cc'}, E.DEFAULTENV, E.SHELLENV)
+  env = E.mkenv({CC='cc'}, E.DEFAULTENV, E.SHELLENV)
 
   LINK_SUCCESS = list(0, '', '')
   LINK_FAILURE = list(1, '', 'error')
@@ -181,7 +181,7 @@ specify luke.configure:
          LINK_FAILURE, -- try_link library=''
          LINK_SUCCESS, -- try_link library='crypt'
       }
-      env = E.makeenv({CC='cc', CPPFLAGS='-D_XOPEN_CRYPT'}, E.DEFAULTENV, E.SHELLENV)
+      env = E.mkenv({CC='cc', CPPFLAGS='-D_XOPEN_CRYPT'}, E.DEFAULTENV, E.SHELLENV)
       expect(configure(L, env, {
          checksymbol='crypt',
          ifdef='_XOPEN_CRYPT',
@@ -201,7 +201,7 @@ specify luke.configure:
 
   - it searches for external dependencies:
       configure, run_configs, L = setup {LINK_FAILURE, LINK_SUCCESS}
-      env = E.makeenv(
+      env = E.mkenv(
          {
             CC='cc',
             YAML_DIR='/usr/local/brew',

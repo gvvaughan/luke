@@ -407,7 +407,7 @@ return {
       local CC = env.CC
       if CC == nil then
          CC = configure(L, env, {checkprog='C compiler', progs=CCPROGS})
-         env = makeenv(env, {CC=CC})
+         env = mkenv(env, {CC=CC})
       end
 
       checking(L, interpolate(env, 'whether $CC works'))
@@ -433,7 +433,7 @@ return {
       local LDOC = env.LDOC
       if LDOC == nil then
          LDOC = configure(L, env, {checkprog='LDocs generator', progs={'ldoc', 'true'}})
-         env = makeenv(env, {LDOC=LDOC})
+         env = mkenv(env, {LDOC=LDOC})
       end
       return env
    end,

@@ -8,7 +8,7 @@ specify luke.environment:
 - describe expand:
   - before:
       environment = require 'luke.environment'
-      env = environment.makeenv {version = '1.0'}
+      env = environment.mkenv {version = '1.0'}
 
   - it fills each template name: |
       expect(environment.expand(env, 'v@version@ (@version@)')).to_be 'v1.0 (1.0)'

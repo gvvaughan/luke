@@ -95,9 +95,10 @@ return {
       end, s)
    end,
 
-   -- TODO: rename to `mkenv`, like the other builders (`mkpredicate`,
-   -- `mkcheck`).
-   makeenv = function(...)
+   -- An environment that looks a name up in each of the tables *...* in
+   -- turn, skipping nils, and searching the tables of an environment
+   -- among them in its place.
+   mkenv = function(...)
       local env = reduce(except(list(...), nil), function(r, t)
          if isenv(t) then
             map(t, bind(append, {r}))

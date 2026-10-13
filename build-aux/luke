@@ -125,7 +125,7 @@ stdout:write(concat(command,' ')..'\n')stderr:write(err..'\n')return status
 end
 end
 if rules.command~=nil then
-local names=sorted(keys(rules.env))env=makeenv({sources=concat(sources,' '),target=target},rules.env,env)local exports={}if not isempty(names)then
+local names=sorted(keys(rules.env))env=mkenv({sources=concat(sources,' '),target=target},rules.env,env)local exports={}if not isempty(names)then
 exports=flatten('export',map(names,function(name)return format('%s=%s',name,shellword(interpolate(env,rules.env[name])))end),';')end
 return run(L,env,flatten(exports,rules.command))end
 if c_sources(sources)==nil then
@@ -277,7 +277,7 @@ end,['table']=function()return dropuntil(self,function(fname)if config[fname]~=n
 add_external_deps(env,config,prefix)return apply(self[fname],list(L,env,config))end
 end)or fatal("unable to configure with keys '%s'",concat(keys(config),"', '"))end,function(type)fatal("unsupported configure type '%s'",type)end,})end,})return{config_compiler=function(L,env)local CC=env.CC
 if CC==nil then
-CC=configure(L,env,{checkprog='C compiler',progs=CCPROGS})env=makeenv(env,{CC=CC})end
+CC=configure(L,env,{checkprog='C compiler',progs=CCPROGS})env=mkenv(env,{CC=CC})end
 checking(L,interpolate(env,'whether $CC works'))local cm=Conftest(L)local works,err=with(cm,function(conftest)conftest:write('typedef int x;\n')conftest:flush()return spawn(env,'$compile','-o',conftest.objfile,conftest.filename)end)if works~=0 then
 L.verbose'no\n'L.log(interpolate(env,'$compile -o '..cm.objfile..' '..cm.filename))if err and err~=''then
 L.log(err)end
@@ -285,7 +285,7 @@ fatal('could not find a working C compiler')end
 found_prog(L,CC)return env
 end,config_ldoc=function(L,env)local LDOC=env.LDOC
 if LDOC==nil then
-LDOC=configure(L,env,{checkprog='LDocs generator',progs={'ldoc','true'}})env=makeenv(env,{LDOC=LDOC})end
+LDOC=configure(L,env,{checkprog='LDocs generator',progs={'ldoc','true'}})env=mkenv(env,{LDOC=LDOC})end
 return env
 end,configure=configure,}
 end
@@ -301,7 +301,7 @@ return r
 end
 local function isenv(t)return getmetatable(t)==env_mt
 end
-return{CONFIGENV={compile='$CC -c $CFLAGS $CPPFLAGS',libs='',link='$CC $CFLAGS $CPPFLAGS $LDFLAGS',},DEFAULTENV=filter_platforms{LUA='lua',LUAVERSION=LUAVERSION,PREFIX='/usr/local',INST_BINDIR='$PREFIX/bin',INST_LIBDIR='$PREFIX/lib/lua/$LUAVERSION',INST_LUADIR='$PREFIX/share/lua/$LUAVERSION',LIB_EXTENSION='so',OBJ_EXTENSION='o',CHMOD='chmod',INSTALL='cp',MAKEDIRS='mkdir -p',CFLAGS='-O2',platforms={macosx={LIBFLAG='-fPIC -bundle -undefined dynamic_lookup -all_load',},LIBFLAG='-shared -fPIC',},},SHELLENV=setmetatable({},{__index=function(_,v)return getenv(v)end,}),expand=bind(interpolate_with,{'@([%w_]+)@'}),interpolate=bind(interpolate_with,{'%$([%w_]+)'}),shellword=function(s)return choose(match(s,SHELLMETACHARS)~=nil,function()return"'"..gsub(s,"'",[['\'']]).."'"end,s)end,makeenv=function(...)local env=reduce(except(list(...),nil),function(r,t)if isenv(t)then
+return{CONFIGENV={compile='$CC -c $CFLAGS $CPPFLAGS',libs='',link='$CC $CFLAGS $CPPFLAGS $LDFLAGS',},DEFAULTENV=filter_platforms{LUA='lua',LUAVERSION=LUAVERSION,PREFIX='/usr/local',INST_BINDIR='$PREFIX/bin',INST_LIBDIR='$PREFIX/lib/lua/$LUAVERSION',INST_LUADIR='$PREFIX/share/lua/$LUAVERSION',LIB_EXTENSION='so',OBJ_EXTENSION='o',CHMOD='chmod',INSTALL='cp',MAKEDIRS='mkdir -p',CFLAGS='-O2',platforms={macosx={LIBFLAG='-fPIC -bundle -undefined dynamic_lookup -all_load',},LIBFLAG='-shared -fPIC',},},SHELLENV=setmetatable({},{__index=function(_,v)return getenv(v)end,}),expand=bind(interpolate_with,{'@([%w_]+)@'}),interpolate=bind(interpolate_with,{'%$([%w_]+)'}),shellword=function(s)return choose(match(s,SHELLMETACHARS)~=nil,function()return"'"..gsub(s,"'",[['\'']]).."'"end,s)end,mkenv=function(...)local env=reduce(except(list(...),nil),function(r,t)if isenv(t)then
 map(t,bind(append,{r}))else
 append(r,t)end
 end)return setmetatable(env,env_mt)end,}
@@ -473,11 +473,11 @@ return status
 end
 end
 return choose(entry.section=='files',0,bind(make_executable,{L,env,target}))end
-local function build(L,env)local modules=not isempty(L.luke.modules or{})local conf=makeenv(CONFIGENV,env)if modules and not isempty(L.luke.ldocs or{})then
-conf=config_ldoc(L,conf)env=makeenv(env,{LDOC=conf.LDOC})end
+local function build(L,env)local modules=not isempty(L.luke.modules or{})local conf=mkenv(CONFIGENV,env)if modules and not isempty(L.luke.ldocs or{})then
+conf=config_ldoc(L,conf)env=mkenv(env,{LDOC=conf.LDOC})end
 local c=c_modules(L.luke.modules or{})local cprograms=filter(L.scripts.build,function(entry)return c_program(script_rules(L,entry))end)if not isempty(c)or not isempty(cprograms)then
-conf=config_compiler(L,conf)env=makeenv(env,{CC=conf.CC})end
-L.luke=run_configs(L,conf,L.luke)local substitute=makeenv(L.clidefs,L.luke.substitute,SHELLENV)local status=0
+conf=config_compiler(L,conf)env=mkenv(env,{CC=conf.CC})end
+L.luke=run_configs(L,conf,L.luke)local substitute=mkenv(L.clidefs,L.luke.substitute,SHELLENV)local status=0
 if modules then
 L.luke=run_templates(L,substitute,L.luke)status=dropuntil(c,isnonzero,function(name)return build_c_module(L,env,L.luke,name)end)or 0
 if status==0 and not isempty(L.luke.ldocs or{})then
@@ -488,7 +488,7 @@ status=dropuntil(L.scripts.build,isnonzero,function(entry)return build_script(L,
 end
 return status
 end
-return{main=function(args)local L=validate_arguments(parse_arguments(args))local env=makeenv(L.clidefs,L.luke.variables,DEFAULTENV,SHELLENV)local status=0
+return{main=function(args)local L=validate_arguments(parse_arguments(args))local env=mkenv(L.clidefs,L.luke.variables,DEFAULTENV,SHELLENV)local status=0
 if not isempty(L.valreqs)then
 map(L.valreqs,function(name)print(interpolate(env,concat{name,"='$",name,"'"}))end)exit(0)end
 if L.release~=nil then
@@ -760,7 +760,7 @@ end)if failed~=nil then
 fatal('cannot release %s: check failed: %s',version,failed)return 1
 end
 local rules=L.luke.release or{}local news,rockspec=rules.news,rules.rockspec
-local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.add,generated(L.luke),released)local pages=branches(rules)local worktrees=reduce(pages,{},function(r,branch)r[branch]=tmpname()rm(r[branch])end)local substitute=makeenv({version=version},L.clidefs,L.luke.substitute,SHELLENV)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=date'%Y-%m-%d'})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),function()if L.dryrun then
+local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.add,generated(L.luke),released)local pages=branches(rules)local worktrees=reduce(pages,{},function(r,branch)r[branch]=tmpname()rm(r[branch])end)local substitute=mkenv({version=version},L.clidefs,L.luke.substitute,SHELLENV)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=date'%Y-%m-%d'})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),function()if L.dryrun then
 L.write(format('building with version=%s',version),'\n')return 0
 end
 return build()end,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and bind(run,{L,env,'git add -f',unpack(added)})or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(run,{L,env,'git tag','v'..version}),map(pages,function(branch)local worktree=worktrees[branch]return{bind(run,{L,env,'git worktree add --quiet',worktree,branch}),publish_steps(L,env,substitute,worktree,rules[branch]),bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m '%s: update to $package %s.'",branch,version)}),bind(run,{L,env,'git worktree remove',worktree}),}end),bind(run,{L,env,'git checkout --quiet',main}))local status=dropuntil(steps,isnonzero,call)or 0
@@ -826,8 +826,8 @@ end
 return{copies=copies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/36166aa',versiontext=[[
-luke (Luke) gvv/36166aa
+return{VERSION='gvv/82230c6',versiontext=[[
+luke (Luke) gvv/82230c6
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

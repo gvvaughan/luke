@@ -3,7 +3,7 @@
 
 before: |
   E = require 'luke.environment'
-  env = E.makeenv({package = 'demo'}, E.DEFAULTENV, E.SHELLENV)
+  env = E.mkenv({package = 'demo'}, E.DEFAULTENV, E.SHELLENV)
 
   -- *r*, where running *command* changes the result of git *query* to
   -- *result*, as checking the release again after a failure sees.

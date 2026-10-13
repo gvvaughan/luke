@@ -186,7 +186,7 @@ return {
          -- command itself expand to the same value.  Each value is
          -- expanded before it is quoted, so that a quote in a variable
          -- it uses is quoted too.
-         env = makeenv({sources = concat(sources, ' '), target = target}, rules.env, env)
+         env = mkenv({sources = concat(sources, ' '), target = target}, rules.env, env)
          local exports = {}
          if not isempty(names) then
             exports = flatten('export', map(names, function(name)

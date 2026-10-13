@@ -264,7 +264,7 @@ return {
          r[branch] = tmpname()
          rm(r[branch])
       end)
-      local substitute = makeenv({version = version}, L.clidefs, L.luke.substitute, SHELLENV)
+      local substitute = mkenv({version = version}, L.clidefs, L.luke.substitute, SHELLENV)
 
       -- TODO: before branching, rename any PACKAGE-git-1.rockspec to
       -- PACKAGE-dev-1.rockspec, setting its _MODREV from 'git' to 'dev'.

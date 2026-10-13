@@ -51,11 +51,11 @@ end
 
 local function build(L, env)
    local modules = not isempty(L.luke.modules or {})
-   local conf = makeenv(CONFIGENV, env)
+   local conf = mkenv(CONFIGENV, env)
 
    if modules and not isempty(L.luke.ldocs or {}) then
       conf = config_ldoc(L, conf)
-      env = makeenv(env, {LDOC=conf.LDOC})
+      env = mkenv(env, {LDOC=conf.LDOC})
    end
 
    local c = c_modules(L.luke.modules or {})
@@ -64,13 +64,13 @@ local function build(L, env)
    end)
    if not isempty(c) or not isempty(cprograms) then
       conf = config_compiler(L, conf)
-      env = makeenv(env, {CC=conf.CC})
+      env = mkenv(env, {CC=conf.CC})
    end
    -- TODO: this runs the probes in every bin and install.bin rule, even
    -- those not selected by the command line targets.
    L.luke = run_configs(L, conf, L.luke)
 
-   local substitute = makeenv(L.clidefs, L.luke.substitute, SHELLENV)
+   local substitute = mkenv(L.clidefs, L.luke.substitute, SHELLENV)
    local status = 0
 
    if modules then
@@ -98,7 +98,7 @@ end
 return {
    main = function(args)
       local L = validate_arguments(parse_arguments(args))
-      local env = makeenv(L.clidefs, L.luke.variables, DEFAULTENV, SHELLENV)
+      local env = mkenv(L.clidefs, L.luke.variables, DEFAULTENV, SHELLENV)
       local status = 0
 
       if not isempty(L.valreqs) then
