@@ -82,7 +82,7 @@ before: |
         return 0, '', ''
      end
      r['if test -e _config.yml.in; then rm -rf WORKTREE/_config.yml.in && $MAKEDIRS WORKTREE && cp -R _config.yml.in WORKTREE/_config.yml.in; fi'] = list(0, '', '')
-     r['rm -rf WORKTREE/api && $MAKEDIRS WORKTREE && cp -R doc/api/ WORKTREE/api'] = list(0, '', '')
+     r['rm -rf WORKTREE/api && $MAKEDIRS WORKTREE && cp -R doc/api WORKTREE/api'] = list(0, '', '')
      r['rm -rf WORKTREE/index.md && $MAKEDIRS WORKTREE && cp -R doc/demo.md WORKTREE/index.md'] = list(0, '', '')
      r["git -C WORKTREE add -A && git -C WORKTREE commit -m '" .. branch .. ": update to $package 1.0.'"] = list(0, '', '')
      changes(r, "git -C WORKTREE add -A && git -C WORKTREE commit -m '" .. branch .. ": update to $package 1.0.'",
@@ -518,7 +518,7 @@ specify luke.release:
         expect(L.write[4]).to_match '^git worktree add %-%-quiet %S+ gh%-pages$'
         expect(L.write[5]).to_match '^if test %-e _config%.yml%.in; then rm %-rf %S+/_config%.yml%.in && mkdir %-p %S+ && cp %-R _config%.yml%.in %S+/_config%.yml%.in; fi$'
         expect(L.write[6]).to_match '^creating %S+/_config%.yml$'
-        expect(L.write[7]).to_match '^rm %-rf %S+/api && mkdir %-p %S+ && cp %-R doc/api/ %S+/api$'
+        expect(L.write[7]).to_match '^rm %-rf %S+/api && mkdir %-p %S+ && cp %-R doc/api %S+/api$'
         expect(L.write[8]).to_match '^rm %-rf %S+/index%.md && mkdir %-p %S+ && cp %-R doc/demo%.md %S+/index%.md$'
     - it fills a renamed template from the release, without copying it: |
         template = os.tmpname() .. '.in'
@@ -539,13 +539,13 @@ specify luke.release:
         expect(L.write[6]).to_match '^git %-C '
     - it quotes paths with shell metacharacters: |
         spawned = with_ghpages(passing(), '')
-        spawned["rm -rf 'WORKTREE/my docs' && $MAKEDIRS WORKTREE && cp -R 'doc/my docs/' 'WORKTREE/my docs'"] = list(0, '', '')
+        spawned["rm -rf 'WORKTREE/my docs' && $MAKEDIRS WORKTREE && cp -R 'doc/my docs' 'WORKTREE/my docs'"] = list(0, '', '')
         release = setup(spawned)
         L = mkL {['gh-pages'] = ghpages {['my docs'] = 'doc/my docs/'}}
         expect(release(L, env, build)).to_be(0)
     - it removes the worktree when a gh-pages step fails: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
-        spawned['rm -rf WORKTREE/api && $MAKEDIRS WORKTREE && cp -R doc/api/ WORKTREE/api'] = list(1, '', '')
+        spawned['rm -rf WORKTREE/api && $MAKEDIRS WORKTREE && cp -R doc/api WORKTREE/api'] = list(1, '', '')
         spawned['git worktree remove --force WORKTREE'] = function(worktree)
            os.execute("rm -rf '" .. worktree .. "'")
            return 0, '', ''

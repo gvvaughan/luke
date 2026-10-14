@@ -120,10 +120,22 @@ local function keypaths(normalize, path)
 end
 
 
+-- A path, without any empty or '.' components or trailing '/', so that
+-- every spelling of a path is the same; or '.' for the directory itself.
+-- A '..' component is left alone, as following a symlink may not lead
+-- back to the parent.
+local function pathname(x, path)
+   choose(mkcheck 'string'(x, path) == '', bind(bad, {path, 'empty path'}))
+   local r = x and match(x, '^/?') .. concat(except(gmatch(x, '[^/]+'), '.'), '/')
+   return choose(r == '', '.', r)
+end
+
+
 -- The rules for building a module: a source path, a list of source
--- paths, or a table with `sources` and other build settings.
+-- paths, or a table with `sources` and other build settings, where the
+-- source and directory paths are normalized.
 local function rules(x, path)
-   return case(type(x), {
+   local r = case(type(x), {
       ['nil'] = nop,
 
       ['string'] = function()
@@ -143,6 +155,11 @@ local function rules(x, path)
          bad(path, 'string or table expected, got %s', kind)
       end,
    })
+   return r and merge({
+      sources = list_of(pathname)(r.sources, index(path, 'sources')),
+      incdirs = list_of(pathname)(r.incdirs, index(path, 'incdirs')),
+      libdirs = list_of(pathname)(r.libdirs, index(path, 'libdirs')),
+   }, r)
 end
 
 
@@ -153,7 +170,6 @@ local function program(x, path)
    if isempty(r.sources or {}) then
       bad(path, 'no sources')
    end
-   r.sources = list_of(mkcheck 'string')(r.sources, index(path, 'sources'))
    mkcheck 'string'(r.command, index(path, 'command'))
    map_of(mkcheck 'string', mkcheck 'string')(r.env, index(path, 'env'))
    return r
@@ -162,17 +178,23 @@ end
 
 -- Like the rockspec `build.install.bin` table, map each name to its
 -- source path, naming an array entry with *mkname* from its source.  A
--- table-valued entry is a rule for building a program.
+-- table-valued entry is a rule for building a program.  Names are paths
+-- too, of the target built or installed.
 local function mkscripts(mkname)
    -- The name and normalized rules for entry *k* at *path*.
    local function entry(k, source, path)
       return case(type(source), {
          ['string'] = function()
-            return choose(isstring(k), k, bind(mkname, {source})), source
+            source = pathname(source, path)
+            return choose(isstring(k), function()
+               return pathname(k, path)
+            end, bind(mkname, {source})), source
          end,
 
          ['table'] = function()
-            local name = choose(isstring(k), k, bind(bad, {path, 'programs need a name'}))
+            local name = choose(isstring(k), function()
+               return pathname(k, path)
+            end, bind(bad, {path, 'programs need a name'}))
             return name, program(source, path)
          end,
 
@@ -221,8 +243,11 @@ end
 -- both, and is optional, being copied only when the release has it.
 local function copies(x, path)
    local r = mkcheck 'table'(x, path) and reduce(keys(x), {}, function(r, k)
-      local source = mkcheck 'string'(x[k], index(path, k))
-      claim(r, choose(isstring(k), k, source), {optional = not isstring(k), source = source}, path)
+      local source = pathname(x[k], index(path, k))
+      local dest = choose(isstring(k), function()
+         return pathname(k, index(path, k))
+      end, source)
+      claim(r, dest, {optional = not isstring(k), source = source}, path)
    end)
    -- Every path written, starting with each destination, then the path
    -- each template copied under its own name is filled into.
@@ -241,6 +266,7 @@ return {
    list_of  = list_of,
    map_of   = map_of,
    mkcheck  = mkcheck,
+   pathname = pathname,
    rules    = rules,
    scripts  = scripts,
 }

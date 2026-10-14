@@ -631,6 +631,10 @@ and any table they contain, can have a [`platforms`](#5-platforms)
 table.  Luke ignores other keys, so a lukefile can hold settings for
 other tools.
 
+Luke normalizes every path it takes, dropping `.` and empty components
+and any trailing `/`, so `./doc/api/` and `doc/api` are the same path,
+and `./` is `.`, the directory itself.  It leaves `..` alone.
+
 | Key                     | Value                                                        | Explained in |
 |-------------------------|--------------------------------------------------------------|--------------|
 | `package`               | the project name                                             | [3](#3-the-lukefile) |

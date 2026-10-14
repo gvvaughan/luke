@@ -127,6 +127,30 @@ specify luke:
          release = {add = 'doc'}
       ]])
       expect(luke('--file=' .. fname, '--value=version')).to_succeed()
+  - it normalizes every path: |
+      spit(fname, [[
+         package = 'example'
+         version = '1.0'
+         modules = {example = './example.lua'}
+         incdirs = './include/'
+         libdirs = {'lib/'}
+         ldocs = './build-aux/config.ld'
+         release = {
+            add = {'doc/'},
+            news = './NEWS.md',
+            rockspec = './example-dev-1.rockspec',
+            ['gh-pages'] = {['./'] = 'doc/'},
+         }
+      ]])
+      luke = require 'luke.lukefile'.loadluke(fname)
+      expect(luke.modules.example.sources).to_equal {'example.lua'}
+      expect(luke.incdirs).to_equal {'include'}
+      expect(luke.libdirs).to_equal {'lib'}
+      expect(luke.ldocs.sources).to_equal {'build-aux/config.ld'}
+      expect(luke.release.add).to_equal {'doc'}
+      expect(luke.release.news).to_be 'NEWS.md'
+      expect(luke.release.rockspec).to_be 'example-dev-1.rockspec'
+      expect(luke.release['gh-pages']).to_equal {['.'] = {optional = false, source = 'doc'}}
   - it lets keys for other tools through: |
       spit(fname, [[
          package = 'example'

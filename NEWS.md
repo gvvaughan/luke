@@ -40,6 +40,10 @@
     malformed value at its path, as in `bad bin.prog: no sources`,
     rather than ignoring it or failing later.
 
+  - Luke normalizes every path in the lukefile, so that `./doc/api/`
+    and `doc/api` are the same, and diagnoses two entries for the same
+    path spelled differently, or an empty path.
+
 ### Bug fixes:
 
   - A lone '@' in a template, such as in an email address, no longer

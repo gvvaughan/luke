@@ -28,9 +28,9 @@ local string, table = mkcheck 'string', mkcheck 'table'
 -- commits generated files; any other key names a branch, such as
 -- `gh-pages`, mapped to the release files to copy there.
 local RELEASE = fields({
-   add      = list_of(string),
-   news     = string,
-   rockspec = string,
+   add      = list_of(pathname),
+   news     = pathname,
+   rockspec = pathname,
 }, copies)
 
 -- TODO: lukefile keys luke does not understand are let through, as a
@@ -42,9 +42,9 @@ local LUKEFILE = fields({
 
    defines               = table,
    external_dependencies = table,
-   incdirs               = list_of(string),
+   incdirs               = list_of(pathname),
    ldocs                 = rules,
-   libdirs               = list_of(string),
+   libdirs               = list_of(pathname),
    libraries             = list_of(id),
    modules               = map_of(rules),
    substitute            = table,

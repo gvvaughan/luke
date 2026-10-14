@@ -79,10 +79,49 @@ specify luke.schema:
          a = schema.fields {y = string, ['x-z'] = string},
       })).to_equal {'a', 'a.y', "a['x-z']", 'b'}
 
+- describe pathname:
+  - it accepts a path that is already normal: |
+      schema = setup()
+      expect(schema.pathname('doc/api', 'p')).to_be 'doc/api'
+  - it removes '.' and empty components, and a trailing slash: |
+      schema = setup()
+      expect(schema.pathname('./doc//api/./', 'p')).to_be 'doc/api'
+  - it writes the directory itself as '.': |
+      schema = setup()
+      expect(schema.pathname('./', 'p')).to_be '.'
+      expect(schema.pathname('.', 'p')).to_be '.'
+  - it keeps an absolute path absolute: |
+      schema = setup()
+      expect(schema.pathname('/usr//include/', 'p')).to_be '/usr/include'
+      expect(schema.pathname('/', 'p')).to_be '/'
+  - it leaves '..' and variables alone: |
+      schema = setup()
+      expect(schema.pathname('$PREFIX/../lib/', 'p')).to_be '$PREFIX/../lib'
+      expect(schema.pathname('doc/..', 'p')).to_be 'doc/..'
+  - it accepts nil: |
+      schema = setup()
+      expect(schema.pathname(nil, 'p')).to_be(nil)
+  - it diagnoses an empty path: |
+      schema = setup()
+      expect(schema.pathname('', 'p')).to_raise 'bad p: empty path'
+  - it diagnoses other types: |
+      schema = setup()
+      expect(schema.pathname(42, 'p')).to_raise 'bad p: string expected, got number'
+
 - describe rules:
   - it accepts a single source: |
       schema = setup()
       expect(schema.rules('a.lua', 'p')).to_equal {sources = {'a.lua'}}
+  - it normalizes each source path: |
+      schema = setup()
+      expect(schema.rules('./a.lua', 'p')).to_equal {sources = {'a.lua'}}
+      expect(schema.rules({'./a.c', 'src//b.c'}, 'p')).to_equal {sources = {'a.c', 'src/b.c'}}
+      expect(schema.rules({sources = {'./a.c'}, libraries = {'m'}}, 'p')).
+         to_equal {sources = {'a.c'}, libraries = {'m'}}
+  - it normalizes include and library directories: |
+      schema = setup()
+      expect(schema.rules({sources = 'a.c', incdirs = './include/', libdirs = {'lib/'}}, 'p')).
+         to_equal {sources = {'a.c'}, incdirs = {'include'}, libdirs = {'lib'}}
   - it accepts a list of sources: |
       schema = setup()
       expect(schema.rules({'a.c', 'b.c'}, 'p')).to_equal {sources = {'a.c', 'b.c'}}
@@ -120,6 +159,21 @@ specify luke.schema:
       schema = setup()
       expect(schema.copies({['_config.yml'] = 'doc/config.yml.in'}, 'p')).
          to_equal {['_config.yml'] = {optional = false, source = 'doc/config.yml.in'}}
+  - it normalizes destination and source paths: |
+      schema = setup()
+      expect(schema.copies({['./api/'] = 'doc/api/', ['./'] = './doc', './_config.yml.in'}, 'p')).
+         to_equal {
+            api = {optional = false, source = 'doc/api'},
+            ['.'] = {optional = false, source = 'doc'},
+            ['_config.yml.in'] = {optional = true, source = '_config.yml.in'},
+         }
+  - it diagnoses entries for the same path spelled differently: |
+      schema = setup()
+      expect(schema.copies({['api/'] = 'doc/api', ['./api'] = 'doc/api'}, 'p')).
+         to_raise "bad p: more than one entry for 'api'"
+  - it diagnoses an empty destination path: |
+      schema = setup()
+      expect(schema.copies({[''] = 'doc'}, 'p')).to_raise "bad p['']: empty path"
 
 - describe files:
   - it names array entries after the path of their source: |
@@ -133,6 +187,17 @@ specify luke.schema:
       schema = setup()
       expect(schema.files({['doc/demo.1'] = {command = 'true'}}, 'files')).
          to_raise "bad files['doc/demo.1']: no sources"
+  - it normalizes target and source paths: |
+      schema = setup()
+      expect(schema.files({'./doc//demo.md.in', ['./doc/demo.1'] = {command = 'true', sources = './demo.in'}}, 'files')).
+         to_equal {
+            ['doc/demo.md'] = 'doc/demo.md.in',
+            ['doc/demo.1'] = {command = 'true', sources = {'demo.in'}},
+         }
+  - it diagnoses targets for the same path spelled differently: |
+      schema = setup()
+      expect(schema.files({'doc/demo.md.in', ['./doc/demo.md'] = 'demo.md.in'}, 'files')).
+         to_raise "bad files: more than one entry for 'doc/demo.md'"
 
 - describe scripts:
   - it names array entries after their source: |
@@ -150,6 +215,10 @@ specify luke.schema:
       schema = setup()
       expect(schema.scripts({prog = {sources = 'a.c'}}, 'bin')).
          to_equal {prog = {sources = {'a.c'}}}
+  - it normalizes source paths: |
+      schema = setup()
+      expect(schema.scripts({'./bin//tool.in', prog = {sources = './a.c'}}, 'bin')).
+         to_equal {tool = 'bin/tool.in', prog = {sources = {'a.c'}}}
   - it diagnoses programs without a name: |
       schema = setup()
       expect(schema.scripts({{sources = 'a.c'}}, 'bin')).
