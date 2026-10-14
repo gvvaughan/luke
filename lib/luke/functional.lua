@@ -107,6 +107,26 @@ local function flatten(...)
 end
 
 
+local function keys(iterable)
+   local r = list()
+   for k in next, iterable or {} do
+      append(r, k)
+   end
+   return r
+end
+
+
+local function reduce(seq, acc, block)
+   if block == nil then
+      acc, block = {}, acc
+   end
+   for valu in each(seq) do
+      acc = block(acc, unpack(valu)) or acc
+   end
+   return acc
+end
+
+
 return {
    any = function(seq)
       for valu in each(seq) do
@@ -276,6 +296,11 @@ return {
       return type(x) == 'function'
    end,
 
+   -- Whether *k* indexes a list entry of *t*, rather than naming a field.
+   islistkey = function(t, k)
+      return type(k) == 'number' and int(k) == k and k >= 1 and k <= len(t)
+   end,
+
    isnil = function(x)
       return x == nil
    end,
@@ -292,13 +317,7 @@ return {
       return x ~= 0
    end,
 
-   keys = function(iterable)
-      local r = list()
-      for k in next, iterable or {} do
-         append(r, k)
-      end
-      return r
-   end,
+   keys = keys,
 
    map = function(seq, block)
       local r = list()
@@ -318,6 +337,20 @@ return {
 
    nop = function() end,
 
+   -- Merge the lists of one-pair tables *...*, skipping nils, into a new
+   -- list of pairs in the order each key first appears, each with the
+   -- value of the last pair for that key.
+   ordered_merge = function(...)
+      local at = {}
+      return reduce(except(list(...), nil), {}, function(r, pairs)
+         reduce(pairs, r, function(r, pair)
+            local k, v = destructure(pair)
+            at[k] = at[k] or #r + 1
+            r[at[k]] = {[k] = v}
+         end)
+      end)
+   end,
+
    partition = function(seq, block)
       local r, s = list(), list()
       for valu in each(seq) do
@@ -335,14 +368,26 @@ return {
       return next(r) and r or nil
    end,
 
-   reduce = function(seq, acc, block)
-      if block == nil then
-         acc, block = {}, acc
-      end
-      for valu in each(seq) do
-         acc = block(acc, unpack(valu)) or acc
-      end
-      return acc
+   reduce = reduce,
+
+   -- A copy of *seq* in reverse order.
+   reversed = function(seq)
+      return reduce(seq, {}, function(r, v)
+         return {v, unpack(r)}
+      end)
+   end,
+
+   -- The keys of *iterable* in a deterministic order: numbers, such as
+   -- the indices of list entries, in numeric order, then strings, then
+   -- any others by their string form.
+   sorted_keys = function(iterable)
+      local rank = {number = 1, string = 2}
+      local r = keys(iterable)
+      sort(r, function(a, b)
+         local ra, rb = rank[type(a)] or 3, rank[type(b)] or 3
+         return ra < rb or ra == rb and (ra < 3 and a < b or ra == 3 and str(a) < str(b))
+      end)
+      return r
    end,
 
    -- A copy of *seq* sorted by *cmp*, leaving *seq* itself unchanged.

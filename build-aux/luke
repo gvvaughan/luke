@@ -353,6 +353,18 @@ r[#r+1]=v
 end
 return r
 end
+local function keys(iterable)local r=list()for k in next,iterable or{}do
+append(r,k)end
+return r
+end
+local function reduce(seq,acc,block)if block==nil then
+acc,block={},acc
+end
+for valu in each(seq)do
+acc=block(acc,unpack(valu))or acc
+end
+return acc
+end
 return{any=function(seq)for valu in each(seq)do
 if unpack(valu)then
 return true
@@ -429,31 +441,24 @@ return next(r)and r or nil
 end,id=function(...)return...end,isempty=function(x)if type(x)~='table'then
 return false
 end
-local k=next(x)return k==nil or(k=='n'and x.n==0 and next(x,k)==nil)end,isfile=isfile,isfunction=function(x)return type(x)=='function'end,isnil=function(x)return x==nil
+local k=next(x)return k==nil or(k=='n'and x.n==0 and next(x,k)==nil)end,isfile=isfile,isfunction=function(x)return type(x)=='function'end,islistkey=function(t,k)return type(k)=='number'and int(k)==k and k>=1 and k<=len(t)end,isnil=function(x)return x==nil
 end,isstring=function(x)return type(x)=='string'end,istable=function(x)return type(x)=='table'end,isnonzero=function(x)return x~=0
-end,keys=function(iterable)local r=list()for k in next,iterable or{}do
-append(r,k)end
-return r
-end,map=function(seq,block)local r=list()for valu in each(seq)do
+end,keys=keys,map=function(seq,block)local r=list()for valu in each(seq)do
 append(r,block(unpack(valu)))end
 return r
 end,mapvalues=function(iterable,block)local r={}for k,v in next,iterable or{}do
 r[k]=block(v)or v
 end
 return r
-end,nop=function()end,partition=function(seq,block)local r,s=list(),list()for valu in each(seq)do
+end,nop=function()end,ordered_merge=function(...)local at={}return reduce(except(list(...),nil),{},function(r,pairs)reduce(pairs,r,function(r,pair)local k,v=destructure(pair)at[k]=at[k]or#r+1
+r[at[k]]={[k]=v}end)end)end,partition=function(seq,block)local r,s=list(),list()for valu in each(seq)do
 append(block(unpack(valu))and r or s,unpack(valu))end
 return r,s
 end,pluck=function(keylist,dict)local r={}for keyu in each(keylist)do
 local key=unpack(keyu)r[key]=dict[key]end
 return next(r)and r or nil
-end,reduce=function(seq,acc,block)if block==nil then
-acc,block={},acc
-end
-for valu in each(seq)do
-acc=block(acc,unpack(valu))or acc
-end
-return acc
+end,reduce=reduce,reversed=function(seq)return reduce(seq,{},function(r,v)return{v,unpack(r)}end)end,sorted_keys=function(iterable)local rank={number=1,string=2}local r=keys(iterable)sort(r,function(a,b)local ra,rb=rank[type(a)]or 3,rank[type(b)]or 3
+return ra<rb or ra==rb and(ra<3 and a<b or ra==3 and str(a)<str(b))end)return r
 end,sorted=function(seq,cmp)local r=copy(seq)sort(r,cmp)return r
 end,values=function(iterable)local r=list()for _,v in next,iterable or{}do
 append(r,v)end
@@ -828,8 +833,8 @@ end
 return{copies=copies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/9050129',versiontext=[[
-luke (Luke) gvv/9050129
+return{VERSION='gvv/5e2f803',versiontext=[[
+luke (Luke) gvv/5e2f803
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

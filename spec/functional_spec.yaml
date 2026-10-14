@@ -65,6 +65,53 @@ specify luke.functional:
   - it keeps the length of a list:
       expect(sorted(list('b', 'a'))).to_equal(list('a', 'b'))
 
+- describe sorted_keys:
+  - before:
+      sorted_keys = functional.sorted_keys
+
+  - it lists the keys of a table, numbers first, then strings:
+      expect(sorted_keys {b = 1, a = 2, 'x', 'y'}).to_equal(list(1, 2, 'a', 'b'))
+  - it lists list keys in numeric order, whatever the order of their values:
+      expect(sorted_keys {'k', 'j', 'i', 'h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'}).
+         to_equal(list(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11))
+
+- describe reversed:
+  - before:
+      reversed = functional.reversed
+
+  - it returns a reversed copy, leaving its argument unchanged:
+      seq = {1, 2, 3}
+      expect(reversed(seq)).to_equal {3, 2, 1}
+      expect(seq).to_equal {1, 2, 3}
+  - it returns an empty list unchanged:
+      expect(reversed {}).to_equal {}
+
+- describe islistkey:
+  - before:
+      islistkey = functional.islistkey
+
+  - it is true for the index of a list entry:
+      expect(islistkey({'a', 'b'}, 2)).to_be(true)
+  - it is false for any other key:
+      t = {'a', x = 1, [0] = 0, [1.5] = 1}
+      expect(islistkey(t, 'x')).to_be(false)
+      expect(islistkey(t, 0)).to_be(false)
+      expect(islistkey(t, 1.5)).to_be(false)
+      expect(islistkey(t, 2)).to_be(false)
+
+- describe ordered_merge:
+  - before:
+      ordered_merge = functional.ordered_merge
+
+  - it keeps the order of the pairs in each list, skipping nils: |
+      expect(ordered_merge({{b = 1}, {a = 2}}, nil, {{c = 3}})).to_equal {{b = 1}, {a = 2}, {c = 3}}
+  - it gives each key the value of its last pair, where it first appears: |
+      expect(ordered_merge({{a = 1}, {b = 2}}, {{c = 3}, {a = 4}})).to_equal {{a = 4}, {b = 2}, {c = 3}}
+  - it copies each pair, leaving its arguments unchanged: |
+      t = {{a = 1}}
+      expect(ordered_merge(t, {{a = 2}})).to_equal {{a = 2}}
+      expect(t).to_equal {{a = 1}}
+
 - describe partition:
   - before:
       partition = functional.partition
