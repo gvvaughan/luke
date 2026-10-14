@@ -42,6 +42,14 @@
 
 ### Incompatible changes:
 
+  - A lukefile must name the format of its syntax, as `luke_format = 0`,
+    which goes up by one with each incompatible change.  Luke reads
+    only its own format, and stops with "lukefile format 1 needs a
+    newer luke; this one reads format 0", for example, instead of
+    diagnosing syntax it doesn't know.  Without `luke_format`, Luke
+    diagnoses a lukefile for Luke 0.4 or earlier, whose syntax format 0
+    replaces.
+
   - Luke checks the whole lukefile as it reads it, and diagnoses a
     malformed value at its path, as in `bad bin.prog: no sources`,
     rather than ignoring it or failing later.

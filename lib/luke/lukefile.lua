@@ -37,6 +37,7 @@ local RELEASE = fields({
 -- rockspec-style lukefile may have fields for other tools; diagnose
 -- misspellings of the keys below.
 local LUKEFILE = fields({
+   luke_format           = luke_format,
    package               = string,
    version               = string,
 
@@ -233,6 +234,9 @@ return {
       if not ok then
          return nil, "Error running file: " .. err
       end
+      -- A lukefile for a newer luke is diagnosed before any syntax that
+      -- this luke doesn't know.
+      luke_format(r.luke_format, 'luke_format')
       -- Each ordered map resolves its own platforms, to diagnose its
       -- entries for every platform, not only this one.
       return LUKEFILE(normalize_configs(filter_platforms(r, nil, nil, ORDERED)), '')

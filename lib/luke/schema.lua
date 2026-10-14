@@ -12,6 +12,10 @@ local _ENV = require 'luke.normalize' {
 }
 
 
+-- The lukefile format this luke reads, which goes up by one with each
+-- incompatible change to the lukefile syntax.
+local FORMAT = 0
+
 -- The name of a C preprocessor macro.
 local MACRO = '^[%a_][%w_]*$'
 
@@ -140,6 +144,24 @@ local function pathname(x, path)
    choose(mkcheck 'string'(x, path) == '', bind(bad, {path, 'empty path'}))
    local r = x and match(x, '^/?') .. concat(except(gmatch(x, '[^/]+'), '.'), '/')
    return choose(r == '', '.', r)
+end
+
+
+-- The lukefile format, which must be the one this luke reads, as each
+-- format is incompatible with every other.  Lukefiles for luke 0.4 and
+-- earlier have none.
+-- TODO: needing an older luke is unreachable while FORMAT is 0, so
+-- specify it when FORMAT goes up.
+local function luke_format(x, path)
+   choose(x == nil, bind(bad, {path,
+      'missing; this luke reads format %d, which replaces the lukefiles of luke 0.4 and earlier', FORMAT}))
+   choose(int(mkcheck 'number'(x, path)) == nil or x < 0,
+      bind(bad, {path, 'non-negative integer expected, got %s', str(x)}))
+   choose(x ~= FORMAT, function()
+      bad(path, 'lukefile format %d needs %s luke; this one reads format %d',
+         x, choose(x > FORMAT, 'a newer', 'an older'), FORMAT)
+   end)
+   return x
 end
 
 
@@ -460,6 +482,7 @@ return {
    files        = files,
    keypaths     = keypaths,
    list_of      = list_of,
+   luke_format  = luke_format,
    map_of       = map_of,
    mkcheck      = mkcheck,
    ordered_map  = ordered_map,

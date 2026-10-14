@@ -253,6 +253,7 @@ return setmetatable({
    list          = pack,
    loadstring    = loadstring,
    match         = string.match,
+   max           = math.max,
 
    maxn = function(iterable)
       local n = 0

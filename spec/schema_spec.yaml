@@ -108,6 +108,24 @@ specify luke.schema:
       schema = setup()
       expect(schema.pathname(42, 'p')).to_raise 'bad p: string expected, got number'
 
+- describe luke_format:
+  - it diagnoses a missing format, as for luke 0.4 and earlier: |
+      schema = setup()
+      expect(schema.luke_format(nil, 'p')).to_raise
+         'bad p: missing; this luke reads format 0, which replaces the lukefiles of luke 0.4 and earlier'
+  - it accepts the format of this luke: |
+      schema = setup()
+      expect(schema.luke_format(0, 'p')).to_be(0)
+  - it diagnoses a newer format: |
+      schema = setup()
+      expect(schema.luke_format(1, 'p')).
+         to_raise 'bad p: lukefile format 1 needs a newer luke; this one reads format 0'
+  - it diagnoses anything but a non-negative integer: |
+      schema = setup()
+      expect(schema.luke_format(-1, 'p')).to_raise 'bad p: non-negative integer expected, got -1'
+      expect(schema.luke_format(0.5, 'p')).to_raise 'bad p: non-negative integer expected, got 0.5'
+      expect(schema.luke_format('0', 'p')).to_raise 'bad p: number expected, got string'
+
 - describe pair_of:
   - it pairs a name with its normalized value: |
       schema = setup()

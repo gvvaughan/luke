@@ -93,6 +93,8 @@ A `lukefile` is a Lua file that sets a few global variables, much like a
 rockspec.  A minimal one for a pure Lua project is:
 
 {% highlight lua %}
+    luke_format = 0
+
     package = 'stack'
     version = '$USER/$gitref'
 
@@ -104,8 +106,17 @@ rockspec.  A minimal one for a pure Lua project is:
 
 `package` and `version` name the project, and are available to
 templates as `@package@` and `@version@` (see
-[Templates](#43-templates)).  `package`, `version` and a `modules`
-table are required.
+[Templates](#43-templates)).  `luke_format`, `package`, `version` and a
+`modules` table are required.
+
+`luke_format`, like a rockspec's `rockspec_format`, names the syntax
+the lukefile is written in.  It is a whole number, which goes up by
+one with each incompatible change to the syntax, so each Luke reads
+only its own format, which is 0 for now.  For any other format, Luke
+stops with a diagnostic before reading the rest of the file, saying
+whether it needs a newer or an older Luke, rather than diagnosing
+syntax it doesn't know.  A lukefile without one is for Luke 0.4 or
+earlier, whose syntax format 0 replaces.
 
 ### 3.1. Modules
 
@@ -680,6 +691,7 @@ and `./` is `.`, the directory itself.  It leaves `..` alone.
 
 | Key                     | Value                                                        | Explained in |
 |-------------------------|--------------------------------------------------------------|--------------|
+| `luke_format`           | the lukefile format, a whole number                          | [3](#3-the-lukefile) |
 | `package`               | the project name                                             | [3](#3-the-lukefile) |
 | `version`               | the project version                                          | [3](#3-the-lukefile), [4.2](#42-built-in-values) |
 | `modules`               | `{name = source}` entries, where a source can also be a list of sources or a table of rules | [3.1](#31-modules) |

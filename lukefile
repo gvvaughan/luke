@@ -1,3 +1,5 @@
+luke_format = 0
+
 package  = 'luke'
 version  = '$USER/$gitref'
 
