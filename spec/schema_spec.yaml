@@ -124,6 +124,17 @@ specify luke.schema:
       schema = setup()
       expect(schema.ordered_map(pair)({a = 1}, 'p')).
          to_raise 'bad p.a: list entry expected, such as {a = ...}'
+  - it narrows the platforms in the value of an entry: |
+      schema = setup()
+      expect(schema.ordered_map(pair)({{a = {x = 1, platforms = {unix = {x = 2}}}}}, 'p')).
+         to_equal {{a = {x = 2}}}
+  - it leaves an ordered map in the value of an entry for its own normalizer: |
+      schema = setup()
+      expect(schema.ordered_map(pair)({{a = {defines = {'X', platforms = {unix = {'Y'}}}}}}, 'p')).
+         to_equal {{a = {defines = {'X', platforms = {unix = {'Y'}}}}}}
+  - it names every ordered map in the lukefile: |
+      schema = setup()
+      expect(schema.ORDERED).to_equal {defines = true}
   - it diagnoses a name with two entries, for another platform too: |
       schema = setup()
       expect(schema.ordered_map(pair)({platforms = {windows = {{a = 1}, {a = 2}}}}, 'p')).

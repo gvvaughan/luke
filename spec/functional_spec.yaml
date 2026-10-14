@@ -112,6 +112,47 @@ specify luke.functional:
       expect(ordered_merge(t, {{a = 2}})).to_equal {{a = 2}}
       expect(t).to_equal {{a = 1}}
 
+- describe ordered_keys:
+  - before:
+      ordered_keys = functional.ordered_keys
+
+  - it lists the key of each pair, in order: |
+      expect(ordered_keys {{b = 1}, {a = 2}, {c = 3}}).to_equal(list('b', 'a', 'c'))
+  - it lists nothing for nil or an empty list: |
+      expect(ordered_keys(nil)).to_equal(list())
+      expect(ordered_keys {}).to_equal(list())
+
+- describe ordered_get:
+  - before:
+      ordered_get = functional.ordered_get
+
+  - it returns the value paired with a key: |
+      expect(ordered_get({{b = 1}, {a = 2}}, 'a')).to_be(2)
+  - it returns nil for a key with no pair, or for nil: |
+      expect(ordered_get({{b = 1}}, 'a')).to_be(nil)
+      expect(ordered_get(nil, 'a')).to_be(nil)
+
+- describe ordered_pluck:
+  - before:
+      ordered_pluck = functional.ordered_pluck
+
+  - it keeps the pairs for the given keys, in their own order: |
+      expect(ordered_pluck({'c', 'b'}, {{b = 1}, {a = 2}, {c = 3}})).to_equal {{b = 1}, {c = 3}}
+  - it keeps nothing from nil: |
+      expect(ordered_pluck({'a'}, nil)).to_equal {}
+
+- describe ordered_mapvalues:
+  - before:
+      ordered_mapvalues = functional.ordered_mapvalues
+
+  - it maps the value of each pair, keeping keys and order: |
+      expect(ordered_mapvalues({{b = 1}, {a = 2}}, function(v) return v * 10 end)).
+         to_equal {{b = 10}, {a = 20}}
+  - it leaves its argument unchanged: |
+      t = {{a = 1}}
+      expect(ordered_mapvalues(t, function(v) return v + 1 end)).to_equal {{a = 2}}
+      expect(t).to_equal {{a = 1}}
+
 - describe partition:
   - before:
       partition = functional.partition

@@ -231,9 +231,9 @@ return {
       if not ok then
          return nil, "Error running file: " .. err
       end
-      -- The `defines` normalizer resolves its own platforms, to diagnose
-      -- definitions for every platform, not only this one.
-      return LUKEFILE(normalize_configs(filter_platforms(r, nil, nil, {defines = true})), '')
+      -- Each ordered map resolves its own platforms, to diagnose its
+      -- entries for every platform, not only this one.
+      return LUKEFILE(normalize_configs(filter_platforms(r, nil, nil, ORDERED)), '')
    end,
 
    collect_variables = function(luke)

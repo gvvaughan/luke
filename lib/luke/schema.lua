@@ -15,6 +15,10 @@ local _ENV = require 'luke.normalize' {
 -- The name of a C preprocessor macro.
 local MACRO = '^[%a_][%w_]*$'
 
+-- The name of every ordered map in the lukefile, which resolves its own
+-- platforms, so that platform filtering leaves it alone.
+local ORDERED = {defines = true}
+
 
 --[[
  Normalizers for lukefile values.  Each is called with a value and the
@@ -185,6 +189,12 @@ end
 -- apply here are merged least specific first, where a more specific
 -- entry replaces the value of one for the same name, in place.
 local function ordered_map(entry)
+   -- *x*, an entry, narrowed for this platform, apart from any ordered
+   -- map in it, and then normalized by *entry*.
+   local function narrowed(x, path)
+      return entry(istable(x) and filter_platforms(x, nil, nil, ORDERED) or x, path)
+   end
+
    -- The entries of one *layer* at *path*, apart from its platforms.
    local function layer_entries(layer, path)
       map(filter(sorted_keys(layer), function(k)
@@ -192,7 +202,7 @@ local function ordered_map(entry)
       end), function(k)
          bad(index(path, k), 'list entry expected, such as {%s = ...}', str(k))
       end)
-      local r = list_of(entry)(layer, path)
+      local r = list_of(narrowed)(layer, path)
       reduce(r, {}, function(seen, pair)
          claim(seen, (next(pair)), true, path)
       end)
@@ -370,6 +380,8 @@ end
 
 
 return {
+   ORDERED     = ORDERED,
+
    copies      = copies,
    defines     = defines,
    fields      = fields,

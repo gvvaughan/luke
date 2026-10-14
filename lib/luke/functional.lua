@@ -351,6 +351,40 @@ return {
       end)
    end,
 
+   -- The value paired with *key* in the list of one-pair tables *om*.
+   ordered_get = function(om, key)
+      return reduce(om or {}, nil, function(_, pair)
+         return pair[key]
+      end)
+   end,
+
+   -- The key of each pair in the list of one-pair tables *om*, in order.
+   ordered_keys = function(om)
+      return reduce(om or {}, list(), function(r, pair)
+         return append(r, (destructure(pair)))
+      end)
+   end,
+
+   -- A copy of the list of one-pair tables *om*, with *fn* applied to
+   -- the value of each pair.
+   ordered_mapvalues = function(om, fn)
+      return reduce(om or {}, {}, function(r, pair)
+         local k, v = destructure(pair)
+         r[#r + 1] = {[k] = fn(v)}
+      end)
+   end,
+
+   -- The pairs in the list of one-pair tables *om* whose keys are in
+   -- *keylist*, in the order of *om*.
+   ordered_pluck = function(keylist, om)
+      local wanted = reduce(keylist, {}, function(r, k)
+         r[k] = true
+      end)
+      return except(om or {}, function(pair)
+         return not wanted[(destructure(pair))]
+      end)
+   end,
+
    partition = function(seq, block)
       local r, s = list(), list()
       for valu in each(seq) do
