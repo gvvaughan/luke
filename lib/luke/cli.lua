@@ -216,8 +216,8 @@ return {
       local named = except(targets, 'install')
       local build = pluck(named, luke.modules)
       local scripts = {
-         build = reduce(keys(sections), list(), function(entries, section)
-            return reduce(keys(pluck(named, sections[section])), entries, function(entries, name)
+         build = reduce(SCRIPT_SECTIONS, list(), function(entries, section)
+            return reduce(sorted_keys(pluck(named, sections[section])), entries, function(entries, name)
                return append(entries, {name = name, section = section})
             end)
          end),
@@ -226,9 +226,9 @@ return {
       local install
       if contains(targets, 'install') then
          if isempty(named) then
-            install, scripts.install = luke.modules, keys(installbin)
+            install, scripts.install = luke.modules, sorted_keys(installbin)
          else
-            install, scripts.install = build or {}, keys(pluck(named, installbin))
+            install, scripts.install = build or {}, sorted_keys(pluck(named, installbin))
          end
       end
       luke.modules = build

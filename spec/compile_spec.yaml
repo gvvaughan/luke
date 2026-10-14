@@ -76,6 +76,13 @@ specify luke.compile:
       expect(set(unpack(r, 1, r.n))).to_equal(set('-DA', '-DB=2'))
 
 - describe c_modules:
+  - it lists them in name order: |
+      expect(compile.c_modules {
+         ['posix.unistd'] = {sources={'ext/posix/unistd.c'}},
+         ['posix.ctype'] = {sources={'ext/posix/ctype.c'}},
+         ['posix.fcntl'] = {sources={'ext/posix/fcntl.c'}},
+         ['posix.dirent'] = {sources={'ext/posix/dirent.c'}},
+      }).to_equal {'posix.ctype', 'posix.dirent', 'posix.fcntl', 'posix.unistd'}
   - it lists only modules built from C sources:
       expect(compile.c_modules {
          ['posix.unistd'] = {sources={'ext/posix/unistd.c'}},
@@ -134,6 +141,20 @@ specify luke.compile:
       })).to_be(0)
       expect(slurp(dest .. '/share/type/dict.lua')).to_be(slurp 'lib/type/dict.lua')
       expect(slurp(dest .. '/share/luke/init.lua')).to_be(slurp 'lib/luke/init.lua')
+
+  - it installs modules in name order: |
+      written = {}
+      L = {write = function(s) written[#written + 1] = s end}
+      expect(compile.install_modules(L, env, luke, {
+         ['type.dict'] = {sources={'lib/type/dict.lua'}},
+         ['luke'] = {sources={'lib/luke/init.lua'}},
+         ['luke.cli'] = {sources={'lib/luke/cli.lua'}},
+      })).to_be(0)
+      installed = {}
+      for _, s in ipairs(written) do
+         installed[#installed + 1] = s:match '^cp (%S+)'
+      end
+      expect(installed).to_equal {'lib/luke/init.lua', 'lib/luke/cli.lua', 'lib/type/dict.lua'}
 
   - it installs built C modules beneath INST_LIBDIR:
       os.execute("mkdir -p '" .. dest .. "/obj' && echo built > '" .. dest .. "/obj/foo.so'")

@@ -144,7 +144,7 @@ return {
    end,
 
    c_modules = function(modules)
-      return filter(keys(modules), function(name)
+      return filter(sorted_keys(modules), function(name)
          return dropuntil(modules[name].sources, bind(match, {[2]='%.[ch]$'}))
       end)
    end,
@@ -153,7 +153,7 @@ return {
    incdirs = incdirs,
 
    install_modules = function(L, env, luke, modules)
-      return reduce(keys(modules), 0, function(status, name)
+      return reduce(sorted_keys(modules), 0, function(status, name)
          if status == 0 then
             local src, dir = module_to_path(name, modules[name].sources, luke.variables.objdir)
             if not exists(interpolate(env, dir)) then

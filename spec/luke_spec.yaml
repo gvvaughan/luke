@@ -493,6 +493,30 @@ specify luke:
   - it names an array entry for the path of its source: |
       expect(luke('--file=' .. fname, tmpdir .. '/b.txt')).to_succeed()
       expect(slurp(tmpdir .. '/b.txt')).to_be 'example\n'
+  - it builds scripts, then installable scripts, then generated files, each in name order: |
+      spit(fname, [[
+         package = 'example'
+         version = '1.0'
+         modules = {other = ']] .. tmpdir .. [[/other.lua'}
+         variables = {objdir = ']] .. tmpdir .. [[/obj'}
+         bin = {
+            [']] .. tmpdir .. [[/b2'] = {command = 'echo b2 > $target', sources = ']] .. tmpdir .. [[/a.txt'},
+            [']] .. tmpdir .. [[/b1'] = {command = 'echo b1 > $target', sources = ']] .. tmpdir .. [[/a.txt'},
+         }
+         install = {bin = {
+            i1 = {command = 'echo i1 > $target', sources = ']] .. tmpdir .. [[/a.txt'},
+         }}
+         files = {
+            [']] .. tmpdir .. [[/f1'] = {command = 'cat ]] .. tmpdir .. [[/b1 > $target', sources = ']] .. tmpdir .. [[/a.txt'},
+            [']] .. tmpdir .. [[/f0'] = {command = 'echo f0 > $target', sources = ']] .. tmpdir .. [[/a.txt'},
+         }
+      ]])
+      p = luke('--file=' .. fname)
+      expect(p).to_succeed()
+      order = {}
+      for name in p.output:gmatch 'echo (%w+) >' do order[#order + 1] = name end
+      expect(order).to_equal {'b1', 'b2', 'i1', 'f0'}
+      expect(slurp(tmpdir .. '/f1')).to_be 'b1\n'
   - it never installs generated files: |
       p = luke('--file=' .. fname, 'PREFIX=' .. tmpdir .. '/inst', 'install')
       expect(p).to_succeed()

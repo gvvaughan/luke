@@ -46,6 +46,10 @@
 
 ### Bug fixes:
 
+  - Luke builds and installs in the same order on every run: modules
+    in name order, and scripts before installable scripts before
+    generated files, which may run them, each in name order.
+
   - A lone '@' in a template, such as in an email address, no longer
     removes the text up to the next '@'.  As with `$NAME` variables,
     only names made of word characters are expanded in `@NAME@`.

@@ -242,6 +242,10 @@ return {
 
    -- The scripts, programs and generated files of *luke*, by the
    -- section name that build entries are looked up with.
+   -- The script sections in build order: scripts before generated
+   -- files, which may be made by running them.
+   SCRIPT_SECTIONS = {'bin', 'install', 'files'},
+
    script_sections = function(luke)
       return {
          bin     = luke.bin or {},
