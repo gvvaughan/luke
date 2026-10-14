@@ -262,17 +262,19 @@ libraries, in addition to the settings of each module:
     }
 {% endhighlight %}
 
-An `external_dependencies` table names libraries that every module
-needs.  For each one, Luke adds `$<NAME>_INCDIR` and `$<NAME>_LIBDIR`
-to the compiler and linker search paths, defaulting to the `include`
-and `lib` directories beneath `$<NAME>_DIR` (`/usr` unless you set it),
-and links with the library it finds:
+An `external_dependencies` list names libraries that every module
+needs, like `modules`, as tables that each pair a name with its
+settings.  For each one, in the order written, Luke adds
+`$<NAME>_INCDIR` and `$<NAME>_LIBDIR` to the compiler and linker search
+paths, defaulting to the `include` and `lib` directories beneath
+`$<NAME>_DIR` (`/usr` unless you set it), and links with the library it
+finds:
 
 {% highlight lua %}
     external_dependencies = {
-       YAML = {
+       {YAML = {
           library = {checksymbol='yaml_document_initialize', library='yaml'},
-       },
+       }},
     }
 {% endhighlight %}
 
@@ -675,7 +677,7 @@ and `./` is `.`, the directory itself.  It leaves `..` alone.
 | `incdirs`               | a list of header directories                                 | [3.5](#35-settings-for-every-module) |
 | `libdirs`               | a list of library directories                                | [3.5](#35-settings-for-every-module) |
 | `libraries`             | a list of libraries or probes                                | [3.5](#35-settings-for-every-module), [6](#6-build-time-probes) |
-| `external_dependencies` | dependency names, each mapped to a table with a `library`    | [3.5](#35-settings-for-every-module) |
+| `external_dependencies` | `{NAME = {library = ...}}` entries, in order                 | [3.5](#35-settings-for-every-module) |
 | `ldocs`                 | an LDoc configuration file                                   | [3.6](#36-ldocs) |
 | `variables`             | variable names, each mapped to a value                       | [4.1](#41-variables) |
 | `substitute`            | template names, each mapped to a value                       | [4.3](#43-templates) |

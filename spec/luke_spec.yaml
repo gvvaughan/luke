@@ -491,11 +491,28 @@ specify luke:
          to_succeed_with('cat ' .. tmpdir .. '/a.txt > ' .. tmpdir .. '/gen\nchmod +x ' .. tmpdir .. '/gen\n')
   - it keeps external dependencies for a C program built alone: |
       -- A library that is not a probe is passed to the linker as it is.
-      spit(fname, slurp(fname) .. "\nexternal_dependencies = {M = {library = '-lm'}}\n")
+      spit(fname, slurp(fname) .. "\nexternal_dependencies = {{M = {library = '-lm'}}}\n")
       p = luke('--file=' .. fname, 'hello')
       expect(p).to_succeed()
       expect(p.output).to_contain ' -I/usr/include '
       expect(p.output).to_contain ' -lm'
+  - it adds external dependency flags in the order written: |
+      spit(fname, slurp(fname) .. [[
+         external_dependencies = {
+            {ZZ = {library = '-lm'}},
+            {AA = {library = '-lc'}},
+         }
+      ]])
+      p = luke('--file=' .. fname, 'ZZ_DIR=/zz', 'AA_DIR=/aa', 'hello')
+      expect(p).to_succeed()
+      expect(p.output).to_contain ' -I/zz/include -I/aa/include '
+      expect(p.output).to_contain ' -L/zz/lib -L/aa/lib '
+      expect(p.output).to_contain ' -lm -lc'
+  - it diagnoses keyed external dependencies: |
+      spit(fname, slurp(fname) .. "\nexternal_dependencies = {M = {library = '-lm'}}\n")
+      p = luke('--file=' .. fname, 'hello')
+      expect(p).to_exit(1)
+      expect(p).to_contain_error 'bad external_dependencies.M: list entry expected, such as {M = ...}'
   - it compiles and links C programs beneath objdir: |
       expect(luke('--file=' .. fname, 'hello')).to_succeed()
       expect(isexecutable(tmpdir .. '/obj/hello')).to_be(true)

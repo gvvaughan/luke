@@ -17,7 +17,9 @@ local MACRO = '^[%a_][%w_]*$'
 
 -- The name of every ordered map in the lukefile, which resolves its own
 -- platforms, so that platform filtering leaves it alone.
-local ORDERED = {bin = true, defines = true, files = true, modules = true}
+local ORDERED = {
+   bin = true, defines = true, external_dependencies = true, files = true, modules = true,
+}
 
 
 --[[
@@ -264,6 +266,20 @@ end
 local defines = ordered_map(definition)
 
 
+-- The name of an external dependency, which also names its variables,
+-- such as `$YAML_DIR`.
+local function dependency_name(name, path)
+   choose(match(name, MACRO) == nil, bind(bad, {path, "bad dependency name '%s'", name}))
+   return name
+end
+
+
+-- Like the rockspec `external_dependencies` table, each dependency name
+-- mapped to a table with its `library`, but as an ordered map, so that
+-- their compiler and linker flags are added in the order written.
+local dependencies = ordered_map(pair_of(mkcheck 'table', dependency_name))
+
+
 -- The rules for building a module: a source path, a list of source
 -- paths, or a table with `sources` and other build settings, where the
 -- source and directory paths are normalized.
@@ -405,19 +421,20 @@ end
 
 
 return {
-   ORDERED     = ORDERED,
+   ORDERED      = ORDERED,
 
-   copies      = copies,
-   defines     = defines,
-   fields      = fields,
-   files       = files,
-   keypaths    = keypaths,
-   list_of     = list_of,
-   map_of      = map_of,
-   mkcheck     = mkcheck,
-   ordered_map = ordered_map,
-   pair_of     = pair_of,
-   pathname    = pathname,
-   rules       = rules,
-   scripts     = scripts,
+   copies       = copies,
+   defines      = defines,
+   dependencies = dependencies,
+   fields       = fields,
+   files        = files,
+   keypaths     = keypaths,
+   list_of      = list_of,
+   map_of       = map_of,
+   mkcheck      = mkcheck,
+   ordered_map  = ordered_map,
+   pair_of      = pair_of,
+   pathname     = pathname,
+   rules        = rules,
+   scripts      = scripts,
 }

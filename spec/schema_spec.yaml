@@ -154,11 +154,27 @@ specify luke.schema:
          to_equal {{a = {defines = {'X', platforms = {unix = {'Y'}}}}}}
   - it names every ordered map in the lukefile: |
       schema = setup()
-      expect(schema.ORDERED).to_equal {bin = true, defines = true, files = true, modules = true}
+      expect(schema.ORDERED).to_equal {
+         bin = true, defines = true, external_dependencies = true, files = true, modules = true,
+      }
   - it diagnoses a name with two entries, for another platform too: |
       schema = setup()
       expect(schema.ordered_map(pair)({platforms = {windows = {{a = 1}, {a = 2}}}}, 'p')).
          to_raise "bad p.platforms.windows: more than one entry for 'a'"
+
+- describe dependencies:
+  - it keeps dependencies in the order written: |
+      schema = setup()
+      expect(schema.dependencies({{ZZ = {library = 'z'}}, {AA = {library = 'a'}}}, 'p')).
+         to_equal {{ZZ = {library = 'z'}}, {AA = {library = 'a'}}}
+  - it diagnoses a name that cannot name a variable: |
+      schema = setup()
+      expect(schema.dependencies({{['my-dep'] = {library = 'x'}}}, 'p')).
+         to_raise "bad p[1]: bad dependency name 'my-dep'"
+  - it diagnoses a dependency that is not a table: |
+      schema = setup()
+      expect(schema.dependencies({{YAML = 'yaml'}}, 'p')).
+         to_raise 'bad p[1].YAML: table expected, got string'
 
 - describe defines:
   - it keeps each macro definition in order: |

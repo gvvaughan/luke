@@ -67,6 +67,10 @@
     sources on their own, so that Luke builds them in the order written.
     Luke diagnoses the old keyed form, and a name listed twice.
 
+  - `external_dependencies` is a list, like `modules`, of tables that
+    each pair a dependency name with its settings, so that Luke adds
+    their compiler and linker flags in the order written.
+
 ### Bug fixes:
 
   - Luke builds and installs in the same order on every run: modules,

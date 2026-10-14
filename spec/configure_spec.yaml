@@ -232,9 +232,9 @@ specify luke.configure:
       )
       r = run_configs(L, env, {
          external_dependencies = {
-            YAML = {
+            {YAML = {
                library = {checksymbol='yaml_document_initialize', libraries={'yaml'}},
-            },
+            }},
          },
       })
       expect(r.incdirs).to_contain '$YAML_INCDIR'

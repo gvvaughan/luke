@@ -41,7 +41,7 @@ local LUKEFILE = fields({
    version               = string,
 
    defines               = defines,
-   external_dependencies = table,
+   external_dependencies = dependencies,
    incdirs               = list_of(pathname),
    ldocs                 = rules,
    libdirs               = list_of(pathname),
@@ -84,16 +84,10 @@ local function collect_configs(luke, modulename, configs, sectionname)
             append(configs, {t=luke, k=k, module=modulename, section=sectionname, order=len(configs) + 1})
          end,
       }, {
-         [istable(v) and k == 'modules'] = function()
+         [istable(v) and (k == 'modules' or k == 'external_dependencies')] = function()
             map(v, function(pair)
                local name, rules = destructure(pair)
                collect_configs(rules, name, configs, k)
-            end)
-         end,
-      }, {
-         [istable(v) and k == 'external_dependencies'] = function()
-            map(sorted_keys(v), function(name)
-               collect_configs(v[name], name, configs, k)
             end)
          end,
       }, {
@@ -162,7 +156,7 @@ end
 local function collect_variables(luke, variables)
    for k, v in next, luke do
       if k == 'external_dependencies' then
-         map(keys(v), function(name)
+         map(ordered_keys(v), function(name)
             local rootdir = concat{'$', name, '_DIR'}
             variables[name .. '_DIR'] = '/usr'
             variables[name .. '_BINDIR'] = rootdir .. '/bin'
@@ -205,14 +199,15 @@ end
 
 local function unwrap_external_dependencies(luke)
    if istable(luke.external_dependencies) then
-      for prefix, config in next, luke.external_dependencies do
+      map(luke.external_dependencies, function(pair)
+         local prefix, config = destructure(pair)
          -- `config={}` for unsupported, `config={library=''}` for no library required
          if istable(config) and next(config) and config.library ~= '' then
             luke.incdirs = append(luke.incdirs or {}, format('$%s_INCDIR', prefix))
             luke.libdirs = append(luke.libdirs or {}, format('$%s_LIBDIR', prefix))
             luke.libraries = append(luke.libraries or {}, config.library)
          end
-      end
+      end)
       luke.external_dependencies = nil
    end
    return luke
