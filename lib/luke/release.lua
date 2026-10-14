@@ -114,14 +114,16 @@ end
 
 
 -- The steps for publishing each of *copies*, from a branch table in the
--- lukefile `release` table, to the *worktree* of that branch: copy its
--- source there, then fill a template into place without its '.in'
--- suffix, with values from *substitute*.  A template under another name
--- is filled straight from the release, and an optional one from the
--- copy on the branch, whether or not the release has one to copy.
+-- lukefile `release` table, in the order written, to the *worktree* of
+-- that branch: copy its source there, then fill a template into place
+-- without its '.in' suffix, with values from *substitute*.  A template
+-- under another name is filled straight from the release, and an
+-- optional one from the copy on the branch, whether or not the release
+-- has one to copy.
 local function publish_steps(L, env, substitute, worktree, copies)
-   return map(sorted(keys(copies)), function(path)
-      local source, optional = copies[path].source, copies[path].optional
+   return map(copies, function(pair)
+      local path, copy = destructure(pair)
+      local source, optional = copy.source, copy.optional
       local dest = worktree .. '/' .. path
       local template = match(source, '%.in$') ~= nil
       return except(list(
@@ -192,8 +194,8 @@ local function preconditions(env, release, version, main)
       -- TODO: the source of a copy under another name is not checked,
       -- as the build may make it, so a missing one fails only after the
       -- release is tagged.
-      map(filter(sorted(keys(copies)), function(path)
-         return copies[path].optional and match(path, '%.in$') ~= nil
+      map(filter(ordered_keys(copies), function(path)
+         return ordered_get(copies, path).optional and match(path, '%.in$') ~= nil
       end), function(template)
          append(checks, {format('%s or the release has %s', pages, template), function()
             return exists(template) or git(env, format('cat-file -e %s:%s', pages, template)) ~= nil

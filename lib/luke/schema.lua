@@ -393,32 +393,62 @@ end)
 local files = mkscripts(filled)
 
 
--- Whether the copy to *dest* in *r* is a template copied under its own
--- name, which is then filled into *dest* without the '.in' as well.
-local function fills_too(r, dest)
-   return match(dest, '%.in$') ~= nil and match(r[dest].source, '%.in$') ~= nil
+-- Whether the copy of *source* to *dest* is a template copied under its
+-- own name, which is then filled into *dest* without the '.in' as well.
+local function fills_too(dest, source)
+   return match(dest, '%.in$') ~= nil and match(source, '%.in$') ~= nil
 end
 
 
--- Copies of release files: map each destination path to its source in
--- the release, where an array entry names a path that is the same in
--- both, and is optional, being copied only when the release has it.
+-- A copy of a release file to a branch: a table pairing the destination
+-- path with its source in the release, or else a bare path that is the
+-- same in both, which is optional, being copied only when the release
+-- has it.
+local copy_pair = pair_of(function(x, path)
+   return {optional = false, source = pathname(x, path)}
+end, pathname)
+
+local function copy_entry(x, path)
+   return case(type(x), {
+      ['string'] = function()
+         local source = pathname(x, path)
+         return {[source] = {optional = true, source = source}}
+      end,
+
+      ['table'] = function()
+         return copy_pair(x, path)
+      end,
+
+      function(kind)
+         bad(path, 'string or table expected, got %s', kind)
+      end,
+   })
+end
+
+
+-- Copies of release files to a branch, as an ordered map of
+-- `copy_entry`s, in the order written, where a path that a template is
+-- filled into is diagnosed when it is also copied.  Unlike other lists,
+-- a single string is diagnosed, as any key of the `release` table that
+-- luke does not know names a branch, and that is more likely a typo.
+-- TODO: a branch table is named for its branch, not in ORDERED, so its
+-- platforms are filtered before this, and only this platform's copies
+-- are diagnosed.
 local function copies(x, path)
-   local r = mkcheck 'table'(x, path) and reduce(keys(x), {}, function(r, k)
-      local source = pathname(x[k], index(path, k))
-      local dest = choose(isstring(k), function()
-         return pathname(k, index(path, k))
-      end, source)
-      claim(r, dest, {optional = not isstring(k), source = source}, path)
+   local r = ordered_map(copy_entry)(mkcheck 'table'(x, path), path)
+   -- Every path written: each destination, then the path that each
+   -- template copied under its own name is filled into.
+   local written = reduce(ordered_keys(r), {}, function(written, dest)
+      written[dest] = true
    end)
-   -- Every path written, starting with each destination, then the path
-   -- each template copied under its own name is filled into.
-   reduce(filter(keys(r or {}), bind(fills_too, {r})), copy(r), function(written, dest)
-      claim(written, filled(dest), true, path)
+   map(r or {}, function(pair)
+      local dest, copy = destructure(pair)
+      choose(fills_too(dest, copy.source), function()
+         claim(written, filled(dest), true, path)
+      end)
    end)
    return r
 end
-
 
 return {
    ORDERED      = ORDERED,

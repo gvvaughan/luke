@@ -109,11 +109,11 @@ specify luke:
          package = 'example'
          version = '1.0'
          modules = {{example = 'example.lua'}}
-         release = {['gh-pages'] = {api = 42}}
+         release = {['gh-pages'] = {{api = 42}}}
       ]])
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
-      expect(p).to_contain_error "bad release['gh-pages'].api: string expected, got number"
+      expect(p).to_contain_error "bad release['gh-pages'][1].api: string expected, got number"
   - it diagnoses malformed modules at their path: |
       spit(fname, "modules = {{['a.b'] = 42}}")
       p = luke('--file=' .. fname)
@@ -139,7 +139,7 @@ specify luke:
             add = {'doc/'},
             news = './NEWS.md',
             rockspec = './example-dev-1.rockspec',
-            ['gh-pages'] = {['./'] = 'doc/'},
+            ['gh-pages'] = {{['./'] = 'doc/'}},
          }
       ]])
       luke = require 'luke.lukefile'.loadluke(fname)
@@ -150,7 +150,7 @@ specify luke:
       expect(luke.release.add).to_equal {'doc'}
       expect(luke.release.news).to_be 'NEWS.md'
       expect(luke.release.rockspec).to_be 'example-dev-1.rockspec'
-      expect(luke.release['gh-pages']).to_equal {['.'] = {optional = false, source = 'doc'}}
+      expect(luke.release['gh-pages']).to_equal {{['.'] = {optional = false, source = 'doc'}}}
   - it keeps defines in order, with platform defines after the rest: |
       spit(fname, [[
          package = 'example'
@@ -193,7 +193,7 @@ specify luke:
          package = 'example'
          version = '1.0'
          modules = {{example = 'example.lua'}}
-         release = {docs = {['index.md'] = 'doc/example.md'}}
+         release = {docs = {{['index.md'] = 'doc/example.md'}}}
       ]])
       expect(luke('--file=' .. fname, '--value=version')).to_succeed()
   - it diagnoses malformed release copies at their branch: |

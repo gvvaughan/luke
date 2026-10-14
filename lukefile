@@ -57,7 +57,7 @@ release = {
    news         = 'NEWS.md',
    rockspec     = 'luke-dev-1.rockspec',
    ['gh-pages'] = {
-      ['index.md'] = 'doc/luke.md',
+      {['index.md'] = 'doc/luke.md'},
       '_config.yml.in',
    },
 }

@@ -71,6 +71,10 @@
     each pair a dependency name with its settings, so that Luke adds
     their compiler and linker flags in the order written.
 
+  - A branch table in `release` is a list, like `modules`, of tables
+    that each pair a path on the branch with its source, or of paths on
+    their own, so that Luke copies them in the order written.
+
 ### Bug fixes:
 
   - Luke builds and installs in the same order on every run: modules,

@@ -181,7 +181,7 @@ before: |
 
   -- A lukefile `gh-pages` table with a copied directory, a renamed file,
   -- and a template tracked on gh-pages.
-  GHPAGES = ghpages {api = 'doc/api/', ['index.md'] = 'doc/demo.md', '_config.yml.in'}
+  GHPAGES = ghpages {{api = 'doc/api/'}, {['index.md'] = 'doc/demo.md'}, '_config.yml.in'}
 
 specify luke.release:
 - after:
@@ -505,7 +505,7 @@ specify luke.release:
     - before: |
         rules = {['gh-pages'] = GHPAGES}
 
-    - it copies each file and directory, then fills templates in place: |
+    - it copies each file and directory, and fills templates in place, in the order written: |
         spawned = with_ghpages(passing(), 'name: Demo\nrelease-no: @version@\n')
         spawned["git -C WORKTREE add -A && git -C WORKTREE commit -m 'gh-pages: update to $package 1.0.'"] = function(worktree)
            published = slurp(worktree .. '/_config.yml')
@@ -516,10 +516,10 @@ specify luke.release:
         expect(release(L, env, build)).to_be(0)
         expect(published).to_be 'name: Demo\nrelease-no: 1.0\n'
         expect(L.write[4]).to_match '^git worktree add %-%-quiet %S+ gh%-pages$'
-        expect(L.write[5]).to_match '^if test %-e _config%.yml%.in; then rm %-rf %S+/_config%.yml%.in && mkdir %-p %S+ && cp %-R _config%.yml%.in %S+/_config%.yml%.in; fi$'
-        expect(L.write[6]).to_match '^creating %S+/_config%.yml$'
-        expect(L.write[7]).to_match '^rm %-rf %S+/api && mkdir %-p %S+ && cp %-R doc/api %S+/api$'
-        expect(L.write[8]).to_match '^rm %-rf %S+/index%.md && mkdir %-p %S+ && cp %-R doc/demo%.md %S+/index%.md$'
+        expect(L.write[5]).to_match '^rm %-rf %S+/api && mkdir %-p %S+ && cp %-R doc/api %S+/api$'
+        expect(L.write[6]).to_match '^rm %-rf %S+/index%.md && mkdir %-p %S+ && cp %-R doc/demo%.md %S+/index%.md$'
+        expect(L.write[7]).to_match '^if test %-e _config%.yml%.in; then rm %-rf %S+/_config%.yml%.in && mkdir %-p %S+ && cp %-R _config%.yml%.in %S+/_config%.yml%.in; fi$'
+        expect(L.write[8]).to_match '^creating %S+/_config%.yml$'
     - it fills a renamed template from the release, without copying it: |
         template = os.tmpname() .. '.in'
         h = assert(io.open(template, 'w'))
@@ -531,7 +531,7 @@ specify luke.release:
            return 0, '', ''
         end
         release = setup(spawned)
-        L = mkL {['gh-pages'] = ghpages {['_config.yml'] = template}}
+        L = mkL {['gh-pages'] = ghpages {{['_config.yml'] = template}}}
         expect(release(L, env, build)).to_be(0)
         os.remove(template)
         expect(published).to_be 'version: 1.0\n'
@@ -541,7 +541,7 @@ specify luke.release:
         spawned = with_ghpages(passing(), '')
         spawned["rm -rf 'WORKTREE/my docs' && $MAKEDIRS WORKTREE && cp -R 'doc/my docs' 'WORKTREE/my docs'"] = list(0, '', '')
         release = setup(spawned)
-        L = mkL {['gh-pages'] = ghpages {['my docs'] = 'doc/my docs/'}}
+        L = mkL {['gh-pages'] = ghpages {{['my docs'] = 'doc/my docs/'}}}
         expect(release(L, env, build)).to_be(0)
     - it removes the worktree when a gh-pages step fails: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')

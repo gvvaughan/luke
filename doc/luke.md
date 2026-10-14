@@ -627,16 +627,17 @@ Then Luke:
 ### 8.3. Publishing to Branches
 
 Any other key in the `release` table names a branch to copy release
-files to, such as `gh-pages` for GitHub Pages.  Each key in its table
-is a path on that branch, and its value the file or directory in the
-release that replaces it.  An array entry names a path that is the
-same in both, and is copied only if the release has it.  [Specl]
+files to, such as `gh-pages` for GitHub Pages.  Its table is a list,
+like `modules`, which Luke copies in the order written.  Each entry is
+a table pairing a path on that branch with the file or directory in
+the release that replaces it, or else a path on its own that is the
+same in both, which is copied only if the release has it.  [Specl]
 publishes its manual and API documentation like this:
 
 {% highlight lua %}
     ['gh-pages'] = {
-       api          = 'doc/api/',
-       ['index.md'] = 'doc/specl.md',
+       {api          = 'doc/api/'},
+       {['index.md'] = 'doc/specl.md'},
        '_config.yml.in',
     }
 {% endhighlight %}
@@ -685,7 +686,7 @@ and `./` is `.`, the directory itself.  It leaves `..` alone.
 | `release.news`          | the NEWS file                                                | [8.1](#81-checks), [8.2](#82-steps) |
 | `release.rockspec`      | the development rockspec                                     | [8.1](#81-checks), [8.2](#82-steps) |
 | `release.add`           | a list of paths to commit to the release                     | [8.2](#82-steps) |
-| `release[branch]`       | paths on the branch, each mapped to a path in the release, or a list of paths | [8.3](#83-publishing-to-branches) |
+| `release[branch]`       | `{path = source}` entries, or paths on their own, in order   | [8.3](#83-publishing-to-branches) |
 
 
 ## 10. Bugs and Contributions

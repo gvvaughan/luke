@@ -307,43 +307,55 @@ specify luke.schema:
 - describe copies:
   - it maps each destination to its source: |
       schema = setup()
-      expect(schema.copies({['index.md'] = 'doc/demo.md'}, 'p')).
-         to_equal {['index.md'] = {optional = false, source = 'doc/demo.md'}}
-  - it copies an array entry to the same path, when there is one: |
+      expect(schema.copies({{['index.md'] = 'doc/demo.md'}}, 'p')).
+         to_equal {{['index.md'] = {optional = false, source = 'doc/demo.md'}}}
+  - it copies a bare entry to the same path, when there is one: |
       schema = setup()
       expect(schema.copies({'_config.yml.in'}, 'p')).
-         to_equal {['_config.yml.in'] = {optional = true, source = '_config.yml.in'}}
+         to_equal {{['_config.yml.in'] = {optional = true, source = '_config.yml.in'}}}
+  - it keeps the entries in the order written: |
+      schema = setup()
+      expect(schema.copies({{['.'] = 'doc'}, {api = 'build/api'}, '_config.yml.in'}, 'p')).
+         to_equal {
+            {['.'] = {optional = false, source = 'doc'}},
+            {api = {optional = false, source = 'build/api'}},
+            {['_config.yml.in'] = {optional = true, source = '_config.yml.in'}},
+         }
   - it diagnoses other sources at their path: |
       schema = setup()
-      expect(schema.copies({api = 42}, 'p')).
-         to_raise 'bad p.api: string expected, got number'
-  - it diagnoses an array entry and a key for the same path: |
+      expect(schema.copies({{api = 42}}, 'p')).
+         to_raise 'bad p[1].api: string expected, got number'
+  - it diagnoses a bare entry and a pair for the same path: |
       schema = setup()
-      expect(schema.copies({['index.md'] = 'doc/demo.md', 'index.md'}, 'p')).
+      expect(schema.copies({{['index.md'] = 'doc/demo.md'}, 'index.md'}, 'p')).
          to_raise "bad p: more than one entry for 'index.md'"
   - it diagnoses a template filled into a path that is also copied: |
       schema = setup()
-      expect(schema.copies({['_config.yml'] = 'doc/config.yml', '_config.yml.in'}, 'p')).
+      expect(schema.copies({{['_config.yml'] = 'doc/config.yml'}, '_config.yml.in'}, 'p')).
          to_raise "bad p: more than one entry for '_config.yml'"
   - it fills a renamed template into its own name: |
       schema = setup()
-      expect(schema.copies({['_config.yml'] = 'doc/config.yml.in'}, 'p')).
-         to_equal {['_config.yml'] = {optional = false, source = 'doc/config.yml.in'}}
+      expect(schema.copies({{['_config.yml'] = 'doc/config.yml.in'}}, 'p')).
+         to_equal {{['_config.yml'] = {optional = false, source = 'doc/config.yml.in'}}}
   - it normalizes destination and source paths: |
       schema = setup()
-      expect(schema.copies({['./api/'] = 'doc/api/', ['./'] = './doc', './_config.yml.in'}, 'p')).
+      expect(schema.copies({{['./api/'] = 'doc/api/'}, {['./'] = './doc'}, './_config.yml.in'}, 'p')).
          to_equal {
-            api = {optional = false, source = 'doc/api'},
-            ['.'] = {optional = false, source = 'doc'},
-            ['_config.yml.in'] = {optional = true, source = '_config.yml.in'},
+            {api = {optional = false, source = 'doc/api'}},
+            {['.'] = {optional = false, source = 'doc'}},
+            {['_config.yml.in'] = {optional = true, source = '_config.yml.in'}},
          }
   - it diagnoses entries for the same path spelled differently: |
       schema = setup()
-      expect(schema.copies({['api/'] = 'doc/api', ['./api'] = 'doc/api'}, 'p')).
+      expect(schema.copies({{['api/'] = 'doc/api'}, {['./api'] = 'doc/api'}}, 'p')).
          to_raise "bad p: more than one entry for 'api'"
   - it diagnoses an empty destination path: |
       schema = setup()
-      expect(schema.copies({[''] = 'doc'}, 'p')).to_raise "bad p['']: empty path"
+      expect(schema.copies({{[''] = 'doc'}}, 'p')).to_raise "bad p[1]: empty path"
+  - it diagnoses keyed entries: |
+      schema = setup()
+      expect(schema.copies({api = 'doc/api'}, 'p')).
+         to_raise 'bad p.api: list entry expected, such as {api = ...}'
 
 - describe files:
   - it names a bare entry after the path of its source: |
