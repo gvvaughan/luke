@@ -193,6 +193,21 @@ specify luke.release:
       release(L, env, build)
       expect(L.verbose[1]).to_be 'checking whether '
       expect(L.verbose[#L.verbose]).to_be 'yes\n'
+  - it checks the branch checked out only once: |
+      release = setup(passing())
+      L = mkL()
+      reported = {}
+      L.verbose = function(...)
+         reported[#reported + 1] = table.concat {...}
+      end
+      release(L, env, build)
+      branch_checks = {}
+      for _, line in ipairs(reported) do
+         if line:match 'is checked out' then
+            branch_checks[#branch_checks + 1] = line
+         end
+      end
+      expect(branch_checks).to_equal {'checking whether master is checked out... '}
 
   - it diagnoses a dirty working tree: |
       spawned = passing()
@@ -210,8 +225,14 @@ specify luke.release:
       spawned = passing()
       spawned['git symbolic-ref --short HEAD'] = list(128, 'fatal: ref HEAD is not a symbolic ref', '')
       release, fatal = setup(spawned)
-      expect(release(mkL(), env, build)).to_be(1)
+      L = mkL()
+      reported = {}
+      L.verbose = function(...)
+         reported[#reported + 1] = table.concat {...}
+      end
+      expect(release(L, env, build)).to_be(1)
       expect(fatal[1]).to_be 'cannot release %s: check failed: %s'
+      expect(reported).to_contain 'checking whether a branch is checked out... '
   - it diagnoses a failed fetch: |
       spawned = passing()
       spawned['git fetch --quiet origin'] = list(128, 'no origin', '')

@@ -143,17 +143,15 @@ end
 -- if any.
 local function preconditions(env, release, version, main)
    local branch, tag = 'release-v' .. version, 'v' .. version
-   local name = choose(main ~= nil, main, 'the branch')
+   local name = choose(main ~= nil, main, 'a branch')
    local checkout = format('git checkout --force %s', name)
    local checks = {
       {'the working tree is clean', function()
          return git(env, 'status --porcelain') == ''
       end, checkout},
-      {'a branch is checked out', function()
-         return main ~= nil
-      end},
+      -- Not detached, and after a failed release, still on *main*.
       {format('%s is checked out', name), function()
-         return git(env, 'symbolic-ref --short HEAD') == main
+         return main ~= nil and git(env, 'symbolic-ref --short HEAD') == main
       end, checkout},
       {'origin can be fetched', function()
          return git(env, 'fetch --quiet origin') ~= nil
