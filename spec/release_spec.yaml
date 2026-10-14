@@ -61,6 +61,10 @@ before: |
      return r
   end
 
+  -- `git worktree list --porcelain` output for the release's own working
+  -- tree alone.
+  WORKTREES = 'worktree /src/demo\nHEAD abc123\nbranch refs/heads/master\n\n'
+
   -- The results in *r*, with a *branch* (gh-pages, unless given) that
   -- has a _config.yml.in *template*, and which runs every command for
   -- copying GHPAGES there successfully.
@@ -69,6 +73,7 @@ before: |
      r['git rev-parse refs/heads/' .. branch] = list(0, '', 'fed789\n')
      r['git rev-parse origin/' .. branch] = list(0, '', 'fed789\n')
      r['git cat-file -e ' .. branch .. ':_config.yml.in'] = list(0, '', '')
+     r['git worktree list --porcelain'] = list(0, '', WORKTREES)
      r['git worktree add --quiet WORKTREE ' .. branch] = function(worktree)
         os.execute("mkdir '" .. worktree .. "'")
         local h = assert(io.open(worktree .. '/_config.yml.in', 'w'))
@@ -303,6 +308,26 @@ specify luke.release:
         spawned['git rev-parse origin/gh-pages'] = list(128, '', '')
         release = setup(spawned)
         expect(release(mkL {['gh-pages'] = {}}, env, build)).to_be(1)
+    - it diagnoses gh-pages checked out in another worktree: |
+        spawned = with_ghpages(passing(), 'release-no: @version@\n')
+        spawned['git worktree list --porcelain'] = list(0, '', WORKTREES ..
+           'worktree /src/demo-gh-pages\nHEAD fed789\nbranch refs/heads/gh-pages\n\n')
+        release, fatal = setup(spawned)
+        L = mkL {['gh-pages'] = GHPAGES}
+        reported = {}
+        L.verbose = function(...)
+           reported[#reported + 1] = table.concat {...}
+        end
+        expect(release(L, env, build)).to_be(1)
+        expect(fatal[1]).to_be 'cannot release %s: check failed: %s'
+        expect(reported[#reported - 1]).to_be 'checking whether gh-pages can be checked out in a new worktree... '
+    - it passes gh-pages detached in another worktree: |
+        spawned = with_ghpages(passing(), 'release-no: @version@\n')
+        spawned['git worktree list --porcelain'] = list(0, '', WORKTREES ..
+           'worktree /src/demo-gh-pages\nHEAD fed789\ndetached\n\n')
+        release, fatal = setup(spawned)
+        expect(release(mkL {['gh-pages'] = GHPAGES}, env, build)).to_be(0)
+        expect(#fatal).to_be(0)
     - it diagnoses a template in neither gh-pages nor the release: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
         spawned['git cat-file -e gh-pages:_config.yml.in'] = list(128, 'fatal: not a valid object', '')

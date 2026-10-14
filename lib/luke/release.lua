@@ -183,6 +183,12 @@ local function preconditions(env, release, version, main)
          local ref = git(env, 'rev-parse refs/heads/' .. pages)
          return ref ~= nil and ref == git(env, 'rev-parse origin/' .. pages)
       end, format('git branch -f %s origin/%s', pages, pages)})
+      -- git checks out a branch in only one worktree at a time.
+      append(checks, {format('%s can be checked out in a new worktree', pages), function()
+         local worktrees = git(env, 'worktree list --porcelain')
+         return worktrees ~= nil
+            and find('\n' .. worktrees .. '\n', '\nbranch refs/heads/' .. pages .. '\n', 1, true) == nil
+      end})
       -- TODO: the source of a copy under another name is not checked,
       -- as the build may make it, so a missing one fails only after the
       -- release is tagged.

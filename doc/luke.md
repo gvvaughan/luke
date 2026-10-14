@@ -556,9 +556,10 @@ Luke checks, before changing anything, that:
 {% endhighlight %}
 
  * each branch that the release copies files to, such as `gh-pages`, is
-   up to date with origin, and each template copied there from the same
-   path is in the release or on that branch (see [Publishing to
-   Branches](#83-publishing-to-branches)).
+   up to date with origin, and is not checked out in another worktree,
+   as Luke updates it in a worktree of its own; and each template
+   copied there from the same path is in the release or on that branch
+   (see [Publishing to Branches](#83-publishing-to-branches)).
 
 `--verbose` shows each check as Luke makes it.
 

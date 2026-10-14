@@ -742,7 +742,9 @@ end,'git branch -D '..branch},{format('tag %s is unused',tag),function()return g
 end,'git tag -d '..tag},}if release.news~=nil then
 local news=slurp(File(release.news))append(checks,{format('%s has news under a placeholder header',release.news),function()return news~=nil and has_placeholder(news)end})append(checks,{format('%s has no %s release yet',release.news,version),function()return news~=nil and find(news,'release '..version..' (',1,true)==nil
 end})end
-map(branches(release),function(pages)local copies=release[pages]append(checks,{format('%s is up to date with origin',pages),function()local ref=git(env,'rev-parse refs/heads/'..pages)return ref~=nil and ref==git(env,'rev-parse origin/'..pages)end,format('git branch -f %s origin/%s',pages,pages)})map(filter(sorted(keys(copies)),function(path)return copies[path].optional and match(path,'%.in$')~=nil
+map(branches(release),function(pages)local copies=release[pages]append(checks,{format('%s is up to date with origin',pages),function()local ref=git(env,'rev-parse refs/heads/'..pages)return ref~=nil and ref==git(env,'rev-parse origin/'..pages)end,format('git branch -f %s origin/%s',pages,pages)})append(checks,{format('%s can be checked out in a new worktree',pages),function()local worktrees=git(env,'worktree list --porcelain')return worktrees~=nil
+and find('\n'..worktrees..'\n','\nbranch refs/heads/'..pages..'\n',1,true)==nil
+end})map(filter(sorted(keys(copies)),function(path)return copies[path].optional and match(path,'%.in$')~=nil
 end),function(template)append(checks,{format('%s or the release has %s',pages,template),function()return exists(template)or git(env,format('cat-file -e %s:%s',pages,template))~=nil
 end})end)end)if release.rockspec~=nil then
 local rockspec=slurp(File(release.rockspec))append(checks,{format('%s is a development rockspec',release.rockspec),function()return match(release.rockspec,DEVROCKSPEC)~=nil
@@ -825,8 +827,8 @@ end
 return{copies=copies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/7375160',versiontext=[[
-luke (Luke) gvv/7375160
+return{VERSION='gvv/0102ed6',versiontext=[[
+luke (Luke) gvv/0102ed6
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
