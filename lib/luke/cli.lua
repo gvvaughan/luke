@@ -194,15 +194,16 @@ return {
 
       local sections = script_sections(luke)
       local installbin = sections.install
-      local rulesets = {luke.modules, sections.bin, sections.files, installbin}
+      local rulesets = {sections.bin, sections.files, installbin}
 
       local function hasrule(target)
-         return target == 'install' or any(map(rulesets, bind(get, {[2]=target})))
+         return target == 'install' or ordered_get(luke.modules, target) ~= nil
+            or any(map(rulesets, bind(get, {[2]=target})))
       end
 
       local targets = call(function()
          if isempty(parsed.targets) or contains(parsed.targets, 'all') then
-            return except(flatten(parsed.targets, map(rulesets, keys)), 'all')
+            return except(flatten(parsed.targets, ordered_keys(luke.modules), map(rulesets, keys)), 'all')
          end
          local unknown = except(parsed.targets, hasrule)
          diagnose(isempty(unknown), "no rule to make target '%s'", unknown[1])
@@ -214,7 +215,7 @@ return {
       -- and `install` alone installs every module and installable
       -- script.
       local named = except(targets, 'install')
-      local build = pluck(named, luke.modules)
+      local build = ordered_pluck(named, luke.modules)
       local scripts = {
          build = reduce(SCRIPT_SECTIONS, list(), function(entries, section)
             return reduce(sorted_keys(pluck(named, sections[section])), entries, function(entries, name)
@@ -228,14 +229,10 @@ return {
          if isempty(named) then
             install, scripts.install = luke.modules, sorted_keys(installbin)
          else
-            install, scripts.install = build or {}, sorted_keys(pluck(named, installbin))
+            install, scripts.install = build, sorted_keys(pluck(named, installbin))
          end
       end
       luke.modules = build
-
-      if isempty(luke.modules) then
-         luke.external_dependencies = nil
-      end
 
       local ref, srcdir = gitref(), abs_top_srcdir()
 

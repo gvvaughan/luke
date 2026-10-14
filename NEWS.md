@@ -57,6 +57,11 @@
     diagnoses the old keyed form, and a macro defined twice in one list,
     for every platform rather than only the one it runs on.
 
+  - `modules` is a list of tables that each pair a module name with its
+    source, as in `{{['stack'] = 'lib/stack/init.lua'}}`, so that Luke
+    builds and installs modules in the order written.  Luke diagnoses
+    the old keyed form, and a module listed twice.
+
 ### Bug fixes:
 
   - Luke builds and installs in the same order on every run: modules

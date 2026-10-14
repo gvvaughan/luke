@@ -69,20 +69,18 @@ fatal('release cannot be combined with other targets')end
 release=parsed.clidefs.version
 diagnose(release~=nil,'release needs a version=VERSION argument')case(release,{['%d+%.%d+']=nop,['%d+%.%d+%.%d+']=nop,function()fatal("bad release version '%s': X.Y or X.Y.Z expected",release)end,})parsed.targets={}end
 local sections=script_sections(luke)local installbin=sections.install
-local rulesets={luke.modules,sections.bin,sections.files,installbin}local function hasrule(target)return target=='install'or any(map(rulesets,bind(get,{[2]=target})))end
+local rulesets={sections.bin,sections.files,installbin}local function hasrule(target)return target=='install'or ordered_get(luke.modules,target)~=nil
+or any(map(rulesets,bind(get,{[2]=target})))end
 local targets=call(function()if isempty(parsed.targets)or contains(parsed.targets,'all')then
-return except(flatten(parsed.targets,map(rulesets,keys)),'all')end
+return except(flatten(parsed.targets,ordered_keys(luke.modules),map(rulesets,keys)),'all')end
 local unknown=except(parsed.targets,hasrule)diagnose(isempty(unknown),"no rule to make target '%s'",unknown[1])assert(len(parsed.targets)>0,"no build targets specified")return parsed.targets
-end)local named=except(targets,'install')local build=pluck(named,luke.modules)local scripts={build=reduce(SCRIPT_SECTIONS,list(),function(entries,section)return reduce(sorted_keys(pluck(named,sections[section])),entries,function(entries,name)return append(entries,{name=name,section=section})end)end),install={},}local install
+end)local named=except(targets,'install')local build=ordered_pluck(named,luke.modules)local scripts={build=reduce(SCRIPT_SECTIONS,list(),function(entries,section)return reduce(sorted_keys(pluck(named,sections[section])),entries,function(entries,name)return append(entries,{name=name,section=section})end)end),install={},}local install
 if contains(targets,'install')then
 if isempty(named)then
 install,scripts.install=luke.modules,sorted_keys(installbin)else
-install,scripts.install=build or{},sorted_keys(pluck(named,installbin))end
+install,scripts.install=build,sorted_keys(pluck(named,installbin))end
 end
 luke.modules=build
-if isempty(luke.modules)then
-luke.external_dependencies=nil
-end
 local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merge(luke.substitute or{},{abs_top_srcdir=srcdir,gitref=ref,package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),})luke.variables=merge(luke.variables or{},collect_variables(luke),{LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUAVERSION',LUA_LIBDIR='$LUA_DIR/lib',abs_top_srcdir=srcdir,gitref=ref,objdir=platforms[1],package=luke.package,version=luke.version,})return{clidefs=parsed.clidefs,debug=parsed.debug,dryrun=parsed.dryrun,install=install,log=parsed.log,luke=luke,release=release,scripts=scripts,valreqs=parsed.valreqs,verbose=parsed.verbose,write=parsed.write,}end,}
 end
 package.preload['luke.compile']=function()
@@ -110,10 +108,10 @@ return name
 end
 local function c_sources(sources)return dropuntil(sources,bind(match,{[2]='%.[ch]$'}))end
 local function module_to_path(module,sources,objdir)return dropuntil(sources,function(source)return case(source,{['.*%.[ch]']=bind(c_source,{module,objdir}),['(.*%.[ch])%.in']=bind(c_source,{module,objdir}),['.*%.lua']=bind(lua_source,{module}),['(.*%.lua)%.in']=bind(lua_source,{module}),function(src)fatal("unsupported source type '%s'",src)end,})end)end
-return{build_c_module=function(L,env,luke,name)local rules=luke.modules[name]local c_module=c_module_path(luke.variables.objdir,name)local command={'$MAKEDIRS',dirname(c_module)}local status,err,out=spawn(env,unpack(command))if status~=0 then
+return{build_c_module=function(L,env,luke,name)local rules=ordered_get(luke.modules,name)local c_module=c_module_path(luke.variables.objdir,name)local command={'$MAKEDIRS',dirname(c_module)}local status,err,out=spawn(env,unpack(command))if status~=0 then
 stdout:write(concat(command,' ')..'\n')stderr:write(err..'\n')exit(status)end
-return run(L,env,flatten('$CC $CFLAGS $LIBFLAG $PKGFLAGS $CPPFLAGS',defines(luke.defines,rules.defines),incdirs(rules.incdirs,luke.incdirs),rules.sources,'-o',c_module,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries))end,c_modules=function(modules)return filter(sorted_keys(modules),function(name)return dropuntil(modules[name].sources,bind(match,{[2]='%.[ch]$'}))end)end,defines=defines,incdirs=incdirs,install_modules=function(L,env,luke,modules)return reduce(sorted_keys(modules),0,function(status,name)if status==0 then
-local src,dir=module_to_path(name,modules[name].sources,luke.variables.objdir)if not exists(interpolate(env,dir))then
+return run(L,env,flatten('$CC $CFLAGS $LIBFLAG $PKGFLAGS $CPPFLAGS',defines(luke.defines,rules.defines),incdirs(rules.incdirs,luke.incdirs),rules.sources,'-o',c_module,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries))end,c_modules=function(modules)return filter(ordered_keys(modules),function(name)return dropuntil(ordered_get(modules,name).sources,bind(match,{[2]='%.[ch]$'}))end)end,defines=defines,incdirs=incdirs,install_modules=function(L,env,luke,modules)return reduce(ordered_keys(modules),0,function(status,name)if status==0 then
+local src,dir=module_to_path(name,ordered_get(modules,name).sources,luke.variables.objdir)if not exists(interpolate(env,dir))then
 status=run(L,env,{'$MAKEDIRS',dir})end
 if status==0 then
 status=run(L,env,{'$INSTALL',src,dir..'/'})end
@@ -509,10 +507,10 @@ return status
 end,}
 end
 package.preload['luke.lukefile']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local string,table=mkcheck'string',mkcheck'table'local RELEASE=fields({add=list_of(pathname),news=pathname,rockspec=pathname,},copies)local LUKEFILE=fields({package=string,version=string,defines=defines,external_dependencies=table,incdirs=list_of(pathname),ldocs=rules,libdirs=list_of(pathname),libraries=list_of(id),modules=map_of(rules),substitute=table,variables=table,bin=scripts,files=files,install=fields{bin=scripts,},release=RELEASE,},true)local function has_anykey(t,keylist)return any(map(keylist,function(k)return t[k]~=nil
+local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local string,table=mkcheck'string',mkcheck'table'local RELEASE=fields({add=list_of(pathname),news=pathname,rockspec=pathname,},copies)local LUKEFILE=fields({package=string,version=string,defines=defines,external_dependencies=table,incdirs=list_of(pathname),ldocs=rules,libdirs=list_of(pathname),libraries=list_of(id),modules=ordered_map(pair_of(rules)),substitute=table,variables=table,bin=scripts,files=files,install=fields{bin=scripts,},release=RELEASE,},true)local function has_anykey(t,keylist)return any(map(keylist,function(k)return t[k]~=nil
 end))end
 local function isconfig(x)return istable(x)and has_anykey(x,configure)end
-local function collect_configs(luke,modulename,configs,sectionname)configs=configs or{}map(sorted_keys(luke),function(k)local v=luke[k]cond({[isconfig(v)]=function()append(configs,{t=luke,k=k,module=modulename,section=sectionname,order=len(configs)+1})end,},{[istable(v)and(k=='modules'or k=='external_dependencies')]=function()map(sorted_keys(v),function(name)collect_configs(v[name],name,configs,k)end)end,},{[istable(v)]=function()collect_configs(v,modulename,configs,sectionname)end,})end)return configs
+local function collect_configs(luke,modulename,configs,sectionname)configs=configs or{}map(sorted_keys(luke),function(k)local v=luke[k]cond({[isconfig(v)]=function()append(configs,{t=luke,k=k,module=modulename,section=sectionname,order=len(configs)+1})end,},{[istable(v)and k=='modules']=function()map(v,function(pair)local name,rules=destructure(pair)collect_configs(rules,name,configs,k)end)end,},{[istable(v)and k=='external_dependencies']=function()map(sorted_keys(v),function(name)collect_configs(v[name],name,configs,k)end)end,},{[istable(v)]=function()collect_configs(v,modulename,configs,sectionname)end,})end)return configs
 end
 local function deepcopy(t)return mapvalues(t,function(v)return case(type(v),{['table']=function()return deepcopy(v)end,v,})end)end
 local weighting=setmetatable(copy(configure),{__call=function(self,config)local t=config.t[config.k]for i=1,len(self)do
@@ -554,7 +552,8 @@ local ok,err=pcall(chunk)if not ok then
 return nil,"Error running file: "..err
 end
 return LUKEFILE(normalize_configs(filter_platforms(r,nil,nil,ORDERED)),'')end,collect_variables=function(luke)return collect_variables(luke,{})end,branches=function(release)return filter(sorted(keys(release or{})),function(k)return RELEASE.schema[k]==nil
-end)end,keypaths=function()return keypaths(LUKEFILE)end,SCRIPT_SECTIONS={'bin','install','files'},script_sections=function(luke)return{bin=luke.bin or{},files=luke.files or{},install=(luke.install or{}).bin or{},}end,fill_template=function(L,env,source)return rewrite_template_files(L,env,source)end,run_configs=function(L,env,luke)local r=deepcopy(luke)map(sorted(collect_configs(r),config_cmp),function(config)local prefix=case(config.section,{external_dependencies=function()return config.module end,})config.t[config.k]=configure(L,env,config.t[config.k],prefix)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local r=copy(luke)local rewrite=bind(rewrite_template_files,{L,env})r.modules=mapvalues(r.modules,function(rules)rules.sources=map(rules.sources,rewrite)end)if r.ldocs then
+end)end,keypaths=function()return keypaths(LUKEFILE)end,SCRIPT_SECTIONS={'bin','install','files'},script_sections=function(luke)return{bin=luke.bin or{},files=luke.files or{},install=(luke.install or{}).bin or{},}end,fill_template=function(L,env,source)return rewrite_template_files(L,env,source)end,run_configs=function(L,env,luke)local r=deepcopy(luke)map(sorted(collect_configs(r),config_cmp),function(config)local prefix=case(config.section,{external_dependencies=function()return config.module end,})config.t[config.k]=configure(L,env,config.t[config.k],prefix)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local r=copy(luke)local rewrite=bind(rewrite_template_files,{L,env})r.modules=ordered_mapvalues(r.modules,function(rules)rules.sources=map(rules.sources,rewrite)return rules
+end)if r.ldocs then
 r.ldocs.sources=map(r.ldocs.sources,rewrite)end
 return r
 end,}
@@ -770,7 +769,7 @@ return status
 end,}
 end
 package.preload['luke.schema']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.functional','luke.platforms','type.path',}local MACRO='^[%a_][%w_]*$'local ORDERED={defines=true}local function bad(path,...)fatal('bad %s: %s',path,format(...))end
+local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.functional','luke.platforms','type.path',}local MACRO='^[%a_][%w_]*$'local ORDERED={defines=true,modules=true}local function bad(path,...)fatal('bad %s: %s',path,format(...))end
 local function index(path,k)if isstring(k)and match(k,'^[%a_][%w_]*$')then
 return path==''and k or path..'.'..k
 end
@@ -806,6 +805,8 @@ local function pathname(x,path)choose(mkcheck'string'(x,path)=='',bind(bad,{path
 local function isprobe(x)return istable(x)and contains(configure,function(name)return x[name]~=nil
 end)end
 local function definition(x,path)return case(type(x),{['string']=function()local name,eq,value=match(x,'^([%a_][%w_]*)(=?)(.*)$')choose(name==nil or eq==''and value~='',bind(bad,{path,"bad macro definition '%s'",x}))return{[name]=choose(eq=='',1,value)}end,['table']=function()local names=keys(x)choose(names.n~=1,bind(bad,{path,'one definition expected, got %d',names.n}))local name=names[1]choose(isstring(name)and configure[name]~=nil,bind(bad,{path,'probe needs a macro name, such as {HAVE_X = {%s = ...}}',str(name)}))choose(not isstring(name)or match(name,MACRO)==nil,bind(bad,{path,"bad macro name '%s'",str(name)}))local value=x[name]choose(not(isstring(value)or type(value)=='number'or isprobe(value)),bind(bad,{index(path,name),'string, number or probe expected, got %s',type(value)}))return{[name]=value}end,function(kind)bad(path,'string or table expected, got %s',kind)end,})end
+local function pair_of(normalize)return function(x,path)local names=keys(mkcheck'table'(x,path))choose(names.n~=1,bind(bad,{path,'one entry expected, got %d',names.n}))local name=names[1]choose(not isstring(name),bind(bad,{path,'name expected, got %s',type(name)}))return{[name]=normalize(x[name],index(path,name))}end
+end
 local function ordered_map(entry)local function narrowed(x,path)return entry(istable(x)and filter_platforms(x,nil,nil,ORDERED)or x,path)end
 local function layer_entries(layer,path)map(filter(sorted_keys(layer),function(k)return k~='platforms'and not islistkey(layer,k)end),function(k)bad(index(path,k),'list entry expected, such as {%s = ...}',str(k))end)local r=list_of(narrowed)(layer,path)reduce(r,{},function(seen,pair)claim(seen,(next(pair)),true,path)end)return r
 end
@@ -832,11 +833,11 @@ local scripts=mkscripts(function(source)return filled(basename(source))end)local
 end
 local function copies(x,path)local r=mkcheck'table'(x,path)and reduce(keys(x),{},function(r,k)local source=pathname(x[k],index(path,k))local dest=choose(isstring(k),function()return pathname(k,index(path,k))end,source)claim(r,dest,{optional=not isstring(k),source=source},path)end)reduce(filter(keys(r or{}),bind(fills_too,{r})),copy(r),function(written,dest)claim(written,filled(dest),true,path)end)return r
 end
-return{ORDERED=ORDERED,copies=copies,defines=defines,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pathname=pathname,rules=rules,scripts=scripts,}
+return{ORDERED=ORDERED,copies=copies,defines=defines,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/8ef4505',versiontext=[[
-luke (Luke) gvv/8ef4505
+return{VERSION='gvv/3dbf8ed',versiontext=[[
+luke (Luke) gvv/3dbf8ed
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

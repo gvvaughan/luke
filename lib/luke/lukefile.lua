@@ -46,7 +46,7 @@ local LUKEFILE = fields({
    ldocs                 = rules,
    libdirs               = list_of(pathname),
    libraries             = list_of(id),
-   modules               = map_of(rules),
+   modules               = ordered_map(pair_of(rules)),
    substitute            = table,
    variables             = table,
 
@@ -84,7 +84,14 @@ local function collect_configs(luke, modulename, configs, sectionname)
             append(configs, {t=luke, k=k, module=modulename, section=sectionname, order=len(configs) + 1})
          end,
       }, {
-         [istable(v) and (k == 'modules' or k == 'external_dependencies')] = function()
+         [istable(v) and k == 'modules'] = function()
+            map(v, function(pair)
+               local name, rules = destructure(pair)
+               collect_configs(rules, name, configs, k)
+            end)
+         end,
+      }, {
+         [istable(v) and k == 'external_dependencies'] = function()
             map(sorted_keys(v), function(name)
                collect_configs(v[name], name, configs, k)
             end)
@@ -293,8 +300,9 @@ return {
    run_templates = function(L, env, luke)
       local r = copy(luke)
       local rewrite = bind(rewrite_template_files, {L, env})
-      r.modules = mapvalues(r.modules, function(rules)
+      r.modules = ordered_mapvalues(r.modules, function(rules)
          rules.sources = map(rules.sources, rewrite)
+         return rules
       end)
       if r.ldocs then
          r.ldocs.sources = map(r.ldocs.sources, rewrite)

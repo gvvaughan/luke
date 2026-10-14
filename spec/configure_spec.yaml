@@ -140,7 +140,7 @@ specify luke.configure:
       expect(r.defines[2].HAVE_STAT_ST_MODE).to_be(1)
 
 - describe run_configs:
-  - it runs probes of the same kind in the order they are written, by table key: |
+  - it runs probes of the same kind in the order they are written: |
       configure, run_configs, L = setup()
       checked = {}
       L.verbose = function(s, what)
@@ -148,15 +148,15 @@ specify luke.configure:
       end
       run_configs(L, env, {
          modules = {
-            zz = {defines = {{HAVE_STRLEN = {checkfunc='strlen'}}}},
-            aa = {defines = {{HAVE_STRCHR = {checkfunc='strchr'}}}},
+            {zz = {defines = {{HAVE_STRLEN = {checkfunc='strlen'}}}}},
+            {aa = {defines = {{HAVE_STRCHR = {checkfunc='strchr'}}}}},
          },
          defines = {
             {HAVE_PUTS = {checkfunc='puts'}},
             {HAVE_PRINTF = {checkfunc='printf'}},
          },
       })
-      expect(checked).to_equal {'for puts', 'for printf', 'for strchr', 'for strlen'}
+      expect(checked).to_equal {'for puts', 'for printf', 'for strlen', 'for strchr'}
 
 - describe checkprog:
   - before:

@@ -97,8 +97,8 @@ rockspec.  A minimal one for a pure Lua project is:
     version = '$USER/$gitref'
 
     modules = {
-       ['stack']       = 'lib/stack/init.lua',
-       ['stack.utils'] = 'lib/stack/utils.lua',
+       {['stack']       = 'lib/stack/init.lua'},
+       {['stack.utils'] = 'lib/stack/utils.lua'},
     }
 {% endhighlight %}
 
@@ -110,22 +110,28 @@ table are required.
 ### 3.1. Modules
 
 Like the rockspec `builtin` backend, `modules` maps each module name to
-its source.  A Lua module is installed beneath `$INST_LUADIR`, and a C
-module is compiled to `$objdir/<name>.$LIB_EXTENSION` and installed
+its source, but as a list of pair tables that map each name with its
+source.  Luke builds and installs modules in the order written.
+Luke diagnoses module names used as top-level keys of the `modules`
+table, and a duplicate module names as syntax errers.
+
+A Lua module is installed beneath `$INST_LUADIR`, and a C module is
+compiled to `$objdir/<name>.$LIB_EXTENSION` and then installed
 beneath `$INST_LIBDIR`.
 
-A module made from several C sources, or that needs extra compiler or
-linker settings, takes a table:
+A module made from several C sources, or that needs extra compiler
+or linker settings, takes a full table in place of a single source
+string:
 
 {% highlight lua %}
     modules = {
-       ['posix.sys.socket'] = {
+       {['posix.sys.socket'] = {
           defines   = {{HAVE_NET_IF_H = {checkheader='net/if.h', include='sys/socket.h'}}},
           incdirs   = {'ext/include'},
           libdirs   = {'/opt/local/lib'},
           libraries = {{checksymbol='socket', library='socket'}},
           sources   = {'ext/posix/sys/socket.c'},
-       },
+       }},
     }
 {% endhighlight %}
 
@@ -363,7 +369,7 @@ This keeps a version string in sync, for example:
 
 {% highlight lua %}
     modules = {
-       ['stack.version'] = 'lib/stack/version.lua.in',
+       {['stack.version'] = 'lib/stack/version.lua.in'},
     }
 {% endhighlight %}
 
@@ -422,7 +428,7 @@ Wherever a value in `defines` or `libraries` can go, you can put a
 probe, a table that Luke runs to compute the value on the build
 machine.  Whatever order you write them in, Luke always runs the kinds
 of probe in this order, and probes of the same kind in the order they
-are written, with modules in name order:
+are written:
 
 1. **checkprog**: `{checkprog='SH', progs={'dash', 'ash', 'sh'}}`
    finds the first of `progs` on your `PATH`, and returns its path.
@@ -454,7 +460,7 @@ are written, with modules in name order:
 Because of that ordering, this module:
 
 {% highlight lua %}
-    ['crypt'] = {
+    {['crypt'] = {
        defines = {
           {HAVE_CRYPT   = {checkfunc='crypt'}},
           {HAVE_CRYPT_H = {checkheader='crypt.h'}},
@@ -463,7 +469,7 @@ Because of that ordering, this module:
           {checksymbol='crypt', library='crypt'},
        },
        sources = 'crypt.c',
-    },
+    }},
 {% endhighlight %}
 
 ...might build like this with `--verbose`:
@@ -654,7 +660,7 @@ and `./` is `.`, the directory itself.  It leaves `..` alone.
 |-------------------------|--------------------------------------------------------------|--------------|
 | `package`               | the project name                                             | [3](#3-the-lukefile) |
 | `version`               | the project version                                          | [3](#3-the-lukefile), [4.2](#42-built-in-values) |
-| `modules`               | module names, each mapped to a source, a list of sources, or a table of rules | [3.1](#31-modules) |
+| `modules`               | `{name = source}` entries, where a source can also be a list of sources or a table of rules | [3.1](#31-modules) |
 | `install`               | a table with `bin`                                           | [3.2](#32-scripts) |
 | `install.bin`           | script and program names, each mapped to a source or a table of rules, or a list of sources | [3.2](#32-scripts), [3.3](#33-programs) |
 | `bin`                   | like `install.bin`, but never installed                      | [3.2](#32-scripts), [3.3](#33-programs) |

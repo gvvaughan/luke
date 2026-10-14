@@ -124,7 +124,7 @@ end
 
 return {
    build_c_module = function(L, env, luke, name)
-      local rules = luke.modules[name]
+      local rules = ordered_get(luke.modules, name)
       local c_module = c_module_path(luke.variables.objdir, name)
 
       local command = {'$MAKEDIRS', dirname(c_module)}
@@ -149,8 +149,8 @@ return {
    end,
 
    c_modules = function(modules)
-      return filter(sorted_keys(modules), function(name)
-         return dropuntil(modules[name].sources, bind(match, {[2]='%.[ch]$'}))
+      return filter(ordered_keys(modules), function(name)
+         return dropuntil(ordered_get(modules, name).sources, bind(match, {[2]='%.[ch]$'}))
       end)
    end,
 
@@ -158,9 +158,9 @@ return {
    incdirs = incdirs,
 
    install_modules = function(L, env, luke, modules)
-      return reduce(sorted_keys(modules), 0, function(status, name)
+      return reduce(ordered_keys(modules), 0, function(status, name)
          if status == 0 then
-            local src, dir = module_to_path(name, modules[name].sources, luke.variables.objdir)
+            local src, dir = module_to_path(name, ordered_get(modules, name).sources, luke.variables.objdir)
             if not exists(interpolate(env, dir)) then
                status = run(L, env, {'$MAKEDIRS', dir})
             end

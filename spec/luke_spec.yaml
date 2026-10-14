@@ -48,8 +48,8 @@ specify luke:
          package = 'example'
          version = '1.0'
          modules = {
-            example = 'example.lua',
-            other = 'other.lua',
+            {example = 'example.lua'},
+            {other = 'other.lua'},
          }
       ]]
   - after: |
@@ -75,11 +75,11 @@ specify luke:
       expect(p).to_exit(1)
       expect(p).to_contain_error("no modules table in '" .. fname .. "'")
   - it diagnoses a missing package or version: |
-      spit(fname, "version = '1.0'\nmodules = {example = 'example.lua'}")
+      spit(fname, "version = '1.0'\nmodules = {{example = 'example.lua'}}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error("no package in '" .. fname .. "'")
-      spit(fname, "package = 'example'\nmodules = {example = 'example.lua'}")
+      spit(fname, "package = 'example'\nmodules = {{example = 'example.lua'}}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error("no version in '" .. fname .. "'")
@@ -100,7 +100,7 @@ specify luke:
       spit(fname, [[
          package = 'example'
          version = '$gitref'
-         modules = {example = 'example.lua'}
+         modules = {{example = 'example.lua'}}
       ]])
       expect(luke('--file=' .. fname, '--value=version')).
          to_succeed_while_matching "^version='%x%x%x%x%x%x%x+'\n$"
@@ -108,22 +108,22 @@ specify luke:
       spit(fname, [[
          package = 'example'
          version = '1.0'
-         modules = {example = 'example.lua'}
+         modules = {{example = 'example.lua'}}
          release = {['gh-pages'] = {api = 42}}
       ]])
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error "bad release['gh-pages'].api: string expected, got number"
   - it diagnoses malformed modules at their path: |
-      spit(fname, "modules = {['a.b'] = 42}")
+      spit(fname, "modules = {{['a.b'] = 42}}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
-      expect(p).to_contain_error "bad modules['a.b']: string or table expected, got number"
+      expect(p).to_contain_error "bad modules[1]['a.b']: string or table expected, got number"
   - it accepts a single string for a list: |
       spit(fname, [[
          package = 'example'
          version = '1.0'
-         modules = {example = 'example.lua'}
+         modules = {{example = 'example.lua'}}
          release = {add = 'doc'}
       ]])
       expect(luke('--file=' .. fname, '--value=version')).to_succeed()
@@ -131,7 +131,7 @@ specify luke:
       spit(fname, [[
          package = 'example'
          version = '1.0'
-         modules = {example = './example.lua'}
+         modules = {{example = './example.lua'}}
          incdirs = './include/'
          libdirs = {'lib/'}
          ldocs = './build-aux/config.ld'
@@ -143,7 +143,7 @@ specify luke:
          }
       ]])
       luke = require 'luke.lukefile'.loadluke(fname)
-      expect(luke.modules.example.sources).to_equal {'example.lua'}
+      expect(luke.modules[1].example.sources).to_equal {'example.lua'}
       expect(luke.incdirs).to_equal {'include'}
       expect(luke.libdirs).to_equal {'lib'}
       expect(luke.ldocs.sources).to_equal {'build-aux/config.ld'}
@@ -156,7 +156,7 @@ specify luke:
          package = 'example'
          version = '1.0'
          modules = {
-            example = {sources = 'example.c', defines = {'B=2', {A = 1}}},
+            {example = {sources = 'example.c', defines = {'B=2', {A = 1}}}},
          }
          defines = {
             {PACKAGE = '"$package"'},
@@ -169,12 +169,12 @@ specify luke:
       ]])
       luke = require 'luke.lukefile'.loadluke(fname)
       expect(luke.defines).to_equal {{PACKAGE = '"$package"'}, {NDEBUG = 1}, {_POSIX_C_SOURCE = '200809L'}}
-      expect(luke.modules.example.defines).to_equal {{B = '2'}, {A = 1}}
+      expect(luke.modules[1].example.defines).to_equal {{B = '2'}, {A = 1}}
   - it diagnoses keyed defines: |
       spit(fname, [[
          package = 'example'
          version = '1.0'
-         modules = {example = 'example.c'}
+         modules = {{example = 'example.c'}}
          defines = {NDEBUG = 1}
       ]])
       p = luke('--file=' .. fname)
@@ -184,7 +184,7 @@ specify luke:
       spit(fname, [[
          package = 'example'
          version = '1.0'
-         modules = {example = 'example.lua'}
+         modules = {{example = 'example.lua'}}
          description = {summary = 'An example'}
       ]])
       expect(luke('--file=' .. fname, '--value=version')).to_succeed()
@@ -192,7 +192,7 @@ specify luke:
       spit(fname, [[
          package = 'example'
          version = '1.0'
-         modules = {example = 'example.lua'}
+         modules = {{example = 'example.lua'}}
          release = {docs = {['index.md'] = 'doc/example.md'}}
       ]])
       expect(luke('--file=' .. fname, '--value=version')).to_succeed()
@@ -200,7 +200,7 @@ specify luke:
       spit(fname, [[
          package = 'example'
          version = '1.0'
-         modules = {example = 'example.lua'}
+         modules = {{example = 'example.lua'}}
          release = {changelog = 'ChangeLog'}
       ]])
       p = luke('--file=' .. fname)
@@ -222,7 +222,7 @@ specify luke:
       fname = lukefile [[
          package = 'example'
          version = '1.0'
-         modules = {example = 'example.lua'}
+         modules = {{example = 'example.lua'}}
       ]]
   - after: |
       os.remove(fname)
@@ -251,8 +251,8 @@ specify luke:
          package = 'example'
          version = '1.0'
          modules = {
-            example = ']] .. tmpdir .. [[/example.lua.in',
-            other = ']] .. tmpdir .. [[/other.lua',
+            {example = ']] .. tmpdir .. [[/example.lua.in'},
+            {other = ']] .. tmpdir .. [[/other.lua'},
          }
       ]])
       installed = tmpdir .. '/share/lua/' .. _VERSION:match '%d+%.%d+' .. '/'
@@ -273,6 +273,33 @@ specify luke:
          to_succeed_while_containing('cp ' .. tmpdir .. '/other.lua ' .. installed)
       expect(slurp(installed .. 'example.lua')).to_be "return 'example 1.0'\n"
       expect(slurp(installed .. 'other.lua')).to_be "return 'other'\n"
+  - it installs modules in the order written: |
+      spit(tmpdir .. '/zz.lua', "return 'zz'\n")
+      spit(tmpdir .. '/aa.lua', "return 'aa'\n")
+      spit(fname, [[
+         package = 'example'
+         version = '1.0'
+         modules = {
+            {zz = ']] .. tmpdir .. [[/zz.lua'},
+            {aa = ']] .. tmpdir .. [[/aa.lua'},
+         }
+      ]])
+      p = luke('--file=' .. fname, 'PREFIX=' .. tmpdir, 'install')
+      expect(p).to_succeed()
+      order = {}
+      for name in p.output:gmatch('cp ' .. tmpdir:gsub('%p', '%%%0') .. '/(%w+)%.lua ') do
+         order[#order + 1] = name
+      end
+      expect(order).to_equal {'zz', 'aa'}
+  - it diagnoses keyed modules: |
+      spit(fname, [[
+         package = 'example'
+         version = '1.0'
+         modules = {example = 'example.lua'}
+      ]])
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error 'bad modules.example: list entry expected, such as {example = ...}'
   - it makes no bin directory without scripts to install: |
       p = luke('--file=' .. fname, 'PREFIX=' .. tmpdir, 'all', 'install')
       expect(p).to_succeed()
@@ -306,7 +333,7 @@ specify luke:
       fname = spit(tmpdir .. '/lukefile', [[
          package = 'example'
          version = '1.0'
-         modules = {other = ']] .. tmpdir .. [[/other.lua'}
+         modules = {{other = ']] .. tmpdir .. [[/other.lua'}}
          bin = {shim = ']] .. tmpdir .. [[/shim.in'}
          install = {
             bin = {
@@ -368,22 +395,22 @@ specify luke:
       expect(slurp(tmpdir .. '/elsewhere/tool')).not_to_be(nil)
       expect(slurp(bindir .. 'tool')).to_be(nil)
   - it diagnoses non-string script entries: |
-      spit(fname, "modules = {x = 'x.lua'}\nbin = {shim = 42}")
+      spit(fname, "modules = {{x = 'x.lua'}}\nbin = {shim = 42}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error 'bad bin.shim: string or table expected, got number'
   - it diagnoses programs without sources: |
-      spit(fname, "modules = {x = 'x.lua'}\nbin = {prog = {command = 'true'}}")
+      spit(fname, "modules = {{x = 'x.lua'}}\nbin = {prog = {command = 'true'}}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error 'bad bin.prog: no sources'
   - it diagnoses malformed program env tables: |
-      spit(fname, "modules = {x = 'x.lua'}\nbin = {prog = {sources = {'a'}, env = {X = 1}}}")
+      spit(fname, "modules = {{x = 'x.lua'}}\nbin = {prog = {sources = {'a'}, env = {X = 1}}}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error 'bad bin.prog.env.X: string expected, got number'
   - it diagnoses unsupported install tables: |
-      spit(fname, "modules = {x = 'x.lua'}\ninstall = {lua = {}}")
+      spit(fname, "modules = {{x = 'x.lua'}}\ninstall = {lua = {}}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error "bad install: unsupported key 'lua'"
@@ -401,7 +428,7 @@ specify luke:
          package = 'example'
          version = '1.0'
          variables = {objdir = ']] .. tmpdir .. [[/obj'}
-         modules = {other = ']] .. tmpdir .. [[/other.lua'}
+         modules = {{other = ']] .. tmpdir .. [[/other.lua'}}
          bin = {
             [']] .. tmpdir .. [[/out/gen'] = {
                command = 'cat $sources > $target; printenv GREETING >> $target',
@@ -437,7 +464,7 @@ specify luke:
       spit(fname, [[
          package = "it's"
          version = '1.0'
-         modules = {other = ']] .. tmpdir .. [[/other.lua'}
+         modules = {{other = ']] .. tmpdir .. [[/other.lua'}}
          bin = {
             [']] .. tmpdir .. [[/gen'] = {
                command = 'printenv GREETING > $target',
@@ -452,7 +479,7 @@ specify luke:
       spit(fname, [[
          package = 'example'
          version = '1.0'
-         modules = {other = ']] .. tmpdir .. [[/other.lua'}
+         modules = {{other = ']] .. tmpdir .. [[/other.lua'}}
          bin = {
             [']] .. tmpdir .. [[/gen'] = {
                command = 'cat $sources > $target',
@@ -462,6 +489,13 @@ specify luke:
       ]])
       expect(luke('--file=' .. fname, tmpdir .. '/gen')).
          to_succeed_with('cat ' .. tmpdir .. '/a.txt > ' .. tmpdir .. '/gen\nchmod +x ' .. tmpdir .. '/gen\n')
+  - it keeps external dependencies for a C program built alone: |
+      -- A library that is not a probe is passed to the linker as it is.
+      spit(fname, slurp(fname) .. "\nexternal_dependencies = {M = {library = '-lm'}}\n")
+      p = luke('--file=' .. fname, 'hello')
+      expect(p).to_succeed()
+      expect(p.output).to_contain ' -I/usr/include '
+      expect(p.output).to_contain ' -lm'
   - it compiles and links C programs beneath objdir: |
       expect(luke('--file=' .. fname, 'hello')).to_succeed()
       expect(isexecutable(tmpdir .. '/obj/hello')).to_be(true)
@@ -475,7 +509,7 @@ specify luke:
       expect(isexecutable(tmpdir .. '/bin/hello')).to_be(true)
       expect(slurp(tmpdir .. '/bin/gen')).to_be(nil)
   - it diagnoses programs it cannot build: |
-      spit(fname, "package = 'x'\nversion = '1'\nmodules = {x = 'x.lua'}\nbin = {prog = {sources = {'a.txt'}}}")
+      spit(fname, "package = 'x'\nversion = '1'\nmodules = {{x = 'x.lua'}}\nbin = {prog = {sources = {'a.txt'}}}")
       p = luke('--file=' .. fname, 'prog')
       expect(p).to_exit(1)
       expect(p).to_contain_error "no command to build 'prog' from a.txt"
@@ -491,7 +525,7 @@ specify luke:
       fname = spit(tmpdir .. '/lukefile', [[
          package = 'example'
          version = '1.0'
-         modules = {other = ']] .. tmpdir .. [[/other.lua'}
+         modules = {{other = ']] .. tmpdir .. [[/other.lua'}}
          files = {
             ']] .. tmpdir .. [[/b.txt.in',
             [']] .. tmpdir .. [[/doc/a.out'] = {
@@ -526,7 +560,7 @@ specify luke:
       spit(fname, [[
          package = 'example'
          version = '1.0'
-         modules = {other = ']] .. tmpdir .. [[/other.lua'}
+         modules = {{other = ']] .. tmpdir .. [[/other.lua'}}
          variables = {objdir = ']] .. tmpdir .. [[/obj'}
          bin = {
             [']] .. tmpdir .. [[/b2'] = {command = 'echo b2 > $target', sources = ']] .. tmpdir .. [[/a.txt'},
@@ -551,7 +585,7 @@ specify luke:
       expect(p).to_succeed()
       expect(p.output).not_to_contain(tmpdir .. '/inst/bin')
   - it diagnoses malformed entries: |
-      spit(fname, "modules = {x = 'x.lua'}\nfiles = {['doc/x.1'] = {command = 'true'}}")
+      spit(fname, "modules = {{x = 'x.lua'}}\nfiles = {['doc/x.1'] = {command = 'true'}}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error "bad files['doc/x.1']: no sources"

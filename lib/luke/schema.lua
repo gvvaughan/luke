@@ -17,7 +17,7 @@ local MACRO = '^[%a_][%w_]*$'
 
 -- The name of every ordered map in the lukefile, which resolves its own
 -- platforms, so that platform filtering leaves it alone.
-local ORDERED = {defines = true}
+local ORDERED = {defines = true, modules = true}
 
 
 --[[
@@ -177,6 +177,19 @@ local function definition(x, path)
          bad(path, 'string or table expected, got %s', kind)
       end,
    })
+end
+
+
+-- An entry of an ordered map: a table pairing one name with a value
+-- that passes *normalize*.
+local function pair_of(normalize)
+   return function(x, path)
+      local names = keys(mkcheck 'table'(x, path))
+      choose(names.n ~= 1, bind(bad, {path, 'one entry expected, got %d', names.n}))
+      local name = names[1]
+      choose(not isstring(name), bind(bad, {path, 'name expected, got %s', type(name)}))
+      return {[name] = normalize(x[name], index(path, name))}
+   end
 end
 
 
@@ -391,6 +404,7 @@ return {
    map_of      = map_of,
    mkcheck     = mkcheck,
    ordered_map = ordered_map,
+   pair_of     = pair_of,
    pathname    = pathname,
    rules       = rules,
    scripts     = scripts,

@@ -108,6 +108,26 @@ specify luke.schema:
       schema = setup()
       expect(schema.pathname(42, 'p')).to_raise 'bad p: string expected, got number'
 
+- describe pair_of:
+  - it pairs a name with its normalized value: |
+      schema = setup()
+      expect(schema.pair_of(schema.rules)({['a.b'] = 'a.lua'}, 'p')).
+         to_equal {['a.b'] = {sources = {'a.lua'}}}
+  - it diagnoses an entry with more than one name: |
+      schema = setup()
+      expect(schema.pair_of(schema.rules)({a = 'a.lua', b = 'b.lua'}, 'p')).
+         to_raise 'bad p: one entry expected, got 2'
+  - it diagnoses a name that is not a string: |
+      schema = setup()
+      expect(schema.pair_of(schema.rules)({'a.lua'}, 'p')).to_raise 'bad p: name expected, got number'
+  - it diagnoses an entry that is not a table: |
+      schema = setup()
+      expect(schema.pair_of(schema.rules)('a.lua', 'p')).to_raise 'bad p: table expected, got string'
+  - it diagnoses a value at its path: |
+      schema = setup()
+      expect(schema.pair_of(schema.rules)({a = 42}, 'p')).
+         to_raise 'bad p.a: string or table expected, got number'
+
 - describe ordered_map:
   - before: |
       -- An entry normalizer that accepts any one-pair table as it is.
@@ -134,7 +154,7 @@ specify luke.schema:
          to_equal {{a = {defines = {'X', platforms = {unix = {'Y'}}}}}}
   - it names every ordered map in the lukefile: |
       schema = setup()
-      expect(schema.ORDERED).to_equal {defines = true}
+      expect(schema.ORDERED).to_equal {defines = true, modules = true}
   - it diagnoses a name with two entries, for another platform too: |
       schema = setup()
       expect(schema.ordered_map(pair)({platforms = {windows = {{a = 1}, {a = 2}}}}, 'p')).
