@@ -62,11 +62,16 @@
     builds and installs modules in the order written.  Luke diagnoses
     the old keyed form, and a module listed twice.
 
+  - `bin`, `install.bin` and `files` are lists, like `modules`, of
+    tables that each pair a name with its source or rules, or of
+    sources on their own, so that Luke builds them in the order written.
+    Luke diagnoses the old keyed form, and a name listed twice.
+
 ### Bug fixes:
 
-  - Luke builds and installs in the same order on every run: modules
-    in name order, and scripts before installable scripts before
-    generated files, which may run them, each in name order.
+  - Luke builds and installs in the same order on every run: modules,
+    then scripts, installable scripts and generated files, which may
+    run them, each in the order written.
 
   - Probes of the same kind run in the order they are written, the same
     on every run, after all the probes of the kinds that run before

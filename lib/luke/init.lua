@@ -21,7 +21,7 @@ end
 
 -- The rules for script *entry*, as selected by `validate_arguments`.
 local function script_rules(L, entry)
-   return script_sections(L.luke)[entry.section][entry.name]
+   return ordered_get(script_sections(L.luke)[entry.section], entry.name)
 end
 
 

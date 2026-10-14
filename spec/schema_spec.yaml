@@ -154,7 +154,7 @@ specify luke.schema:
          to_equal {{a = {defines = {'X', platforms = {unix = {'Y'}}}}}}
   - it names every ordered map in the lukefile: |
       schema = setup()
-      expect(schema.ORDERED).to_equal {defines = true, modules = true}
+      expect(schema.ORDERED).to_equal {bin = true, defines = true, files = true, modules = true}
   - it diagnoses a name with two entries, for another platform too: |
       schema = setup()
       expect(schema.ordered_map(pair)({platforms = {windows = {{a = 1}, {a = 2}}}}, 'p')).
@@ -330,54 +330,80 @@ specify luke.schema:
       expect(schema.copies({[''] = 'doc'}, 'p')).to_raise "bad p['']: empty path"
 
 - describe files:
-  - it names array entries after the path of their source: |
+  - it names a bare entry after the path of its source: |
       schema = setup()
-      expect(schema.files({'doc/demo.md.in'}, 'files')).to_equal {['doc/demo.md'] = 'doc/demo.md.in'}
-  - it normalizes command sources: |
+      expect(schema.files({'doc/demo.md.in'}, 'files')).to_equal {{['doc/demo.md'] = 'doc/demo.md.in'}}
+  - it keeps the entries in the order written: |
       schema = setup()
-      expect(schema.files({['doc/demo.1'] = {command = 'true', sources = 'demo.in'}}, 'files')).
-         to_equal {['doc/demo.1'] = {command = 'true', sources = {'demo.in'}}}
+      expect(schema.files({'doc/z.md.in', {['doc/a.1'] = {command = 'true', sources = 'a.in'}}}, 'files')).
+         to_equal {{['doc/z.md'] = 'doc/z.md.in'}, {['doc/a.1'] = {command = 'true', sources = {'a.in'}}}}
   - it diagnoses entries at their path: |
       schema = setup()
-      expect(schema.files({['doc/demo.1'] = {command = 'true'}}, 'files')).
-         to_raise "bad files['doc/demo.1']: no sources"
+      expect(schema.files({{['doc/demo.1'] = {command = 'true'}}}, 'files')).
+         to_raise "bad files[1]['doc/demo.1']: no sources"
   - it normalizes target and source paths: |
       schema = setup()
-      expect(schema.files({'./doc//demo.md.in', ['./doc/demo.1'] = {command = 'true', sources = './demo.in'}}, 'files')).
+      expect(schema.files({'./doc//demo.md.in', {['./doc/demo.1'] = {command = 'true', sources = './demo.in'}}}, 'files')).
          to_equal {
-            ['doc/demo.md'] = 'doc/demo.md.in',
-            ['doc/demo.1'] = {command = 'true', sources = {'demo.in'}},
+            {['doc/demo.md'] = 'doc/demo.md.in'},
+            {['doc/demo.1'] = {command = 'true', sources = {'demo.in'}}},
          }
   - it diagnoses targets for the same path spelled differently: |
       schema = setup()
-      expect(schema.files({'doc/demo.md.in', ['./doc/demo.md'] = 'demo.md.in'}, 'files')).
+      expect(schema.files({'doc/demo.md.in', {['./doc/demo.md'] = 'demo.md.in'}}, 'files')).
          to_raise "bad files: more than one entry for 'doc/demo.md'"
+  - it diagnoses keyed entries: |
+      schema = setup()
+      expect(schema.files({['doc/demo.1'] = 'demo.1.in'}, 'files')).
+         to_raise "bad files['doc/demo.1']: list entry expected, such as {['doc/demo.1'] = ...}"
 
 - describe scripts:
-  - it names array entries after their source: |
+  - it names a bare entry after its source: |
       schema = setup()
-      expect(schema.scripts({'bin/tool.in'}, 'bin')).to_equal {tool = 'bin/tool.in'}
-  - it diagnoses an array entry named like a key: |
+      expect(schema.scripts({'bin/tool.in'}, 'bin')).to_equal {{tool = 'bin/tool.in'}}
+  - it keeps the entries in the order written: |
       schema = setup()
-      expect(schema.scripts({'tool.in', tool = 'bin/tool'}, 'bin')).
+      expect(schema.scripts({{zz = 'zz.in'}, 'bin/aa.in'}, 'bin')).to_equal {{zz = 'zz.in'}, {aa = 'bin/aa.in'}}
+  - it diagnoses a bare entry named like another: |
+      schema = setup()
+      expect(schema.scripts({'tool.in', {tool = 'bin/tool'}}, 'bin')).
          to_raise "bad bin: more than one entry for 'tool'"
-  - it diagnoses array entries with the same name: |
+  - it diagnoses bare entries with the same name: |
       schema = setup()
       expect(schema.scripts({'bin/tool.in', 'src/tool'}, 'bin')).
          to_raise "bad bin: more than one entry for 'tool'"
   - it normalizes program sources: |
       schema = setup()
-      expect(schema.scripts({prog = {sources = 'a.c'}}, 'bin')).
-         to_equal {prog = {sources = {'a.c'}}}
+      expect(schema.scripts({{prog = {sources = 'a.c'}}}, 'bin')).
+         to_equal {{prog = {sources = {'a.c'}}}}
   - it normalizes source paths: |
       schema = setup()
-      expect(schema.scripts({'./bin//tool.in', prog = {sources = './a.c'}}, 'bin')).
-         to_equal {tool = 'bin/tool.in', prog = {sources = {'a.c'}}}
+      expect(schema.scripts({'./bin//tool.in', {prog = {sources = './a.c'}}}, 'bin')).
+         to_equal {{tool = 'bin/tool.in'}, {prog = {sources = {'a.c'}}}}
   - it diagnoses programs without a name: |
       schema = setup()
       expect(schema.scripts({{sources = 'a.c'}}, 'bin')).
-         to_raise 'bad bin[1]: programs need a name'
+         to_raise 'bad bin[1]: programs need a name, such as {prog = {sources = ...}}'
+  - it accepts a script or program named sources, written as ./sources: |
+      schema = setup()
+      expect(schema.scripts({{['./sources'] = 'bin/sources.in'}}, 'bin')).
+         to_equal {{sources = 'bin/sources.in'}}
+      expect(schema.scripts({{['./sources'] = {sources = 'sources.c'}}}, 'bin')).
+         to_equal {{sources = {sources = {'sources.c'}}}}
+  - it accepts a script named like a program rule: |
+      schema = setup()
+      expect(schema.scripts({{env = 'bin/env.in'}, {command = 'bin/command'}}, 'bin')).
+         to_equal {{env = 'bin/env.in'}, {command = 'bin/command'}}
   - it diagnoses non-string program commands: |
       schema = setup()
-      expect(schema.scripts({prog = {sources = 'a.c', command = {}}}, 'bin')).
-         to_raise 'bad bin.prog.command: string expected, got table'
+      expect(schema.scripts({{prog = {sources = 'a.c', command = {}}}}, 'bin')).
+         to_raise 'bad bin[1].prog.command: string expected, got table'
+  - it diagnoses entries that are neither a source nor a table: |
+      schema = setup()
+      expect(schema.scripts({42}, 'bin')).to_raise 'bad bin[1]: string or table expected, got number'
+      expect(schema.scripts({{prog = 42}}, 'bin')).
+         to_raise 'bad bin[1].prog: string or table expected, got number'
+  - it diagnoses keyed entries: |
+      schema = setup()
+      expect(schema.scripts({tool = 'bin/tool.in'}, 'bin')).
+         to_raise 'bad bin.tool: list entry expected, such as {tool = ...}'

@@ -69,16 +69,16 @@ fatal('release cannot be combined with other targets')end
 release=parsed.clidefs.version
 diagnose(release~=nil,'release needs a version=VERSION argument')case(release,{['%d+%.%d+']=nop,['%d+%.%d+%.%d+']=nop,function()fatal("bad release version '%s': X.Y or X.Y.Z expected",release)end,})parsed.targets={}end
 local sections=script_sections(luke)local installbin=sections.install
-local rulesets={sections.bin,sections.files,installbin}local function hasrule(target)return target=='install'or ordered_get(luke.modules,target)~=nil
-or any(map(rulesets,bind(get,{[2]=target})))end
+local rulesets={luke.modules,sections.bin,sections.files,installbin}local function hasrule(target)return target=='install'or any(map(rulesets,function(rules)return ordered_get(rules,target)~=nil
+end))end
 local targets=call(function()if isempty(parsed.targets)or contains(parsed.targets,'all')then
-return except(flatten(parsed.targets,ordered_keys(luke.modules),map(rulesets,keys)),'all')end
+return except(flatten(parsed.targets,map(rulesets,ordered_keys)),'all')end
 local unknown=except(parsed.targets,hasrule)diagnose(isempty(unknown),"no rule to make target '%s'",unknown[1])assert(len(parsed.targets)>0,"no build targets specified")return parsed.targets
-end)local named=except(targets,'install')local build=ordered_pluck(named,luke.modules)local scripts={build=reduce(SCRIPT_SECTIONS,list(),function(entries,section)return reduce(sorted_keys(pluck(named,sections[section])),entries,function(entries,name)return append(entries,{name=name,section=section})end)end),install={},}local install
+end)local named=except(targets,'install')local build=ordered_pluck(named,luke.modules)local scripts={build=reduce(SCRIPT_SECTIONS,list(),function(entries,section)return reduce(ordered_keys(ordered_pluck(named,sections[section])),entries,function(entries,name)return append(entries,{name=name,section=section})end)end),install={},}local install
 if contains(targets,'install')then
 if isempty(named)then
-install,scripts.install=luke.modules,sorted_keys(installbin)else
-install,scripts.install=build,sorted_keys(pluck(named,installbin))end
+install,scripts.install=luke.modules,ordered_keys(installbin)else
+install,scripts.install=build,ordered_keys(ordered_pluck(named,installbin))end
 end
 luke.modules=build
 local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merge(luke.substitute or{},{abs_top_srcdir=srcdir,gitref=ref,package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),})luke.variables=merge(luke.variables or{},collect_variables(luke),{LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUAVERSION',LUA_LIBDIR='$LUA_DIR/lib',abs_top_srcdir=srcdir,gitref=ref,objdir=platforms[1],package=luke.package,version=luke.version,})return{clidefs=parsed.clidefs,debug=parsed.debug,dryrun=parsed.dryrun,install=install,log=parsed.log,luke=luke,release=release,scripts=scripts,valreqs=parsed.valreqs,verbose=parsed.verbose,write=parsed.write,}end,}
@@ -135,7 +135,7 @@ end
 local status=0
 if not exists(interpolate(env,'$INST_BINDIR'))then
 status=run(L,env,{'$MAKEDIRS','$INST_BINDIR'})end
-return reduce(names,status,function(status,name)local rules=luke.install.bin[name]local src=script_target(name,rules,luke.variables.objdir,true)local dest='$INST_BINDIR/'..name
+return reduce(names,status,function(status,name)local rules=ordered_get(luke.install.bin,name)local src=script_target(name,rules,luke.variables.objdir,true)local dest='$INST_BINDIR/'..name
 if status==0 then
 status=run(L,env,{'$INSTALL',src,dest})end
 if status==0 then
@@ -469,7 +469,7 @@ end,}
 end
 package.preload['luke']=function()
 local _ENV=require'luke.normalize'{'luke.cli','luke.compile','luke.configure','luke.environment','luke.lukefile','luke.functional','luke.release',}local function run_ldocs(L,env,ldocs)return run_command(L,env,flatten{'$LDOC -c',ldocs.sources,'.'})end
-local function script_rules(L,entry)return script_sections(L.luke)[entry.section][entry.name]end
+local function script_rules(L,entry)return ordered_get(script_sections(L.luke)[entry.section],entry.name)end
 local function build_script(L,env,substitute,entry)local rules=script_rules(L,entry)local target=script_target(entry.name,rules,L.luke.variables.objdir,entry.section=='install')if isstring(rules)then
 fill_template(L,substitute,rules)else
 local sources=map(rules.sources,function(source)return fill_template(L,substitute,source)end)local status=build_program(L,env,L.luke,rules,target,sources)if status~=0 then
@@ -748,7 +748,7 @@ end})end
 return checks
 end
 local function undo_commands(checks)return reduce(filter(checks,function(check)local _,predicate,undo=unpack(check)return undo~=nil and not predicate()end),{},function(r,check)choose(not contains(r,check[3]),bind(append,{r,check[3]}))end)end
-local function generated(luke)return map(sorted(keys(luke.files)),function(name)return script_target(name,luke.files[name])end)end
+local function generated(luke)return map(ordered_keys(luke.files),function(name)return script_target(name,ordered_get(luke.files,name))end)end
 return{release=function(L,env,build)local version,main=L.release,git(env,'symbolic-ref --short HEAD')local checks=preconditions(env,L.luke.release or{},version,main)local failed=dropuntil(checks,function(check)local description,predicate=unpack(check)L.verbose('checking whether ',description,'... ')local ok=predicate()L.verbose(ok and'yes\n'or'no\n')if not ok then
 return description
 end
@@ -769,7 +769,7 @@ return status
 end,}
 end
 package.preload['luke.schema']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.functional','luke.platforms','type.path',}local MACRO='^[%a_][%w_]*$'local ORDERED={defines=true,modules=true}local function bad(path,...)fatal('bad %s: %s',path,format(...))end
+local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.functional','luke.platforms','type.path',}local MACRO='^[%a_][%w_]*$'local ORDERED={bin=true,defines=true,files=true,modules=true}local function bad(path,...)fatal('bad %s: %s',path,format(...))end
 local function index(path,k)if isstring(k)and match(k,'^[%a_][%w_]*$')then
 return path==''and k or path..'.'..k
 end
@@ -805,10 +805,10 @@ local function pathname(x,path)choose(mkcheck'string'(x,path)=='',bind(bad,{path
 local function isprobe(x)return istable(x)and contains(configure,function(name)return x[name]~=nil
 end)end
 local function definition(x,path)return case(type(x),{['string']=function()local name,eq,value=match(x,'^([%a_][%w_]*)(=?)(.*)$')choose(name==nil or eq==''and value~='',bind(bad,{path,"bad macro definition '%s'",x}))return{[name]=choose(eq=='',1,value)}end,['table']=function()local names=keys(x)choose(names.n~=1,bind(bad,{path,'one definition expected, got %d',names.n}))local name=names[1]choose(isstring(name)and configure[name]~=nil,bind(bad,{path,'probe needs a macro name, such as {HAVE_X = {%s = ...}}',str(name)}))choose(not isstring(name)or match(name,MACRO)==nil,bind(bad,{path,"bad macro name '%s'",str(name)}))local value=x[name]choose(not(isstring(value)or type(value)=='number'or isprobe(value)),bind(bad,{index(path,name),'string, number or probe expected, got %s',type(value)}))return{[name]=value}end,function(kind)bad(path,'string or table expected, got %s',kind)end,})end
-local function pair_of(normalize)return function(x,path)local names=keys(mkcheck'table'(x,path))choose(names.n~=1,bind(bad,{path,'one entry expected, got %d',names.n}))local name=names[1]choose(not isstring(name),bind(bad,{path,'name expected, got %s',type(name)}))return{[name]=normalize(x[name],index(path,name))}end
+local function pair_of(normalize,rename)return function(x,path)local names=keys(mkcheck'table'(x,path))choose(names.n~=1,bind(bad,{path,'one entry expected, got %d',names.n}))local name=names[1]choose(not isstring(name),bind(bad,{path,'name expected, got %s',type(name)}))return{[(rename or id)(name,path)]=normalize(x[name],index(path,name))}end
 end
 local function ordered_map(entry)local function narrowed(x,path)return entry(istable(x)and filter_platforms(x,nil,nil,ORDERED)or x,path)end
-local function layer_entries(layer,path)map(filter(sorted_keys(layer),function(k)return k~='platforms'and not islistkey(layer,k)end),function(k)bad(index(path,k),'list entry expected, such as {%s = ...}',str(k))end)local r=list_of(narrowed)(layer,path)reduce(r,{},function(seen,pair)claim(seen,(next(pair)),true,path)end)return r
+local function layer_entries(layer,path)map(filter(sorted_keys(layer),function(k)return k~='platforms'and not islistkey(layer,k)end),function(k)bad(index(path,k),'list entry expected, such as {%s = ...}',index('',k))end)local r=list_of(narrowed)(layer,path)reduce(r,{},function(seen,pair)claim(seen,(next(pair)),true,path)end)return r
 end
 local function check_layers(x,path)layer_entries(mkcheck'table'(x,path),path)local at=index(path,'platforms')local platforms=mkcheck'table'(x.platforms,at)choose(platforms~=nil,function()local names,others=partition(sorted_keys(platforms),isplatform)map(names,function(name)check_layers(platforms[name],index(at,name))end)check_layers(pluck(others,platforms)or{},at)end)end
 local function resolve(x,path)return ordered_merge(unpack(map(layers(x),function(layer)return choose(layer.platforms~=nil,function()return resolve(layer,path)end,function()return layer_entries(layer,path)end)end)))end
@@ -824,10 +824,8 @@ local function program(x,path)local r=rules(x,path)if isempty(r.sources or{})the
 bad(path,'no sources')end
 mkcheck'string'(r.command,index(path,'command'))map_of(mkcheck'string',mkcheck'string')(r.env,index(path,'env'))return r
 end
-local function mkscripts(mkname)local function entry(k,source,path)return case(type(source),{['string']=function()source=pathname(source,path)return choose(isstring(k),function()return pathname(k,path)end,bind(mkname,{source})),source
-end,['table']=function()local name=choose(isstring(k),function()return pathname(k,path)end,bind(bad,{path,'programs need a name'}))return name,program(source,path)end,function(kind)bad(path,'string or table expected, got %s',kind)end,})end
-return function(x,path)return mkcheck'table'(x,path)and reduce(keys(x),{},function(r,k)local name,rules=entry(k,x[k],index(path,k))claim(r,name,rules,path)end)end
-end
+local function script(x,path)return case(type(x),{['string']=function()return pathname(x,path)end,['table']=function()return program(x,path)end,function(kind)bad(path,'string or table expected, got %s',kind)end,})end
+local function mkscripts(mkname)local pair=pair_of(script,pathname)return ordered_map(function(x,path)return case(type(x),{['string']=function()local source=pathname(x,path)return{[mkname(source)]=source}end,['table']=function()choose(x.sources~=nil,bind(bad,{path,'programs need a name, such as {prog = {sources = ...}}'}))return pair(x,path)end,function(kind)bad(path,'string or table expected, got %s',kind)end,})end)end
 local function filled(path)return(gsub(path,'%.in$',''))end
 local scripts=mkscripts(function(source)return filled(basename(source))end)local files=mkscripts(filled)local function fills_too(r,dest)return match(dest,'%.in$')~=nil and match(r[dest].source,'%.in$')~=nil
 end
@@ -836,8 +834,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/3dbf8ed',versiontext=[[
-luke (Luke) gvv/3dbf8ed
+return{VERSION='gvv/4bdf8c8',versiontext=[[
+luke (Luke) gvv/4bdf8c8
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

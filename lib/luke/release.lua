@@ -230,8 +230,8 @@ end
 -- The targets of every generated file in *luke*, which are committed to
 -- the release branch.
 local function generated(luke)
-   return map(sorted(keys(luke.files)), function(name)
-      return script_target(name, luke.files[name])
+   return map(ordered_keys(luke.files), function(name)
+      return script_target(name, ordered_get(luke.files, name))
    end)
 end
 

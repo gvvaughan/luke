@@ -617,17 +617,17 @@ specify luke.release:
         expect(L.write[2]).to_be('creating ' .. RELEASED)
         expect(L.write[3]).to_be('git rm --quiet ' .. ROCKSPEC)
         expect(L.write[4]).to_be('git add -f lib/demo.lua ' .. RELEASED)
-    - it adds every generated file: |
+    - it adds every generated file, in the order written: |
         spawned = passing()
-        spawned['git add -f lib/demo.lua doc/demo.1 doc/demo.md ' .. RELEASED] = list(0, '', '')
+        spawned['git add -f lib/demo.lua doc/demo.md doc/demo.1 ' .. RELEASED] = list(0, '', '')
         release = setup(spawned)
         L = mkL {rockspec = ROCKSPEC, add = {'lib/demo.lua'}}
         L.luke.files = {
-           ['doc/demo.md'] = 'doc/demo.md.in',
-           ['doc/demo.1'] = {command = 'true', sources = {'demo.in'}},
+           {['doc/demo.md'] = 'doc/demo.md.in'},
+           {['doc/demo.1'] = {command = 'true', sources = {'demo.in'}}},
         }
         expect(release(L, env, build)).to_be(0)
-        expect(L.write[4]).to_be('git add -f lib/demo.lua doc/demo.1 doc/demo.md ' .. RELEASED)
+        expect(L.write[4]).to_be('git add -f lib/demo.lua doc/demo.md doc/demo.1 ' .. RELEASED)
     - it says how to upload the release rockspec: |
         release = setup(passing())
         L = mkL {rockspec = ROCKSPEC}

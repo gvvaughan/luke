@@ -334,10 +334,10 @@ specify luke:
          package = 'example'
          version = '1.0'
          modules = {{other = ']] .. tmpdir .. [[/other.lua'}}
-         bin = {shim = ']] .. tmpdir .. [[/shim.in'}
+         bin = {{shim = ']] .. tmpdir .. [[/shim.in'}}
          install = {
             bin = {
-               tool = ']] .. tmpdir .. [[/tool',
+               {tool = ']] .. tmpdir .. [[/tool'},
                ']] .. tmpdir .. [[/helper.in',
             },
          }
@@ -395,20 +395,20 @@ specify luke:
       expect(slurp(tmpdir .. '/elsewhere/tool')).not_to_be(nil)
       expect(slurp(bindir .. 'tool')).to_be(nil)
   - it diagnoses non-string script entries: |
-      spit(fname, "modules = {{x = 'x.lua'}}\nbin = {shim = 42}")
+      spit(fname, "modules = {{x = 'x.lua'}}\nbin = {{shim = 42}}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
-      expect(p).to_contain_error 'bad bin.shim: string or table expected, got number'
+      expect(p).to_contain_error 'bad bin[1].shim: string or table expected, got number'
   - it diagnoses programs without sources: |
-      spit(fname, "modules = {{x = 'x.lua'}}\nbin = {prog = {command = 'true'}}")
+      spit(fname, "modules = {{x = 'x.lua'}}\nbin = {{prog = {command = 'true'}}}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
-      expect(p).to_contain_error 'bad bin.prog: no sources'
+      expect(p).to_contain_error 'bad bin[1].prog: no sources'
   - it diagnoses malformed program env tables: |
-      spit(fname, "modules = {{x = 'x.lua'}}\nbin = {prog = {sources = {'a'}, env = {X = 1}}}")
+      spit(fname, "modules = {{x = 'x.lua'}}\nbin = {{prog = {sources = {'a'}, env = {X = 1}}}}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
-      expect(p).to_contain_error 'bad bin.prog.env.X: string expected, got number'
+      expect(p).to_contain_error 'bad bin[1].prog.env.X: string expected, got number'
   - it diagnoses unsupported install tables: |
       spit(fname, "modules = {{x = 'x.lua'}}\ninstall = {lua = {}}")
       p = luke('--file=' .. fname)
@@ -430,18 +430,18 @@ specify luke:
          variables = {objdir = ']] .. tmpdir .. [[/obj'}
          modules = {{other = ']] .. tmpdir .. [[/other.lua'}}
          bin = {
-            [']] .. tmpdir .. [[/out/gen'] = {
+            {[']] .. tmpdir .. [[/out/gen'] = {
                command = 'cat $sources > $target; printenv GREETING >> $target',
                env = {GREETING = 'hi $package'},
                sources = {
                   ']] .. tmpdir .. [[/a.txt',
                   ']] .. tmpdir .. [[/b.txt.in',
                },
-            },
+            }},
          }
          install = {
             bin = {
-               hello = {sources = {']] .. tmpdir .. [[/hello.c'}},
+               {hello = {sources = {']] .. tmpdir .. [[/hello.c'}}},
             },
          }
       ]])
@@ -466,11 +466,11 @@ specify luke:
          version = '1.0'
          modules = {{other = ']] .. tmpdir .. [[/other.lua'}}
          bin = {
-            [']] .. tmpdir .. [[/gen'] = {
+            {[']] .. tmpdir .. [[/gen'] = {
                command = 'printenv GREETING > $target',
                env = {GREETING = "hi '$package'"},
                sources = {']] .. tmpdir .. [[/a.txt'},
-            },
+            }},
          }
       ]])
       expect(luke('--file=' .. fname, tmpdir .. '/gen')).to_succeed()
@@ -481,10 +481,10 @@ specify luke:
          version = '1.0'
          modules = {{other = ']] .. tmpdir .. [[/other.lua'}}
          bin = {
-            [']] .. tmpdir .. [[/gen'] = {
+            {[']] .. tmpdir .. [[/gen'] = {
                command = 'cat $sources > $target',
                sources = {']] .. tmpdir .. [[/a.txt'},
-            },
+            }},
          }
       ]])
       expect(luke('--file=' .. fname, tmpdir .. '/gen')).
@@ -509,7 +509,7 @@ specify luke:
       expect(isexecutable(tmpdir .. '/bin/hello')).to_be(true)
       expect(slurp(tmpdir .. '/bin/gen')).to_be(nil)
   - it diagnoses programs it cannot build: |
-      spit(fname, "package = 'x'\nversion = '1'\nmodules = {{x = 'x.lua'}}\nbin = {prog = {sources = {'a.txt'}}}")
+      spit(fname, "package = 'x'\nversion = '1'\nmodules = {{x = 'x.lua'}}\nbin = {{prog = {sources = {'a.txt'}}}}")
       p = luke('--file=' .. fname, 'prog')
       expect(p).to_exit(1)
       expect(p).to_contain_error "no command to build 'prog' from a.txt"
@@ -528,10 +528,10 @@ specify luke:
          modules = {{other = ']] .. tmpdir .. [[/other.lua'}}
          files = {
             ']] .. tmpdir .. [[/b.txt.in',
-            [']] .. tmpdir .. [[/doc/a.out'] = {
+            {[']] .. tmpdir .. [[/doc/a.out'] = {
                command = 'cat $sources > $target',
                sources = ']] .. tmpdir .. [[/a.txt',
-            },
+            }},
          }
       ]])
 
@@ -556,36 +556,36 @@ specify luke:
   - it names an array entry for the path of its source: |
       expect(luke('--file=' .. fname, tmpdir .. '/b.txt')).to_succeed()
       expect(slurp(tmpdir .. '/b.txt')).to_be 'example\n'
-  - it builds scripts, then installable scripts, then generated files, each in name order: |
+  - it builds scripts, then installable scripts, then generated files, each in the order written: |
       spit(fname, [[
          package = 'example'
          version = '1.0'
          modules = {{other = ']] .. tmpdir .. [[/other.lua'}}
          variables = {objdir = ']] .. tmpdir .. [[/obj'}
          bin = {
-            [']] .. tmpdir .. [[/b2'] = {command = 'echo b2 > $target', sources = ']] .. tmpdir .. [[/a.txt'},
-            [']] .. tmpdir .. [[/b1'] = {command = 'echo b1 > $target', sources = ']] .. tmpdir .. [[/a.txt'},
+            {[']] .. tmpdir .. [[/b2'] = {command = 'echo b2 > $target', sources = ']] .. tmpdir .. [[/a.txt'}},
+            {[']] .. tmpdir .. [[/b1'] = {command = 'echo b1 > $target', sources = ']] .. tmpdir .. [[/a.txt'}},
          }
          install = {bin = {
-            i1 = {command = 'echo i1 > $target', sources = ']] .. tmpdir .. [[/a.txt'},
+            {i1 = {command = 'echo i1 > $target', sources = ']] .. tmpdir .. [[/a.txt'}},
          }}
          files = {
-            [']] .. tmpdir .. [[/f1'] = {command = 'cat ]] .. tmpdir .. [[/b1 > $target', sources = ']] .. tmpdir .. [[/a.txt'},
-            [']] .. tmpdir .. [[/f0'] = {command = 'echo f0 > $target', sources = ']] .. tmpdir .. [[/a.txt'},
+            {[']] .. tmpdir .. [[/f1'] = {command = 'cat ]] .. tmpdir .. [[/b1 > $target', sources = ']] .. tmpdir .. [[/a.txt'}},
+            {[']] .. tmpdir .. [[/f0'] = {command = 'echo f0 > $target', sources = ']] .. tmpdir .. [[/a.txt'}},
          }
       ]])
       p = luke('--file=' .. fname)
       expect(p).to_succeed()
       order = {}
       for name in p.output:gmatch 'echo (%w+) >' do order[#order + 1] = name end
-      expect(order).to_equal {'b1', 'b2', 'i1', 'f0'}
+      expect(order).to_equal {'b2', 'b1', 'i1', 'f0'}
       expect(slurp(tmpdir .. '/f1')).to_be 'b1\n'
   - it never installs generated files: |
       p = luke('--file=' .. fname, 'PREFIX=' .. tmpdir .. '/inst', 'install')
       expect(p).to_succeed()
       expect(p.output).not_to_contain(tmpdir .. '/inst/bin')
   - it diagnoses malformed entries: |
-      spit(fname, "modules = {{x = 'x.lua'}}\nfiles = {['doc/x.1'] = {command = 'true'}}")
+      spit(fname, "modules = {{x = 'x.lua'}}\nfiles = {{['doc/x.1'] = {command = 'true'}}}")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
-      expect(p).to_contain_error "bad files['doc/x.1']: no sources"
+      expect(p).to_contain_error "bad files[1]['doc/x.1']: no sources"

@@ -194,16 +194,17 @@ return {
 
       local sections = script_sections(luke)
       local installbin = sections.install
-      local rulesets = {sections.bin, sections.files, installbin}
+      local rulesets = {luke.modules, sections.bin, sections.files, installbin}
 
       local function hasrule(target)
-         return target == 'install' or ordered_get(luke.modules, target) ~= nil
-            or any(map(rulesets, bind(get, {[2]=target})))
+         return target == 'install' or any(map(rulesets, function(rules)
+            return ordered_get(rules, target) ~= nil
+         end))
       end
 
       local targets = call(function()
          if isempty(parsed.targets) or contains(parsed.targets, 'all') then
-            return except(flatten(parsed.targets, ordered_keys(luke.modules), map(rulesets, keys)), 'all')
+            return except(flatten(parsed.targets, map(rulesets, ordered_keys)), 'all')
          end
          local unknown = except(parsed.targets, hasrule)
          diagnose(isempty(unknown), "no rule to make target '%s'", unknown[1])
@@ -218,7 +219,7 @@ return {
       local build = ordered_pluck(named, luke.modules)
       local scripts = {
          build = reduce(SCRIPT_SECTIONS, list(), function(entries, section)
-            return reduce(sorted_keys(pluck(named, sections[section])), entries, function(entries, name)
+            return reduce(ordered_keys(ordered_pluck(named, sections[section])), entries, function(entries, name)
                return append(entries, {name = name, section = section})
             end)
          end),
@@ -227,9 +228,9 @@ return {
       local install
       if contains(targets, 'install') then
          if isempty(named) then
-            install, scripts.install = luke.modules, sorted_keys(installbin)
+            install, scripts.install = luke.modules, ordered_keys(installbin)
          else
-            install, scripts.install = build, sorted_keys(pluck(named, installbin))
+            install, scripts.install = build, ordered_keys(ordered_pluck(named, installbin))
          end
       end
       luke.modules = build

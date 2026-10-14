@@ -233,7 +233,7 @@ return {
          status = run(L, env, {'$MAKEDIRS', '$INST_BINDIR'})
       end
       return reduce(names, status, function(status, name)
-         local rules = luke.install.bin[name]
+         local rules = ordered_get(luke.install.bin, name)
          local src = script_target(name, rules, luke.variables.objdir, true)
          local dest = '$INST_BINDIR/' .. name
          if status == 0 then

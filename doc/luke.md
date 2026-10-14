@@ -148,20 +148,22 @@ list.
 ### 3.2. Scripts
 
 Like the rockspec `build.install.bin` table, an `install.bin` table maps
-the name of each script to install to its source:
+the name of each script to install to its source, but as a list, like
+`modules`, of tables that each pair one name with its source:
 
 {% highlight lua %}
     install = {
        bin = {
-          specl = 'bin/specl',
+          {specl = 'bin/specl'},
        },
     }
 {% endhighlight %}
 
 Luke fills the [template](#43-templates) of a source whose name ends in
 `.in`, makes every listed script executable, and `luke install` copies
-each to its name beneath `$INST_BINDIR`.  An array entry is named for
-its source, without any `.in` suffix.
+each to its name beneath `$INST_BINDIR`, all in the order written.  A
+source on its own is named for itself, without its directory or any
+`.in` suffix.
 
 A top-level `bin` table works the same way, for scripts that are only
 for use in the source tree, and are never installed, such as a wrapper
@@ -169,24 +171,24 @@ that runs a program with the uninstalled modules:
 
 {% highlight lua %}
     bin = {
-       specl = 'specl.in',
+       'specl.in',
     }
 {% endhighlight %}
 
 ### 3.3. Programs
 
-A table entry in `install.bin` or `bin` is a rule for building a program
-from several `sources`, with the same `defines`, `incdirs`, `libdirs`,
-`libraries` and probes as a module.  Without a `command`, Luke compiles
-and links its C sources:
+An entry in `install.bin` or `bin` that pairs a name with a table is a
+rule for building a program from several `sources`, with the same
+`defines`, `incdirs`, `libdirs`, `libraries` and probes as a module.
+Without a `command`, Luke compiles and links its C sources:
 
 {% highlight lua %}
     install = {
        bin = {
-          mytool = {
+          {mytool = {
              sources   = {'src/main.c', 'src/util.c'},
              libraries = {'m'},
-          },
+          }},
        },
     }
 {% endhighlight %}
@@ -198,26 +200,30 @@ builds its own `build-aux/luke`:
 
 {% highlight lua %}
     bin = {
-       ['build-aux/luke'] = {
+       {['build-aux/luke'] = {
           command = '$LUA build-aux/smush $sources > $target',
           env     = {LUA_PATH = '$abs_top_srcdir/lib/?.lua;;'},
           sources = {'lib/luke/init.lua', 'lib/luke/version.lua.in'},
-       },
+       }},
     }
 {% endhighlight %}
 
 An installable program is built as `$objdir/<name>`, and an in-tree
 program at the path given as its name.  Either way, Luke makes it
-executable, and `luke <name>` rebuilds it.
+executable, and `luke <name>` rebuilds it.  A table with `sources` is
+the rules for a program without a name, so write a script or program
+named `sources` as `{['./sources'] = ...}`.
 
 ### 3.4. Generated Files
 
-A top-level `files` table works like `bin`, for files that are made
+A top-level `files` list works like `bin`, for files that are made
 during the build, but are neither executable nor installed, such as a
-man page made from a script's `--help` output.  Each entry is a
-template, or a rule with a `command` and its `sources`, and is built at
-the path given as its name.  An array entry is named for the path of
-its source, without the `.in` suffix:
+man page made from a script's `--help` output.  Each entry pairs the
+path to build with a template, or with a rule with a `command` and its
+`sources`.  A template on its own is built at its own path, without the
+`.in` suffix.  Luke builds every script in `bin` and `install.bin`
+first, so that a rule can run them, and then each file in the order
+written:
 
 {% highlight lua %}
     variables = {
@@ -226,10 +232,10 @@ its source, without the `.in` suffix:
 
     files = {
        'doc/index.md.in',
-       ['doc/specl.1'] = {
+       {['doc/specl.1'] = {
           command = '$HELP2MAN --output=$target --no-info ./specl',
           sources = 'specl.in',
-       },
+       }},
     }
 {% endhighlight %}
 
@@ -662,9 +668,9 @@ and `./` is `.`, the directory itself.  It leaves `..` alone.
 | `version`               | the project version                                          | [3](#3-the-lukefile), [4.2](#42-built-in-values) |
 | `modules`               | `{name = source}` entries, where a source can also be a list of sources or a table of rules | [3.1](#31-modules) |
 | `install`               | a table with `bin`                                           | [3.2](#32-scripts) |
-| `install.bin`           | script and program names, each mapped to a source or a table of rules, or a list of sources | [3.2](#32-scripts), [3.3](#33-programs) |
+| `install.bin`           | `{name = source or rules}` entries, or sources on their own  | [3.2](#32-scripts), [3.3](#33-programs) |
 | `bin`                   | like `install.bin`, but never installed                      | [3.2](#32-scripts), [3.3](#33-programs) |
-| `files`                 | generated file paths, each mapped to a source or a table of rules, or a list of sources | [3.4](#34-generated-files) |
+| `files`                 | `{path = source or rules}` entries, or templates on their own | [3.4](#34-generated-files) |
 | `defines`               | `'NAME[=value]'` or `{NAME = value}` entries, in order       | [3.5](#35-settings-for-every-module), [6](#6-build-time-probes) |
 | `incdirs`               | a list of header directories                                 | [3.5](#35-settings-for-every-module) |
 | `libdirs`               | a list of library directories                                | [3.5](#35-settings-for-every-module) |

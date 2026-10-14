@@ -42,13 +42,13 @@ local bundled = {
 }
 
 bin = {
-   ['build-aux/luke'] = {
+   {['build-aux/luke'] = {
       command = '$LUA build-aux/smush $sources > $target',
       env = {
          LUA_PATH = '$abs_top_srcdir/lib/?.lua;$abs_top_srcdir/lib/?/init.lua;;',
       },
       sources = bundled,
-   },
+   }},
 }
 
 -- `luke release version=X.Y` adds the release to NEWS.md, writes the

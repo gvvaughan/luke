@@ -17,7 +17,7 @@ local MACRO = '^[%a_][%w_]*$'
 
 -- The name of every ordered map in the lukefile, which resolves its own
 -- platforms, so that platform filtering leaves it alone.
-local ORDERED = {defines = true, modules = true}
+local ORDERED = {bin = true, defines = true, files = true, modules = true}
 
 
 --[[
@@ -180,15 +180,15 @@ local function definition(x, path)
 end
 
 
--- An entry of an ordered map: a table pairing one name with a value
--- that passes *normalize*.
-local function pair_of(normalize)
+-- An entry of an ordered map: a table pairing one name, normalized by
+-- *rename* if given, with a value that passes *normalize*.
+local function pair_of(normalize, rename)
    return function(x, path)
       local names = keys(mkcheck 'table'(x, path))
       choose(names.n ~= 1, bind(bad, {path, 'one entry expected, got %d', names.n}))
       local name = names[1]
       choose(not isstring(name), bind(bad, {path, 'name expected, got %s', type(name)}))
-      return {[name] = normalize(x[name], index(path, name))}
+      return {[(rename or id)(name, path)] = normalize(x[name], index(path, name))}
    end
 end
 
@@ -213,7 +213,7 @@ local function ordered_map(entry)
       map(filter(sorted_keys(layer), function(k)
          return k ~= 'platforms' and not islistkey(layer, k)
       end), function(k)
-         bad(index(path, k), 'list entry expected, such as {%s = ...}', str(k))
+         bad(index(path, k), 'list entry expected, such as {%s = ...}', index('', k))
       end)
       local r = list_of(narrowed)(layer, path)
       reduce(r, {}, function(seen, pair)
@@ -310,40 +310,52 @@ local function program(x, path)
 end
 
 
+-- The source path of a script, or the rules for building a program.
+local function script(x, path)
+   return case(type(x), {
+      ['string'] = function()
+         return pathname(x, path)
+      end,
+
+      ['table'] = function()
+         return program(x, path)
+      end,
+
+      function(kind)
+         bad(path, 'string or table expected, got %s', kind)
+      end,
+   })
+end
+
+
 -- Like the rockspec `build.install.bin` table, map each name to its
--- source path, naming an array entry with *mkname* from its source.  A
--- table-valued entry is a rule for building a program.  Names are paths
+-- source path, but as an ordered map: each entry is a table pairing a
+-- name with its source, or with the rules for building a program, or
+-- else a bare source path, named by *mkname* from it.  Names are paths
 -- too, of the target built or installed.
 local function mkscripts(mkname)
-   -- The name and normalized rules for entry *k* at *path*.
-   local function entry(k, source, path)
-      return case(type(source), {
+   local pair = pair_of(script, pathname)
+   return ordered_map(function(x, path)
+      return case(type(x), {
          ['string'] = function()
-            source = pathname(source, path)
-            return choose(isstring(k), function()
-               return pathname(k, path)
-            end, bind(mkname, {source})), source
+            local source = pathname(x, path)
+            return {[mkname(source)] = source}
          end,
 
          ['table'] = function()
-            local name = choose(isstring(k), function()
-               return pathname(k, path)
-            end, bind(bad, {path, 'programs need a name'}))
-            return name, program(source, path)
+            -- Every program has sources, so an entry with them is the
+            -- rules for a program without a name; a script or program
+            -- named 'sources' is written as './sources'.
+            choose(x.sources ~= nil,
+               bind(bad, {path, 'programs need a name, such as {prog = {sources = ...}}'}))
+            return pair(x, path)
          end,
 
          function(kind)
             bad(path, 'string or table expected, got %s', kind)
          end,
       })
-   end
-
-   return function(x, path)
-      return mkcheck 'table'(x, path) and reduce(keys(x), {}, function(r, k)
-         local name, rules = entry(k, x[k], index(path, k))
-         claim(r, name, rules, path)
-      end)
-   end
+   end)
 end
 
 
