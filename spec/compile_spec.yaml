@@ -59,21 +59,26 @@ specify luke.compile:
       defines = compile.defines
 
   - it defines a flag for the value 1:
-      expect(defines {NDEBUG=1}).to_equal(list '-DNDEBUG')
+      expect(defines {{NDEBUG=1}}).to_equal(list '-DNDEBUG')
 
   - it defines a plain value:
-      expect(defines {_XOPEN_SOURCE=700}).to_equal(list '-D_XOPEN_SOURCE=700')
+      expect(defines {{_XOPEN_SOURCE=700}}).to_equal(list '-D_XOPEN_SOURCE=700')
 
   - it quotes a value containing shell metacharacters: |
-      expect(defines {VERSION='"git"'}).to_equal(list [[-DVERSION='"git"']])
+      expect(defines {{VERSION='"git"'}}).to_equal(list [[-DVERSION='"git"']])
 
   - it quotes a value containing a single quote: |
-      expect(defines {GREETING="it's"}).to_equal(list [[-DGREETING='it'\''s']])
+      expect(defines {{GREETING="it's"}}).to_equal(list [[-DGREETING='it'\''s']])
 
-  - it merges several tables of defines, skipping nils:
-      r = defines({A=1}, nil, {B=2})
-      expect(r.n).to_be(2)
-      expect(set(unpack(r, 1, r.n))).to_equal(set('-DA', '-DB=2'))
+  - it defines each macro in order: |
+      expect(defines {{C=3}, {A=1}, {B=2}}).to_equal(list('-DC=3', '-DA', '-DB=2'))
+
+  - it merges several tables of defines in order, skipping nils: |
+      expect(defines({{B=2}, {A=1}}, nil, {{C=1}})).to_equal(list('-DB=2', '-DA', '-DC'))
+
+  - it lets a later table redefine a macro, where it was first defined: |
+      expect(defines({{A=1}, {B=2}}, {{C=3}, {A=4}})).
+         to_equal(list('-DA=4', '-DB=2', '-DC=3'))
 
 - describe c_modules:
   - it lists them in name order: |

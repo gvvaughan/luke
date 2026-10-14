@@ -108,7 +108,130 @@ specify luke.schema:
       schema = setup()
       expect(schema.pathname(42, 'p')).to_raise 'bad p: string expected, got number'
 
+- describe ordered_map:
+  - before: |
+      -- An entry normalizer that accepts any one-pair table as it is.
+      function pair(x) return x end
+
+  - it keeps the entries in the order written: |
+      schema = setup()
+      expect(schema.ordered_map(pair)({{b = 1}, {a = 2}}, 'p')).to_equal {{b = 1}, {a = 2}}
+  - it lets a platform replace an entry, in place: |
+      schema = setup()
+      expect(schema.ordered_map(pair)({{a = 1}, {b = 2}, platforms = {unix = {{a = 3}}}}, 'p')).
+         to_equal {{a = 3}, {b = 2}}
+  - it diagnoses a field rather than a list entry: |
+      schema = setup()
+      expect(schema.ordered_map(pair)({a = 1}, 'p')).
+         to_raise 'bad p.a: list entry expected, such as {a = ...}'
+  - it diagnoses a name with two entries, for another platform too: |
+      schema = setup()
+      expect(schema.ordered_map(pair)({platforms = {windows = {{a = 1}, {a = 2}}}}, 'p')).
+         to_raise "bad p.platforms.windows: more than one entry for 'a'"
+
+- describe defines:
+  - it keeps each macro definition in order: |
+      schema = setup()
+      expect(schema.defines({{B = 2}, {A = '"a"'}}, 'p')).to_equal {{B = 2}, {A = '"a"'}}
+  - it accepts rockspec style definitions: |
+      schema = setup()
+      expect(schema.defines({'NDEBUG', '_XOPEN_SOURCE=700', 'EMPTY='}, 'p')).
+         to_equal {{NDEBUG = 1}, {_XOPEN_SOURCE = '700'}, {EMPTY = ''}}
+  - it keeps the order of both styles mixed together: |
+      schema = setup()
+      expect(schema.defines({'NDEBUG', {HAVE_STATVFS = {checkfunc = 'statvfs'}}, 'A=1'}, 'p')).
+         to_equal {{NDEBUG = 1}, {HAVE_STATVFS = {checkfunc = 'statvfs'}}, {A = '1'}}
+  - it accepts nil: |
+      schema = setup()
+      expect(schema.defines(nil, 'p')).to_be(nil)
+  - it diagnoses a keyed definition outside a list entry: |
+      schema = setup()
+      expect(schema.defines({'A', NDEBUG = 1}, 'p')).
+         to_raise 'bad p.NDEBUG: list entry expected, such as {NDEBUG = ...}'
+  - it diagnoses an entry with more than one definition: |
+      schema = setup()
+      expect(schema.defines({{A = 1, B = 2}}, 'p')).
+         to_raise 'bad p[1]: one definition expected, got 2'
+  - it diagnoses an entry with no definition: |
+      schema = setup()
+      expect(schema.defines({{}}, 'p')).to_raise 'bad p[1]: one definition expected, got 0'
+  - it diagnoses a probe without a macro name: |
+      schema = setup()
+      expect(schema.defines({{checkfunc = 'statvfs'}}, 'p')).
+         to_raise 'bad p[1]: probe needs a macro name, such as {HAVE_X = {checkfunc = ...}}'
+  - it diagnoses the same macro defined twice: |
+      schema = setup()
+      expect(schema.defines({{A = 1}, 'B', {A = 2}}, 'p')).
+         to_raise "bad p: more than one entry for 'A'"
+      expect(schema.defines({'A', 'A=2'}, 'p')).
+         to_raise "bad p: more than one entry for 'A'"
+  - it diagnoses a macro defined both by a string and a table entry: |
+      schema = setup()
+      expect(schema.defines({{A = 1}, 'A=2'}, 'p')).
+         to_raise "bad p: more than one entry for 'A'"
+      expect(schema.defines({'A', {A = 1}}, 'p')).
+         to_raise "bad p: more than one entry for 'A'"
+  - it diagnoses a malformed rockspec style definition: |
+      schema = setup()
+      expect(schema.defines({'1A=2'}, 'p')).to_raise "bad p[1]: bad macro definition '1A=2'"
+  - it diagnoses a malformed macro name: |
+      schema = setup()
+      expect(schema.defines({{['A-B'] = 1}}, 'p')).to_raise "bad p[1]: bad macro name 'A-B'"
+  - it lets a platform redefine a macro, where it was first defined: |
+      schema = setup()
+      expect(schema.defines({'A=1', 'B', platforms = {unix = {'C', 'A=2'}}}, 'p')).
+         to_equal {{A = '2'}, {B = 1}, {C = 1}}
+  - it uses the platform defaults without a matching platform: |
+      schema = setup()
+      expect(schema.defines({'A=1', platforms = {windows = {'A=3'}, 'A=2'}}, 'p')).
+         to_equal {{A = '2'}}
+  - it lets a more specific platform redefine a macro: |
+      schema = setup()
+      expect(schema.defines({platforms = {unix = {'A=1'}, linux = {'A=2'}, macosx = {'A=2'}}}, 'p')).
+         to_equal {{A = '2'}}
+  - it diagnoses a duplicate within a platform that is not this one: |
+      schema = setup()
+      expect(schema.defines({'A', platforms = {qnx = {'B=1', {B = 2}}}}, 'p')).
+         to_raise "bad p.platforms.qnx: more than one entry for 'B'"
+  - it diagnoses a duplicate within platform defaults that are not used: |
+      schema = setup()
+      expect(schema.defines({platforms = {unix = {'A'}, 'B', 'B=2'}}, 'p')).
+         to_raise "bad p.platforms: more than one entry for 'B'"
+  - it diagnoses a malformed definition for a platform that is not this one: |
+      schema = setup()
+      expect(schema.defines({platforms = {windows = {'1A'}}}, 'p')).
+         to_raise "bad p.platforms.windows[1]: bad macro definition '1A'"
+  - it diagnoses a field of a platform that is not this one: |
+      schema = setup()
+      expect(schema.defines({platforms = {qnx = {A = 1}}}, 'p')).
+         to_raise 'bad p.platforms.qnx.A: list entry expected, such as {A = ...}'
+  - it diagnoses a malformed platforms table: |
+      schema = setup()
+      expect(schema.defines({platforms = 'unix'}, 'p')).
+         to_raise 'bad p.platforms: table expected, got string'
+      expect(schema.defines({platforms = {unix = 'A'}}, 'p')).
+         to_raise 'bad p.platforms.unix: table expected, got string'
+  - it diagnoses a value that is neither a string, a number nor a probe: |
+      schema = setup()
+      expect(schema.defines({{A = true}}, 'p')).
+         to_raise 'bad p[1].A: string, number or probe expected, got boolean'
+      expect(schema.defines({{A = {}}}, 'p')).
+         to_raise 'bad p[1].A: string, number or probe expected, got table'
+  - it treats a string as a list of one: |
+      schema = setup()
+      expect(schema.defines('NDEBUG', 'p')).to_equal {{NDEBUG = 1}}
+  - it diagnoses other types: |
+      schema = setup()
+      expect(schema.defines(42, 'p')).to_raise 'bad p: table expected, got number'
+      expect(schema.defines({42}, 'p')).to_raise 'bad p[1]: string or table expected, got number'
+
 - describe rules:
+  - it normalizes module defines: |
+      schema = setup()
+      expect(schema.rules({sources = 'a.c', defines = {'NDEBUG'}}, 'p')).
+         to_equal {sources = {'a.c'}, defines = {{NDEBUG = 1}}}
+      expect(schema.rules({sources = 'a.c', defines = {NDEBUG = 1}}, 'p')).
+         to_raise 'bad p.defines.NDEBUG: list entry expected, such as {NDEBUG = ...}'
   - it accepts a single source: |
       schema = setup()
       expect(schema.rules('a.lua', 'p')).to_equal {sources = {'a.lua'}}

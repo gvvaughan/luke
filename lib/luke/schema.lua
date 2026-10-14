@@ -5,9 +5,15 @@
 
 local _ENV = require 'luke.normalize' {
    'luke._base',
+   'luke.configure',
    'luke.functional',
+   'luke.platforms',
    'type.path',
 }
+
+
+-- The name of a C preprocessor macro.
+local MACRO = '^[%a_][%w_]*$'
 
 
 --[[
@@ -131,6 +137,110 @@ local function pathname(x, path)
 end
 
 
+-- Whether *x* is a probe, which luke runs at build time for a value.
+local function isprobe(x)
+   return istable(x) and contains(configure, function(name)
+      return x[name] ~= nil
+   end)
+end
+
+
+-- A macro definition, as a table pairing the macro name with its value
+-- or probe, from such a table or a rockspec style 'NAME' or 'NAME=value'
+-- string, where 'NAME' defines NAME to 1.
+local function definition(x, path)
+   return case(type(x), {
+      ['string'] = function()
+         local name, eq, value = match(x, '^([%a_][%w_]*)(=?)(.*)$')
+         choose(name == nil or eq == '' and value ~= '', bind(bad, {path, "bad macro definition '%s'", x}))
+         return {[name] = choose(eq == '', 1, value)}
+      end,
+
+      ['table'] = function()
+         local names = keys(x)
+         choose(names.n ~= 1, bind(bad, {path, 'one definition expected, got %d', names.n}))
+         local name = names[1]
+         choose(isstring(name) and configure[name] ~= nil,
+            bind(bad, {path, 'probe needs a macro name, such as {HAVE_X = {%s = ...}}', str(name)}))
+         choose(not isstring(name) or match(name, MACRO) == nil, bind(bad, {path, "bad macro name '%s'", str(name)}))
+         local value = x[name]
+         choose(not (isstring(value) or type(value) == 'number' or isprobe(value)),
+            bind(bad, {index(path, name), 'string, number or probe expected, got %s', type(value)}))
+         return {[name] = value}
+      end,
+
+      function(kind)
+         bad(path, 'string or table expected, got %s', kind)
+      end,
+   })
+end
+
+
+-- An ordered map: a list of entries in the order written, each
+-- normalized by *entry* into a table pairing one name with its value,
+-- where a `platforms` table adds or replaces entries for particular
+-- platforms.  Every platform's entries are diagnosed, not only those
+-- for this one, and so is a field rather than a list entry, or a name
+-- with more than one entry for the same platform.  The entries that
+-- apply here are merged least specific first, where a more specific
+-- entry replaces the value of one for the same name, in place.
+local function ordered_map(entry)
+   -- The entries of one *layer* at *path*, apart from its platforms.
+   local function layer_entries(layer, path)
+      map(filter(sorted_keys(layer), function(k)
+         return k ~= 'platforms' and not islistkey(layer, k)
+      end), function(k)
+         bad(index(path, k), 'list entry expected, such as {%s = ...}', str(k))
+      end)
+      local r = list_of(entry)(layer, path)
+      reduce(r, {}, function(seen, pair)
+         claim(seen, (next(pair)), true, path)
+      end)
+      return r
+   end
+
+   -- Diagnose every layer of *x* at *path*, whichever platforms apply.
+   local function check_layers(x, path)
+      layer_entries(mkcheck 'table'(x, path), path)
+      local at = index(path, 'platforms')
+      local platforms = mkcheck 'table'(x.platforms, at)
+      choose(platforms ~= nil, function()
+         local names, others = partition(sorted_keys(platforms), isplatform)
+         map(names, function(name)
+            check_layers(platforms[name], index(at, name))
+         end)
+         check_layers(pluck(others, platforms) or {}, at)
+      end)
+   end
+
+   -- The entries of each layer of *x* at *path* that applies here.
+   local function resolve(x, path)
+      return ordered_merge(unpack(map(layers(x), function(layer)
+         return choose(layer.platforms ~= nil, function()
+            return resolve(layer, path)
+         end, function()
+            return layer_entries(layer, path)
+         end)
+      end)))
+   end
+
+   return function(x, path)
+      local t = choose(isstring(x), function()
+         return {x}
+      end, function()
+         return x
+      end)
+      choose(t ~= nil, bind(check_layers, {t, path}))
+      return t and resolve(t, path)
+   end
+end
+
+
+-- Like the rockspec `defines` list, macro definitions in the order the
+-- compiler sees them.
+local defines = ordered_map(definition)
+
+
 -- The rules for building a module: a source path, a list of source
 -- paths, or a table with `sources` and other build settings, where the
 -- source and directory paths are normalized.
@@ -156,6 +266,7 @@ local function rules(x, path)
       end,
    })
    return r and merge({
+      defines = defines(r.defines, index(path, 'defines')),
       sources = list_of(pathname)(r.sources, index(path, 'sources')),
       incdirs = list_of(pathname)(r.incdirs, index(path, 'incdirs')),
       libdirs = list_of(pathname)(r.libdirs, index(path, 'libdirs')),
@@ -259,14 +370,16 @@ end
 
 
 return {
-   copies   = copies,
-   fields   = fields,
-   files    = files,
-   keypaths = keypaths,
-   list_of  = list_of,
-   map_of   = map_of,
-   mkcheck  = mkcheck,
-   pathname = pathname,
-   rules    = rules,
-   scripts  = scripts,
+   copies      = copies,
+   defines     = defines,
+   fields      = fields,
+   files       = files,
+   keypaths    = keypaths,
+   list_of     = list_of,
+   map_of      = map_of,
+   mkcheck     = mkcheck,
+   ordered_map = ordered_map,
+   pathname    = pathname,
+   rules       = rules,
+   scripts     = scripts,
 }

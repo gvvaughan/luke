@@ -76,6 +76,9 @@ local function bindirs(...)
 end
 
 
+-- TODO: a probe compiles with the top-level `defines` as written, so it
+-- cannot see the results of earlier probes, and a probe among them is
+-- passed to `defines` unresolved.
 local function compile_command(L, env, config, objfile, filename)
    local command = flatten(
       '$CC', '-c', '$CFLAGS',

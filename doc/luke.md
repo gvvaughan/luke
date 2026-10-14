@@ -120,7 +120,7 @@ linker settings, takes a table:
 {% highlight lua %}
     modules = {
        ['posix.sys.socket'] = {
-          defines   = {HAVE_NET_IF_H = {checkheader='net/if.h', include='sys/socket.h'}},
+          defines   = {{HAVE_NET_IF_H = {checkheader='net/if.h', include='sys/socket.h'}}},
           incdirs   = {'ext/include'},
           libdirs   = {'/opt/local/lib'},
           libraries = {{checksymbol='socket', library='socket'}},
@@ -129,10 +129,15 @@ linker settings, takes a table:
     }
 {% endhighlight %}
 
-Unlike the rockspec array of strings syntax (`"HAVE_FOO=1"`), `defines`
-is always a table (`{HAVE_FOO=1}`).  A value of `1` adds `-DHAVE_FOO`,
-and any other value adds `-DHAVE_FOO=<value>`.  Values can also be
-[build-time probes](#6-build-time-probes), as can `libraries`.
+Like the rockspec `defines` array, `defines` is a list of macro
+definitions, which Luke passes to the compiler in the order written.
+Each is a rockspec style string, `'HAVE_FOO'` or `'HAVE_FOO=value'`, or
+a table that pairs one macro name with its value, `{HAVE_FOO = value}`.
+A value of `1` adds `-DHAVE_FOO`, and any other value adds
+`-DHAVE_FOO=<value>`, quoted for the shell.  The value in a table can
+also be a [build-time probe](#6-build-time-probes), as can an entry in
+`libraries`.  Luke diagnoses a macro defined more than once in the same
+list.
 
 ### 3.2. Scripts
 
@@ -227,15 +232,16 @@ that building a release needs none of the tools that made them.
 
 ### 3.5. Settings for Every Module
 
-A top-level `defines` table adds its definitions to every C compilation,
-and top-level `incdirs`, `libdirs` and `libraries` arrays add their
-directories and libraries, in addition to the settings of each module:
+A top-level `defines` list adds its definitions to every C compilation,
+before those of each module, which can redefine them, and top-level
+`incdirs`, `libdirs` and `libraries` arrays add their directories and
+libraries, in addition to the settings of each module:
 
 {% highlight lua %}
     defines = {
-       PACKAGE = '"$package"',
-       VERSION = '"$version"',
-       NDEBUG  = 1,
+       {PACKAGE = '"$package"'},
+       {VERSION = '"$version"'},
+       'NDEBUG',
     }
 
     incdirs = {
@@ -371,14 +377,22 @@ platform it is running on, or else the remaining settings in the
 
 {% highlight lua %}
     defines = {
-       NDEBUG    = 1,
+       'NDEBUG',
        platforms = {
-          linux  = {_DEFAULT_SOURCE  = 1},
-          macosx = {_DARWIN_C_SOURCE = 1},
-          _POSIX_C_SOURCE = '200809L',
+          linux  = {'_DEFAULT_SOURCE'},
+          macosx = {'_DARWIN_C_SOURCE'},
+          '_POSIX_C_SOURCE=200809L',
        },
     }
 {% endhighlight %}
+
+The list entries of each platform table that applies follow those of
+the list itself, least specific first, so on macOS the list above is
+`NDEBUG`, then `_DARWIN_C_SOURCE`.  A setting for a more specific
+platform replaces the same setting for a less specific one, or for no
+platform, and a macro that a more specific platform defines again is
+redefined where it was first defined.  Luke diagnoses errors in the
+`defines` table for all platforms, not just the one being built.
 
 Luke recognizes these platforms, from the output of `uname -s`, most
 specific first:
@@ -442,8 +456,8 @@ Because of that ordering, this module:
 {% highlight lua %}
     ['crypt'] = {
        defines = {
-          HAVE_CRYPT   = {checkfunc='crypt'},
-          HAVE_CRYPT_H = {checkheader='crypt.h'},
+          {HAVE_CRYPT   = {checkfunc='crypt'}},
+          {HAVE_CRYPT_H = {checkheader='crypt.h'}},
        },
        libraries = {
           {checksymbol='crypt', library='crypt'},
@@ -645,7 +659,7 @@ and `./` is `.`, the directory itself.  It leaves `..` alone.
 | `install.bin`           | script and program names, each mapped to a source or a table of rules, or a list of sources | [3.2](#32-scripts), [3.3](#33-programs) |
 | `bin`                   | like `install.bin`, but never installed                      | [3.2](#32-scripts), [3.3](#33-programs) |
 | `files`                 | generated file paths, each mapped to a source or a table of rules, or a list of sources | [3.4](#34-generated-files) |
-| `defines`               | macro names, each mapped to a value or a probe               | [3.5](#35-settings-for-every-module), [6](#6-build-time-probes) |
+| `defines`               | `'NAME[=value]'` or `{NAME = value}` entries, in order       | [3.5](#35-settings-for-every-module), [6](#6-build-time-probes) |
 | `incdirs`               | a list of header directories                                 | [3.5](#35-settings-for-every-module) |
 | `libdirs`               | a list of library directories                                | [3.5](#35-settings-for-every-module) |
 | `libraries`             | a list of libraries or probes                                | [3.5](#35-settings-for-every-module), [6](#6-build-time-probes) |

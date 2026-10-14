@@ -64,12 +64,12 @@ specify luke.configure:
       configure, run_configs, L = setup()
       r = run_configs(L, env, {
          defines = {
-            HAVE__NOT_A_REAL_FUNCTION_DECL = {checkdecl='_not_a_real_function_decl'},
-            HAVE_GETHOSTID_DECL = {checkdecl='gethostid', includes={'unistd.h'}},
+            {HAVE__NOT_A_REAL_FUNCTION_DECL = {checkdecl='_not_a_real_function_decl'}},
+            {HAVE_GETHOSTID_DECL = {checkdecl='gethostid', includes={'unistd.h'}}},
          },
       })
-      expect(r.defines.HAVE__NOT_A_REAL_FUNCTION_DECL).to_be(0)
-      expect(r.defines.HAVE_GETHOSTID_DECL).to_be(1)
+      expect(r.defines[1].HAVE__NOT_A_REAL_FUNCTION_DECL).to_be(0)
+      expect(r.defines[2].HAVE_GETHOSTID_DECL).to_be(1)
 
 - describe checkfunc:
   - it notes a missing function:
@@ -84,12 +84,12 @@ specify luke.configure:
       configure, run_configs, L = setup()
       r = run_configs(L, env, {
          defines = {
-            HAVE__NOT_A_REAL_FUNCTION = {checkfunc='_not_a_real_function'},
-            HAVE_PRINTF = {checkfunc='printf'},
+            {HAVE__NOT_A_REAL_FUNCTION = {checkfunc='_not_a_real_function'}},
+            {HAVE_PRINTF = {checkfunc='printf'}},
          },
       })
-      expect(r.defines.HAVE__NOT_A_REAL_FUNCTION).to_be(0)
-      expect(r.defines.HAVE_PRINTF).to_be(1)
+      expect(r.defines[1].HAVE__NOT_A_REAL_FUNCTION).to_be(0)
+      expect(r.defines[2].HAVE_PRINTF).to_be(1)
 
 - describe checkheader:
   - it notes a missing header:
@@ -108,14 +108,14 @@ specify luke.configure:
       configure, run_configs, L = setup()
       r = run_configs(L, env, {
          defines = {
-            HAVE__NOT_A_REAL_HEADER_H = {checkheader='-not-a-real-header.h'},
-            HAVE_STDIO_H = {checkheader='stdio.h'},
-            HAVE_NET_IF_H = {checkheader='net/if.h', includes={'sys/socket.h'}},
+            {HAVE__NOT_A_REAL_HEADER_H = {checkheader='-not-a-real-header.h'}},
+            {HAVE_STDIO_H = {checkheader='stdio.h'}},
+            {HAVE_NET_IF_H = {checkheader='net/if.h', includes={'sys/socket.h'}}},
          },
       })
-      expect(r.defines.HAVE__NOT_A_REAL_HEADER_H).to_be(0)
-      expect(r.defines.HAVE_STDIO_H).to_be(1)
-      expect(r.defines.HAVE_NET_IF_H).to_be(1)
+      expect(r.defines[1].HAVE__NOT_A_REAL_HEADER_H).to_be(0)
+      expect(r.defines[2].HAVE_STDIO_H).to_be(1)
+      expect(r.defines[3].HAVE_NET_IF_H).to_be(1)
 
 - describe checkmember:
   - it notes a missing struct member:
@@ -132,12 +132,12 @@ specify luke.configure:
       configure, run_configs, L = setup()
       r = run_configs(L, env, {
          defines = {
-            HAVE_STAT_NOT_A_MEMBER = {checkmember='struct stat.not_a_member', includes={'sys/stat.h'}},
-            HAVE_STAT_ST_MODE = {checkmember='struct stat.st_mode', includes={'sys/stat.h'}},
+            {HAVE_STAT_NOT_A_MEMBER = {checkmember='struct stat.not_a_member', includes={'sys/stat.h'}}},
+            {HAVE_STAT_ST_MODE = {checkmember='struct stat.st_mode', includes={'sys/stat.h'}}},
          },
       })
-      expect(r.defines.HAVE_STAT_NOT_A_MEMBER).to_be(0)
-      expect(r.defines.HAVE_STAT_ST_MODE).to_be(1)
+      expect(r.defines[1].HAVE_STAT_NOT_A_MEMBER).to_be(0)
+      expect(r.defines[2].HAVE_STAT_ST_MODE).to_be(1)
 
 - describe run_configs:
   - it runs probes of the same kind in the order they are written, by table key: |

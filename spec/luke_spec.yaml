@@ -151,6 +151,35 @@ specify luke:
       expect(luke.release.news).to_be 'NEWS.md'
       expect(luke.release.rockspec).to_be 'example-dev-1.rockspec'
       expect(luke.release['gh-pages']).to_equal {['.'] = {optional = false, source = 'doc'}}
+  - it keeps defines in order, with platform defines after the rest: |
+      spit(fname, [[
+         package = 'example'
+         version = '1.0'
+         modules = {
+            example = {sources = 'example.c', defines = {'B=2', {A = 1}}},
+         }
+         defines = {
+            {PACKAGE = '"$package"'},
+            'NDEBUG',
+            platforms = {
+               windows = {'WINDOWS'},
+               '_POSIX_C_SOURCE=200809L',
+            },
+         }
+      ]])
+      luke = require 'luke.lukefile'.loadluke(fname)
+      expect(luke.defines).to_equal {{PACKAGE = '"$package"'}, {NDEBUG = 1}, {_POSIX_C_SOURCE = '200809L'}}
+      expect(luke.modules.example.defines).to_equal {{B = '2'}, {A = 1}}
+  - it diagnoses keyed defines: |
+      spit(fname, [[
+         package = 'example'
+         version = '1.0'
+         modules = {example = 'example.c'}
+         defines = {NDEBUG = 1}
+      ]])
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error 'bad defines.NDEBUG: list entry expected, such as {NDEBUG = ...}'
   - it lets keys for other tools through: |
       spit(fname, [[
          package = 'example'

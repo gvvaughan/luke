@@ -40,7 +40,7 @@ local LUKEFILE = fields({
    package               = string,
    version               = string,
 
-   defines               = table,
+   defines               = defines,
    external_dependencies = table,
    incdirs               = list_of(pathname),
    ldocs                 = rules,
@@ -231,7 +231,9 @@ return {
       if not ok then
          return nil, "Error running file: " .. err
       end
-      return LUKEFILE(normalize_configs(filter_platforms(r)), '')
+      -- The `defines` normalizer resolves its own platforms, to diagnose
+      -- definitions for every platform, not only this one.
+      return LUKEFILE(normalize_configs(filter_platforms(r, nil, nil, {defines = true})), '')
    end,
 
    collect_variables = function(luke)

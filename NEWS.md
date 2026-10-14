@@ -49,6 +49,14 @@
     for a more specific platform now always replaces the same setting
     for a less specific one, or for no platform.
 
+  - `defines` is a list, like the rockspec `defines` array, so that
+    Luke passes definitions to the compiler in the order written, the
+    same on every run.  Each entry is a rockspec style `'NAME'` or
+    `'NAME=value'` string, or a table pairing one name with its value or
+    probe, such as `{HAVE_STATVFS = {checkfunc = 'statvfs'}}`.  Luke
+    diagnoses the old keyed form, and a macro defined twice in one list,
+    for every platform rather than only the one it runs on.
+
 ### Bug fixes:
 
   - Luke builds and installs in the same order on every run: modules

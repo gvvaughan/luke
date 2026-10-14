@@ -36,8 +36,13 @@ local function run(L, env, command)
 end
 
 
+-- The compiler flag for each macro defined by the lists of definitions
+-- *...*, skipping nils, in the order each macro is first defined, with
+-- the value from its last definition, such as a module's redefinition
+-- of a macro defined for every module.
 local function defines(...)
-   return zip_with(merge({}, unpack(except(list(...), nil))), function(name, value)
+   return map(ordered_merge(...), function(definition)
+      local name, value = destructure(definition)
       local fmt = cond(
          {[int(value) == 1] = '-D%s'},
          {[true] = '-D%s=%s'}
@@ -132,7 +137,7 @@ return {
 
       return run(L, env, flatten(
          '$CC $CFLAGS $LIBFLAG $PKGFLAGS $CPPFLAGS',
-         defines(rules.defines, luke.defines),
+         defines(luke.defines, rules.defines),
          incdirs(rules.incdirs, luke.incdirs),
          rules.sources,
          '-o', c_module,
@@ -201,7 +206,7 @@ return {
       end
       return run(L, env, flatten(
          '$CC $CFLAGS $CPPFLAGS',
-         defines(rules.defines, luke.defines),
+         defines(luke.defines, rules.defines),
          incdirs(rules.incdirs, luke.incdirs),
          sources,
          '-o', target,
