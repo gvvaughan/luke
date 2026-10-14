@@ -50,6 +50,10 @@
     in name order, and scripts before installable scripts before
     generated files, which may run them, each in name order.
 
+  - Probes of the same kind run in the order they are written, the same
+    on every run, after all the probes of the kinds that run before
+    them.
+
   - A lone '@' in a template, such as in an email address, no longer
     removes the text up to the next '@'.  As with `$NAME` variables,
     only names made of word characters are expanded in `@NAME@`.

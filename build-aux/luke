@@ -511,17 +511,7 @@ package.preload['luke.lukefile']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local string,table=mkcheck'string',mkcheck'table'local RELEASE=fields({add=list_of(pathname),news=pathname,rockspec=pathname,},copies)local LUKEFILE=fields({package=string,version=string,defines=table,external_dependencies=table,incdirs=list_of(pathname),ldocs=rules,libdirs=list_of(pathname),libraries=list_of(id),modules=map_of(rules),substitute=table,variables=table,bin=scripts,files=files,install=fields{bin=scripts,},release=RELEASE,},true)local function has_anykey(t,keylist)return any(map(keylist,function(k)return t[k]~=nil
 end))end
 local function isconfig(x)return istable(x)and has_anykey(x,configure)end
-local function collect_configs(luke,modulename,configs,sectionname)configs=configs or{}for k,v in next,luke do
-if isconfig(v)then
-append(configs,{t=luke,k=k,module=modulename,section=sectionname})elseif istable(v)then
-if k=='modules'or k=='external_dependencies'then
-for name,rules in next,v do
-collect_configs(rules,name,configs,k)end
-else
-collect_configs(v,modulename,configs,sectionname)end
-end
-end
-return configs
+local function collect_configs(luke,modulename,configs,sectionname)configs=configs or{}map(sorted_keys(luke),function(k)local v=luke[k]cond({[isconfig(v)]=function()append(configs,{t=luke,k=k,module=modulename,section=sectionname,order=len(configs)+1})end,},{[istable(v)and(k=='modules'or k=='external_dependencies')]=function()map(sorted_keys(v),function(name)collect_configs(v[name],name,configs,k)end)end,},{[istable(v)]=function()collect_configs(v,modulename,configs,sectionname)end,})end)return configs
 end
 local function deepcopy(t)return mapvalues(t,function(v)return case(type(v),{['table']=function()return deepcopy(v)end,v,})end)end
 local weighting=setmetatable(copy(configure),{__call=function(self,config)local t=config.t[config.k]for i=1,len(self)do
@@ -529,7 +519,8 @@ if t[self[i]]~=nil then
 return i
 end
 end
-end})local function config_cmp(a,b)return weighting(a)<weighting(b)end
+end})local function config_cmp(a,b)local wa,wb=weighting(a),weighting(b)return wa<wb or wa==wb and a.order<b.order
+end
 local function fill_templates(env,src,dest)with(File(dest,'w'),function(cm)for line in lines(src)do
 cm:write(expand(env,line)..'\n')end
 end)return dest
@@ -833,8 +824,8 @@ end
 return{copies=copies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/ed9cb13',versiontext=[[
-luke (Luke) gvv/ed9cb13
+return{VERSION='gvv/2478ff7',versiontext=[[
+luke (Luke) gvv/2478ff7
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

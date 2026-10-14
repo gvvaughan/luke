@@ -72,21 +72,29 @@ local function isconfig(x)
 end
 
 
+-- Every probe in *luke*, in the order it is written: list entries in
+-- order, and the elements of any other table in `sorted_keys` order, so
+-- that probes of the same kind run in the same order on every run.
 local function collect_configs(luke, modulename, configs, sectionname)
    configs = configs or {}
-   for k, v in next, luke do
-      if isconfig(v) then
-         append(configs, {t=luke, k=k, module=modulename, section=sectionname})
-      elseif istable(v) then
-         if k == 'modules' or k == 'external_dependencies' then
-            for name, rules in next, v do
-               collect_configs(rules, name, configs, k)
-            end
-         else
+   map(sorted_keys(luke), function(k)
+      local v = luke[k]
+      cond({
+         [isconfig(v)] = function()
+            append(configs, {t=luke, k=k, module=modulename, section=sectionname, order=len(configs) + 1})
+         end,
+      }, {
+         [istable(v) and (k == 'modules' or k == 'external_dependencies')] = function()
+            map(sorted_keys(v), function(name)
+               collect_configs(v[name], name, configs, k)
+            end)
+         end,
+      }, {
+         [istable(v)] = function()
             collect_configs(v, modulename, configs, sectionname)
-         end
-      end
-   end
+         end,
+      })
+   end)
    return configs
 end
 
@@ -113,8 +121,12 @@ local weighting = setmetatable(copy(configure), {
 })
 
 
+-- Probes run by kind, in the order of `configure`, so that headers are
+-- settled before linking against functions, for example, and then in the
+-- order they are written.
 local function config_cmp(a, b)
-   return weighting(a) < weighting(b)
+   local wa, wb = weighting(a), weighting(b)
+   return wa < wb or wa == wb and a.order < b.order
 end
 
 

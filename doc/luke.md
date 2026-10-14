@@ -406,8 +406,9 @@ Anything else is treated as `unix`.
 
 Wherever a value in `defines` or `libraries` can go, you can put a
 probe, a table that Luke runs to compute the value on the build
-machine.  Whatever order you write them in, Luke always runs probes in
-this order:
+machine.  Whatever order you write them in, Luke always runs the kinds
+of probe in this order, and probes of the same kind in the order they
+are written, with modules in name order:
 
 1. **checkprog**: `{checkprog='SH', progs={'dash', 'ash', 'sh'}}`
    finds the first of `progs` on your `PATH`, and returns its path.

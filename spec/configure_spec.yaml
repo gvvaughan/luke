@@ -139,6 +139,25 @@ specify luke.configure:
       expect(r.defines.HAVE_STAT_NOT_A_MEMBER).to_be(0)
       expect(r.defines.HAVE_STAT_ST_MODE).to_be(1)
 
+- describe run_configs:
+  - it runs probes of the same kind in the order they are written, by table key: |
+      configure, run_configs, L = setup()
+      checked = {}
+      L.verbose = function(s, what)
+         if s == 'checking ' then checked[#checked + 1] = what end
+      end
+      run_configs(L, env, {
+         modules = {
+            zz = {defines = {{HAVE_STRLEN = {checkfunc='strlen'}}}},
+            aa = {defines = {{HAVE_STRCHR = {checkfunc='strchr'}}}},
+         },
+         defines = {
+            {HAVE_PUTS = {checkfunc='puts'}},
+            {HAVE_PRINTF = {checkfunc='printf'}},
+         },
+      })
+      expect(checked).to_equal {'for puts', 'for printf', 'for strchr', 'for strlen'}
+
 - describe checkprog:
   - before:
       notreal = '|not:a:real:program|'
