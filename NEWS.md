@@ -44,6 +44,11 @@
     and `doc/api` are the same, and diagnoses two entries for the same
     path spelled differently, or an empty path.
 
+  - The list entries of the `platforms` tables that apply follow those
+    of the list itself, least specific platform first, and a setting
+    for a more specific platform now always replaces the same setting
+    for a less specific one, or for no platform.
+
 ### Bug fixes:
 
   - Luke builds and installs in the same order on every run: modules

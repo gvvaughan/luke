@@ -688,17 +688,16 @@ end)end)local function match_uname(canon,uname,x)return match(uname,x)and canon[
 local function toplatforms(canon,uname)local literalkeys,patternkeys=partition(keys(canon),function(k)return sub(k,1,1)~='^'end)return(pluck(literalkeys,canon)or{})[uname]or dropuntil(map(patternkeys,bind(match_uname,{canon,uname})))or list('unix')end
 local supported=toplatforms(CANON,popen('uname -s'):read'*l')local function isplatform(x)return ALLPLATFORMS[x]~=nil
 end
-local function filter_platforms(t,using,predicate)local r,supported,isplatform={},using or supported,predicate or isplatform
-for k,v in next,t do
-if k=='platforms'then
-local matches=filter(supported,bind(get,{v}))local default=except(keys(v),isplatform)merge(r,hoist(matches,v)or pluck(default,v))elseif istable(v)then
-r[k]=filter_platforms(v,supported)else
-r[k]=r[k]or v
-end
-end
-return r
-end
-return{filter_platforms=filter_platforms,platforms=supported,toplatforms=toplatforms,}
+local function selected(platforms,supported,isplatform)local matches=map(filter(supported,bind(get,{platforms})),bind(get,{platforms}))return choose(isempty(matches),function()return{pluck(except(keys(platforms),isplatform),platforms)}end,function()return matches
+end)end
+local function layers(t,using,predicate)local supported,isplatform=using or supported,predicate or isplatform
+local own=pluck(except(keys(t),'platforms'),t)or{}return{own,unpack(reversed(selected(t.platforms or{},supported,isplatform)))}end
+local function filter_platforms(t,using,predicate,opaque)local supported,isplatform,opaque=using or supported,predicate or isplatform,opaque or{}local function narrow(v,k)return choose(opaque[k]or not istable(v),function()return v
+end,function()return filter_platforms(v,supported,isplatform,opaque)end)end
+local tables=map(layers(t,supported,isplatform),function(layer)return layer.platforms and narrow(layer)or layer
+end)local r=reduce(tables,{},function(r,layer)map(layer,function(v)r[len(r)+1]=narrow(v)end)end)return reduce(reversed(tables),r,function(r,layer)map(filter(keys(layer),function(k)return not islistkey(layer,k)and r[k]==nil
+end),function(k)r[k]=narrow(layer[k],k)end)end)end
+return{filter_platforms=filter_platforms,isplatform=isplatform,layers=layers,platforms=supported,toplatforms=toplatforms,}
 end
 package.preload['luke.release']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.environment','luke.functional','luke.lukefile','type.context-manager','type.path',date=os.date,}local PLACEHOLDER='\n(## [^\n]*%?%.%?[^\n]*\n)'local MODREV="^(local _MODREV, _SPECREV = ')[^']*(')"local DEVROCKSPEC='^(.-%-)dev(%-%d+%.rockspec)$'local function git(env,...)local status,err,out=spawn(env,'git',...)if status==0 then
@@ -824,8 +823,8 @@ end
 return{copies=copies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/2478ff7',versiontext=[[
-luke (Luke) gvv/2478ff7
+return{VERSION='gvv/cb72b19',versiontext=[[
+luke (Luke) gvv/cb72b19
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

@@ -105,58 +105,112 @@ specify luke.platforms:
       expect(filter_platforms(unfiltered, list('matching', 'repeating'), isplatform)).
          to_equal {unaffected=true, match=1, mismatch=0}
 
+  - it gives precedence to elements from platform matches over the rest: |
+      t = {match = 'parent', platforms = {matching = {match = 'platform'}}}
+      expect(filter_platforms(t, list('matching'), isplatform)).to_equal {match = 'platform'}
+
+  - it appends the list entries of each match, least specific first: |
+      t = {'a', platforms = {matching = {'b', 'c'}, repeating = {'d'}, mismatching = {'x'}}}
+      expect(filter_platforms(t, list('repeating', 'matching'), isplatform)).
+         to_equal {'a', 'b', 'c', 'd'}
+
+  - it leaves alone the tables it is told to: |
+      t = {defines = {'a', platforms = {matching = {'b'}}}, other = {platforms = {matching = {'c'}}}}
+      expect(filter_platforms(t, list('matching'), isplatform, {defines = true})).
+         to_equal {defines = {'a', platforms = {matching = {'b'}}}, other = {'c'}}
+
+  - it leaves those tables alone within platform tables too: |
+      t = {platforms = {matching = {defines = {platforms = {matching = {'b'}}}}}}
+      expect(filter_platforms(t, list('matching'), isplatform, {defines = true})).
+         to_equal {defines = {platforms = {matching = {'b'}}}}
+
+  - it appends the list entries of the defaults without a match: |
+      t = {'a', platforms = {matching = {'x'}, 'b'}}
+      expect(filter_platforms(t, list('no match'), isplatform)).to_equal {'a', 'b'}
+
+  - it narrows the list entries themselves: |
+      t = {{A = 1}, {platforms = {matching = {B = 2}, C = 3}}}
+      expect(filter_platforms(t, list('matching'), isplatform)).to_equal {{A = 1}, {B = 2}}
+
+  - it narrows nested tables with the same platforms predicate: |
+      t = {sub = {platforms = {matching = {x = 1}, default = 1}}}
+      expect(filter_platforms(t, list('matching'), isplatform)).to_equal {sub = {x = 1}}
+
   - it falls back to defaults with no matching system:
       expect(filter_platforms(unfiltered, list('no matches'), isplatform)).
          to_equal {unaffected=true, default=1, other=1}
 
+- describe layers:
+  - before:
+      layers = platforms_on 'Linux'.layers
+      isplatform = function(x)
+         return set('matching', 'mismatching', 'repeating')[x]
+      end
+
+  - it lists the table, then each match, least specific first: |
+      t = {'a', x = 1, platforms = {matching = {'b'}, repeating = {'c'}, mismatching = {'d'}}}
+      expect(layers(t, list('repeating', 'matching'), isplatform)).
+         to_equal {{'a', x = 1}, {'b'}, {'c'}}
+
+  - it lists the table, then its defaults, without a match: |
+      t = {'a', platforms = {matching = {'b'}, 'c', y = 2}}
+      expect(layers(t, list('no match'), isplatform)).to_equal {{'a'}, {'c', y = 2}}
+
+  - it lists only the table without platforms: |
+      expect(layers({'a'}, list('matching'), isplatform)).to_equal {{'a'}}
+
+  - it uses the platforms of the host by default: |
+      t = {'a', platforms = {linux = {'b'}, unix = {'c'}, macosx = {'d'}}}
+      expect(layers(t)).to_equal {{'a'}, {'c'}, {'b'}}
+
 - describe luaposix lukefile:
   - before:
       defines  = {
-         PACKAGE           = '"package"',
-         VERSION           = '"version"',
-         NDEBUG            = 1,
-         _FORTIFY_SOURCE   = 2,
+         {PACKAGE = '"package"'},
+         {VERSION = '"version"'},
+         'NDEBUG',
+         '_FORTIFY_SOURCE=2',
          platforms   = {
-            aix      = {_ALL_SOURCE       = 1},
-            bsd      = {_BSD_SOURCE       = 1},
-            freebsd  = {__BSD_VISIBLE     = 1},
-            macosx   = {_DARWIN_C_SOURCE  = 1},
-            qnx      = {_POSIX_C_SOURCE   = '200112L'},
+            aix      = {'_ALL_SOURCE'},
+            bsd      = {'_BSD_SOURCE'},
+            freebsd  = {'__BSD_VISIBLE'},
+            macosx   = {'_DARWIN_C_SOURCE'},
+            qnx      = {'_POSIX_C_SOURCE=200112L'},
             unix     = {
-               _POSIX_C_SOURCE   = '200809L',
-               _XOPEN_SOURCE     = 700,
+               '_POSIX_C_SOURCE=200809L',
+               '_XOPEN_SOURCE=700',
             },
-            _POSIX_C_SOURCE      = '200809L',
+            '_POSIX_C_SOURCE=200809L',
          },
       }
 
   - it gets the right defines on QNX:
       expect(platforms_on 'QNX'.filter_platforms(defines)).to_equal {
-         PACKAGE           = '"package"',
-         VERSION           = '"version"',
-         NDEBUG            = 1,
-         _FORTIFY_SOURCE   = 2,
-         _POSIX_C_SOURCE   = '200112L',
+         {PACKAGE = '"package"'},
+         {VERSION = '"version"'},
+         'NDEBUG',
+         '_FORTIFY_SOURCE=2',
+         '_POSIX_C_SOURCE=200112L',
       }
 
   - it gets the right defines on Darwin:
       expect(platforms_on 'Darwin'.filter_platforms(defines)).to_equal {
-         PACKAGE           = '"package"',
-         VERSION           = '"version"',
-         NDEBUG            = 1,
-         _BSD_SOURCE       = 1,
-         _DARWIN_C_SOURCE  = 1,
-         _POSIX_C_SOURCE   = '200809L',
-         _XOPEN_SOURCE     = 700,
-         _FORTIFY_SOURCE   = 2,
+         {PACKAGE = '"package"'},
+         {VERSION = '"version"'},
+         'NDEBUG',
+         '_FORTIFY_SOURCE=2',
+         '_POSIX_C_SOURCE=200809L',
+         '_XOPEN_SOURCE=700',
+         '_BSD_SOURCE',
+         '_DARWIN_C_SOURCE',
       }
 
   - it gets the right defines on Linux:
       expect(platforms_on 'Linux'.filter_platforms(defines)).to_equal {
-         PACKAGE           = '"package"',
-         VERSION           = '"version"',
-         NDEBUG            = 1,
-         _FORTIFY_SOURCE   = 2,
-         _POSIX_C_SOURCE   = '200809L',
-         _XOPEN_SOURCE     = 700,
+         {PACKAGE = '"package"'},
+         {VERSION = '"version"'},
+         'NDEBUG',
+         '_FORTIFY_SOURCE=2',
+         '_POSIX_C_SOURCE=200809L',
+         '_XOPEN_SOURCE=700',
       }

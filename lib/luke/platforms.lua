@@ -62,28 +62,69 @@ local function isplatform(x)
 end
 
 
--- Recursively narrow any dict with elements named `platform`, putting only
--- sub-elements that match one of the listed platforms.  If there are no
--- matching sub-elements, then all non-platform sub-elements are kept instead.
-local function filter_platforms(t, using, predicate)
-   local r, supported, isplatform = {}, using or supported, predicate or isplatform
-   for k, v in next, t do
-      if k == 'platforms' then
-         local matches = filter(supported, bind(get, {v}))
-         local default = except(keys(v), isplatform)
-         merge(r, hoist(matches, v) or pluck(default, v))
-      elseif istable(v) then
-         r[k] = filter_platforms(v, supported)
-      else
-         r[k] = r[k] or v
-      end
+-- The tables in *platforms* for each of the *supported* platforms, most
+-- specific first, or else a table of its other elements as defaults.
+local function selected(platforms, supported, isplatform)
+   local matches = map(filter(supported, bind(get, {platforms})), bind(get, {platforms}))
+   return choose(isempty(matches), function()
+      return {pluck(except(keys(platforms), isplatform), platforms)}
+   end, function()
+      return matches
+   end)
+end
+
+
+-- The tables that apply to dict *t* on the *supported* platforms, least
+-- specific first: *t* itself without its `platforms`, then its table
+-- there for each supported platform, or else its defaults.
+local function layers(t, using, predicate)
+   local supported, isplatform = using or supported, predicate or isplatform
+   local own = pluck(except(keys(t), 'platforms'), t) or {}
+   return {own, unpack(reversed(selected(t.platforms or {}, supported, isplatform)))}
+end
+
+
+-- Recursively narrow any dict with elements named `platforms`, putting
+-- only sub-elements that match one of the listed platforms.  If there
+-- are no matching sub-elements, then all non-platform sub-elements are
+-- kept instead.  The list entries of each match follow those of the
+-- dict, least specific first, while any other element of a match takes
+-- precedence over the same element of a less specific match, or of the
+-- dict itself.  An element named in *opaque* is left alone, for its
+-- normalizer to narrow.
+local function filter_platforms(t, using, predicate, opaque)
+   local supported, isplatform, opaque = using or supported, predicate or isplatform, opaque or {}
+   local function narrow(v, k)
+      return choose(opaque[k] or not istable(v), function()
+         return v
+      end, function()
+         return filter_platforms(v, supported, isplatform, opaque)
+      end)
    end
-   return r
+
+   -- A platform table may have platforms of its own.
+   local tables = map(layers(t, supported, isplatform), function(layer)
+      return layer.platforms and narrow(layer) or layer
+   end)
+   local r = reduce(tables, {}, function(r, layer)
+      map(layer, function(v)
+         r[len(r) + 1] = narrow(v)
+      end)
+   end)
+   return reduce(reversed(tables), r, function(r, layer)
+      map(filter(keys(layer), function(k)
+         return not islistkey(layer, k) and r[k] == nil
+      end), function(k)
+         r[k] = narrow(layer[k], k)
+      end)
+   end)
 end
 
 
 return {
    filter_platforms = filter_platforms,
+   isplatform = isplatform,
+   layers = layers,
    platforms = supported,
    toplatforms = toplatforms,
 }
