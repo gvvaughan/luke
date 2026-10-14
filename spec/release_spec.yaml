@@ -65,6 +65,22 @@ before: |
   -- tree alone.
   WORKTREES = 'worktree /src/demo\nHEAD abc123\nbranch refs/heads/master\n\n'
 
+  -- The command, as spawn sees it, that copies *source* to *path* in the
+  -- worktree, which commands name as WORKTREE, or when *optional* only
+  -- if the release has it, quoting each word as shellword does.
+  function copying(source, path, optional)
+     local q = require 'luke.environment'.shellword
+     local dest = 'WORKTREE/' .. path
+     local dir = dest:gsub('/[^/]*$', '')
+     local copy = string.format("git -C WORKTREE rm -r --quiet --ignore-unmatch -- %s ':(exclude)*.in'"
+        .. ' && if test -d %s; then $MAKEDIRS %s && cp -R %s/. %s; else $MAKEDIRS %s && cp %s %s; fi',
+        q(path), q(source), q(dest), q(source), q(dest), q(dir), q(source), q(dest))
+     if optional then
+        return string.format('if test -e %s; then %s; fi', q(source), copy)
+     end
+     return copy
+  end
+
   -- The results in *r*, with a *branch* (gh-pages, unless given) that
   -- has a _config.yml.in *template*, and which runs every command for
   -- copying GHPAGES there successfully.
@@ -81,9 +97,9 @@ before: |
         h:close()
         return 0, '', ''
      end
-     r['if test -e _config.yml.in; then rm -rf WORKTREE/_config.yml.in && $MAKEDIRS WORKTREE && cp -R _config.yml.in WORKTREE/_config.yml.in; fi'] = list(0, '', '')
-     r['rm -rf WORKTREE/api && $MAKEDIRS WORKTREE && cp -R doc/api WORKTREE/api'] = list(0, '', '')
-     r['rm -rf WORKTREE/index.md && $MAKEDIRS WORKTREE && cp -R doc/demo.md WORKTREE/index.md'] = list(0, '', '')
+     r[copying('_config.yml.in', '_config.yml.in', true)] = list(0, '', '')
+     r[copying('doc/api', 'api')] = list(0, '', '')
+     r[copying('doc/demo.md', 'index.md')] = list(0, '', '')
      r["git -C WORKTREE add -A && git -C WORKTREE commit -m '" .. branch .. ": update to $package 1.0.'"] = list(0, '', '')
      changes(r, "git -C WORKTREE add -A && git -C WORKTREE commit -m '" .. branch .. ": update to $package 1.0.'",
         'git rev-parse refs/heads/' .. branch, list(0, '', 'cde345\n'))
@@ -516,9 +532,9 @@ specify luke.release:
         expect(release(L, env, build)).to_be(0)
         expect(published).to_be 'name: Demo\nrelease-no: 1.0\n'
         expect(L.write[4]).to_match '^git worktree add %-%-quiet %S+ gh%-pages$'
-        expect(L.write[5]).to_match '^rm %-rf %S+/api && mkdir %-p %S+ && cp %-R doc/api %S+/api$'
-        expect(L.write[6]).to_match '^rm %-rf %S+/index%.md && mkdir %-p %S+ && cp %-R doc/demo%.md %S+/index%.md$'
-        expect(L.write[7]).to_match '^if test %-e _config%.yml%.in; then rm %-rf %S+/_config%.yml%.in && mkdir %-p %S+ && cp %-R _config%.yml%.in %S+/_config%.yml%.in; fi$'
+        expect(L.write[5]).to_match "^git %-C %S+ rm %-r %-%-quiet %-%-ignore%-unmatch %-%- api ':%(exclude%)%*%.in' && if test %-d doc/api; then "
+        expect(L.write[6]).to_match "^git %-C %S+ rm %-r %-%-quiet %-%-ignore%-unmatch %-%- index%.md ':%(exclude%)%*%.in' && "
+        expect(L.write[7]).to_match "^if test %-e _config%.yml%.in; then git %-C %S+ rm "
         expect(L.write[8]).to_match '^creating %S+/_config%.yml$'
     - it fills a renamed template from the release, without copying it: |
         template = os.tmpname() .. '.in'
@@ -539,13 +555,22 @@ specify luke.release:
         expect(L.write[6]).to_match '^git %-C '
     - it quotes paths with shell metacharacters: |
         spawned = with_ghpages(passing(), '')
-        spawned["rm -rf 'WORKTREE/my docs' && $MAKEDIRS WORKTREE && cp -R 'doc/my docs' 'WORKTREE/my docs'"] = list(0, '', '')
+        spawned[copying('doc/my docs', 'my docs')] = list(0, '', '')
         release = setup(spawned)
         L = mkL {['gh-pages'] = ghpages {{['my docs'] = 'doc/my docs/'}}}
         expect(release(L, env, build)).to_be(0)
+    - it copies to the root of the branch like any other path: |
+        spawned = with_ghpages(passing(), '')
+        spawned[copying('doc', '.')] = list(0, '', '')
+        spawned[copying('doc/plus1.html', '+1.html')] = list(0, '', '')
+        release = setup(spawned)
+        L = mkL {['gh-pages'] = ghpages {{['./'] = 'doc/'}, {['+1.html'] = 'doc/plus1.html'}}}
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[5]).to_match "^git %-C %S+ rm %-r %-%-quiet %-%-ignore%-unmatch %-%- %. ':%(exclude%)%*%.in' && if test %-d doc; then mkdir %-p %S+/%. && cp %-R doc/%. %S+/%.; "
+        expect(L.write[6]).to_match "%-%- %+1%.html "
     - it removes the worktree when a gh-pages step fails: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
-        spawned['rm -rf WORKTREE/api && $MAKEDIRS WORKTREE && cp -R doc/api WORKTREE/api'] = list(1, '', '')
+        spawned[copying('doc/api', 'api')] = list(1, '', '')
         spawned['git worktree remove --force WORKTREE'] = function(worktree)
            os.execute("rm -rf '" .. worktree .. "'")
            return 0, '', ''
@@ -639,3 +664,66 @@ specify luke.release:
         L.dryrun = true
         expect(release(L, env, build)).to_be(0)
         expect(slurp(RELEASED)).to_be(nil)
+
+- describe copy_command:
+  - before: |
+      E = require 'luke.environment'
+      copy_command = reload 'luke.release'.copy_command
+
+      -- A scratch git repository holding each of *files*, a table of
+      -- paths and contents, committed; and its path.
+      function repository(files)
+         local repo = os.tmpname()
+         os.remove(repo)
+         assert(os.execute("mkdir -p '" .. repo .. "'"))
+         for path, content in pairs(files) do
+            os.execute("mkdir -p '" .. (repo .. '/' .. path):gsub('/[^/]*$', '') .. "'")
+            local h = assert(io.open(repo .. '/' .. path, 'w'))
+            h:write(content)
+            h:close()
+         end
+         os.execute("cd '" .. repo .. "' && git init -q 2>/dev/null && git add -A && "
+            .. "git -c user.name=x -c user.email=x commit -q --no-verify -m x")
+         return repo
+      end
+
+      -- Run the command to copy *source* to *path* in *repo*.
+      function copy(source, repo, path, optional)
+         local env = E.mkenv(E.DEFAULTENV)
+         return os.execute(E.interpolate(env, copy_command(source, repo, path, optional)) .. ' 2>/dev/null')
+      end
+
+      function exists(path)
+         local h = io.open(path)
+         return h ~= nil and h:close()
+      end
+  - after: |
+      os.execute("rm -rf '" .. src .. "' '" .. repo .. "'")
+
+  - it replaces a directory, removing what the release no longer has, but not templates: |
+      repo = repository {['api/old.html'] = 'old', ['api/keep.in'] = 'keep', ['index.md'] = 'index'}
+      src = repository {['api/new.html'] = 'new'}
+      copy(src .. '/api', repo, 'api')
+      expect(exists(repo .. '/api/new.html')).to_be(true)
+      expect(exists(repo .. '/api/old.html')).to_be(false)
+      expect(exists(repo .. '/api/keep.in')).to_be(true)
+      expect(exists(repo .. '/index.md')).to_be(true)
+  - it replaces everything but templates at the root: |
+      repo = repository {['index.html'] = 'old', ['modules/old.html'] = 'old', ['_config.yml.in'] = 'cfg'}
+      src = repository {['index.html'] = 'new', ['modules/new.html'] = 'new'}
+      copy(src, repo, '.')
+      expect(exists(repo .. '/modules/new.html')).to_be(true)
+      expect(exists(repo .. '/modules/old.html')).to_be(false)
+      expect(exists(repo .. '/_config.yml.in')).to_be(true)
+      expect(exists(repo .. '/.git')).to_be(true)
+      h = io.open(repo .. '/index.html'); expect(h:read '*a').to_be 'new'; h:close()
+  - it replaces a file: |
+      repo = repository {['index.md'] = 'old'}
+      src = repository {['doc/demo.md'] = 'new'}
+      copy(src .. '/doc/demo.md', repo, 'index.md')
+      h = io.open(repo .. '/index.md'); expect(h:read '*a').to_be 'new'; h:close()
+  - it copies an optional path only if the release has it: |
+      repo = repository {['index.md'] = 'old'}
+      src = repository {['other'] = ''}
+      copy(src .. '/index.md', repo, 'index.md', true)
+      h = io.open(repo .. '/index.md'); expect(h:read '*a').to_be 'old'; h:close()

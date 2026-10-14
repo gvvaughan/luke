@@ -629,10 +629,11 @@ Then Luke:
 Any other key in the `release` table names a branch to copy release
 files to, such as `gh-pages` for GitHub Pages.  Its table is a list,
 like `modules`, which Luke copies in the order written.  Each entry is
-a table pairing a path on that branch with the file or directory in
-the release that replaces it, or else a path on its own that is the
-same in both, which is copied only if the release has it.  [Specl]
-publishes its manual and API documentation like this:
+a pair mapping a path on that branch with the file or directory in
+the release that replaces it. A path string alone denotes the same
+path in both branchas and is copied only if the release has it.
+For example, [Specl] publishes its manual and API documentation like
+this:
 
 {% highlight lua %}
     ['gh-pages'] = {
@@ -650,6 +651,18 @@ branch when the release has none, so a template such as
 
 {% highlight yaml %}
     release-no:   @version@
+{% endhighlight %}
+
+Each copy first removes what the branch has at that path, apart from
+its templates, so that a file the release no longer has goes too, and
+then copies the file, or the contents of the directory, into place.
+The root of the branch is `.`, so [LYAML] publishes its [LDoc] output
+there, keeping only the templates already on `gh-pages`:
+
+{% highlight lua %}
+    ['gh-pages'] = {
+       {['.'] = 'doc/'},
+    }
 {% endhighlight %}
 
 

@@ -26,6 +26,12 @@
     prints what it would do, and after a failed step, Luke prints the
     commands to undo the release so far.
 
+  - Each copy to a branch named in the `release` table replaces what the
+    branch has at that path, apart from its templates, so that a file
+    the release no longer has goes too, and copying a directory to `.`
+    publishes its contents at the root, as for LDoc output on
+    `gh-pages`.
+
   - `$gitref` is the abbreviated hash of the commit checked out, and
     `$abs_top_srcdir` the absolute path of the source tree, so that
     `version = '$USER/$gitref'` identifies who built an unreleased

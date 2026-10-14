@@ -104,22 +104,23 @@ local function set_modrev(text, version)
 end
 
 
--- The command to replace *dest* with a copy of the file or directory
--- *source*, or when *optional*, only if there is a *source*.
-local function copy_command(source, dest, optional)
+-- The command to replace what is at *path* on the branch checked out in
+-- *worktree* with a copy of the file (or the contents of the directory)
+-- *source* if any.  Remove what is there first except templates.
+local function copy_command(source, worktree, path, optional)
+   local dest = worktree .. '/' .. path
    local from, to = shellword(source), shellword(dest)
-   local copy = format('rm -rf %s && $MAKEDIRS %s && cp -R %s %s', to, shellword(dirname(dest)), from, to)
+   local copy = format("git -C %s rm -r --quiet --ignore-unmatch -- %s ':(exclude)*.in'"
+      .. ' && if test -d %s; then $MAKEDIRS %s && cp -R %s/. %s; else $MAKEDIRS %s && cp %s %s; fi',
+      shellword(worktree), shellword(path), from, to, from, to, shellword(dirname(dest)), from, to)
    return choose(optional, format('if test -e %s; then %s; fi', from, copy), copy)
 end
 
 
 -- The steps for publishing each of *copies*, from a branch table in the
 -- lukefile `release` table, in the order written, to the *worktree* of
--- that branch: copy its source there, then fill a template into place
--- without its '.in' suffix, with values from *substitute*.  A template
--- under another name is filled straight from the release, and an
--- optional one from the copy on the branch, whether or not the release
--- has one to copy.
+-- that branch: copy its source there. A template is filled in place
+-- without its '.in' suffix.
 local function publish_steps(L, env, substitute, worktree, copies)
    return map(copies, function(pair)
       local path, copy = destructure(pair)
@@ -128,7 +129,7 @@ local function publish_steps(L, env, substitute, worktree, copies)
       local template = match(source, '%.in$') ~= nil
       return except(list(
          choose(optional or not template, function()
-            return bind(run, {L, env, copy_command(source, dest, optional)})
+            return bind(run, {L, env, copy_command(source, worktree, path, optional)})
          end),
          choose(template, function()
             return bind(edit, {L, choose(optional, dest, source), bind(expand, {substitute}),
@@ -239,6 +240,8 @@ end
 
 
 return {
+   copy_command = copy_command,
+
    -- Cut a release of `L.release`, configured by the lukefile `release`
    -- table, calling *build* to build everything for that version.
    release = function(L, env, build)

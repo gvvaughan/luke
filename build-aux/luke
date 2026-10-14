@@ -722,11 +722,12 @@ return 0
 end
 local function rockspec_name(rockspec,version)return(gsub(rockspec,DEVROCKSPEC,'%1'..version..'%2'))end
 local function set_modrev(text,version)return(gsub(text,MODREV,'%1'..version..'%2',1))end
-local function copy_command(source,dest,optional)local from,to=shellword(source),shellword(dest)local copy=format('rm -rf %s && $MAKEDIRS %s && cp -R %s %s',to,shellword(dirname(dest)),from,to)return choose(optional,format('if test -e %s; then %s; fi',from,copy),copy)end
+local function copy_command(source,worktree,path,optional)local dest=worktree..'/'..path
+local from,to=shellword(source),shellword(dest)local copy=format("git -C %s rm -r --quiet --ignore-unmatch -- %s ':(exclude)*.in'"..' && if test -d %s; then $MAKEDIRS %s && cp -R %s/. %s; else $MAKEDIRS %s && cp %s %s; fi',shellword(worktree),shellword(path),from,to,from,to,shellword(dirname(dest)),from,to)return choose(optional,format('if test -e %s; then %s; fi',from,copy),copy)end
 local function publish_steps(L,env,substitute,worktree,copies)return map(copies,function(pair)local path,copy=destructure(pair)local source,optional=copy.source,copy.optional
 local dest=worktree..'/'..path
 local template=match(source,'%.in$')~=nil
-return except(list(choose(optional or not template,function()return bind(run,{L,env,copy_command(source,dest,optional)})end),choose(template,function()return bind(edit,{L,choose(optional,dest,source),bind(expand,{substitute}),(gsub(dest,'%.in$',''))})end)),nil)end)end
+return except(list(choose(optional or not template,function()return bind(run,{L,env,copy_command(source,worktree,path,optional)})end),choose(template,function()return bind(edit,{L,choose(optional,dest,source),bind(expand,{substitute}),(gsub(dest,'%.in$',''))})end)),nil)end)end
 local function preconditions(env,release,version,main)local branch,tag='release-v'..version,'v'..version
 local name=choose(main~=nil,main,'a branch')local checkout=format('git checkout --force %s',name)local checks={{'the working tree is clean',function()return git(env,'status --porcelain')==''end,checkout},{format('%s is checked out',name),function()return main~=nil and git(env,'symbolic-ref --short HEAD')==main
 end,checkout},{'origin can be fetched',function()return git(env,'fetch --quiet origin')~=nil
@@ -747,7 +748,7 @@ return checks
 end
 local function undo_commands(checks)return reduce(filter(checks,function(check)local _,predicate,undo=unpack(check)return undo~=nil and not predicate()end),{},function(r,check)choose(not contains(r,check[3]),bind(append,{r,check[3]}))end)end
 local function generated(luke)return map(ordered_keys(luke.files),function(name)return script_target(name,ordered_get(luke.files,name))end)end
-return{release=function(L,env,build)local version,main=L.release,git(env,'symbolic-ref --short HEAD')local checks=preconditions(env,L.luke.release or{},version,main)local failed=dropuntil(checks,function(check)local description,predicate=unpack(check)L.verbose('checking whether ',description,'... ')local ok=predicate()L.verbose(ok and'yes\n'or'no\n')if not ok then
+return{copy_command=copy_command,release=function(L,env,build)local version,main=L.release,git(env,'symbolic-ref --short HEAD')local checks=preconditions(env,L.luke.release or{},version,main)local failed=dropuntil(checks,function(check)local description,predicate=unpack(check)L.verbose('checking whether ',description,'... ')local ok=predicate()L.verbose(ok and'yes\n'or'no\n')if not ok then
 return description
 end
 end)if failed~=nil then
@@ -836,8 +837,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/1b43673',versiontext=[[
-luke (Luke) gvv/1b43673
+return{VERSION='gvv/f9b1c44',versiontext=[[
+luke (Luke) gvv/f9b1c44
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
