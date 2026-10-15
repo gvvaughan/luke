@@ -665,6 +665,102 @@ specify luke.release:
         expect(release(L, env, build)).to_be(0)
         expect(slurp(RELEASED)).to_be(nil)
 
+  - context with replacements:
+    - before: |
+        README = os.tmpname()
+
+        function readme(content)
+           local h = assert(io.open(README, 'w'))
+           h:write(content)
+           h:close()
+           return README
+        end
+
+        BADGES = '[![ci](https://ci.example.com/o/demo/badge.svg?branch=master)]'
+           .. '(https://cov.example.com/o/demo?branch=master)\n'
+
+        -- A lukefile `replacements` table for README, normalized as
+        -- `loadluke` would.
+        function replacements(pairs)
+           return {{[README] = pairs}}
+        end
+
+        -- *L*, collecting each line of its --verbose output in
+        -- `L.reported`.
+        function verbosely(L)
+           L.reported, L.line = {}, ''
+           L.verbose = function(...)
+              L.line = L.line .. table.concat {...}
+              if L.line:match '\n$' then
+                 L.reported[#L.reported + 1], L.line = L.line, ''
+              end
+           end
+           return L
+        end
+    - after: |
+        os.remove(README)
+
+    - it replaces every occurrence in the file on the release branch: |
+        readme(BADGES)
+        release = setup(passing())
+        L = mkL {replacements = replacements {{['?branch=master'] = '?branch=release-v1.0'}}}
+        expect(release(L, env, build)).to_be(0)
+        expect(slurp(README)).to_be('[![ci](https://ci.example.com/o/demo/badge.svg?branch=release-v1.0)]'
+           .. '(https://cov.example.com/o/demo?branch=release-v1.0)\n')
+    - it fills @version@ in each replacement: |
+        readme(BADGES)
+        release = setup(passing())
+        L = mkL {replacements = replacements {{['?branch=master'] = '?branch=release-v@version@'}}}
+        expect(release(L, env, build)).to_be(0)
+        expect(slurp(README)).to_contain '?branch=release-v1.0)'
+    - it matches plain text, not Lua patterns: |
+        readme 'a.b-c?d %1 a+b-c?d\n'
+        release = setup(passing())
+        L = mkL {replacements = replacements {{['a.b-c?d'] = '%1'}}}
+        expect(release(L, env, build)).to_be(0)
+        expect(slurp(README)).to_be '%1 %1 a+b-c?d\n'
+    - it makes the replacements in the order written: |
+        readme 'one\n'
+        release = setup(passing())
+        L = mkL {replacements = replacements {{one = 'two'}, {two = 'three'}}}
+        expect(release(L, env, build)).to_be(0)
+        expect(slurp(README)).to_be 'three\n'
+    - it edits the file after branching, and commits it with the release: |
+        readme(BADGES)
+        release = setup(passing())
+        L = mkL {replacements = replacements {{['?branch=master'] = '?branch=release-v1.0'}}}
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[1]).to_be 'git checkout -b release-v1.0'
+        expect(L.write[2]).to_be('updating ' .. README)
+        expect(L.write[3]).to_be "git commit -a -m 'Release v1.0.'"
+    - it changes nothing with --dry-run: |
+        readme(BADGES)
+        release = setup(passing())
+        L = mkL {replacements = replacements {{['?branch=master'] = '?branch=release-v1.0'}}}
+        L.dryrun = true
+        expect(release(L, env, build)).to_be(0)
+        expect(slurp(README)).to_be(BADGES)
+        expect(L.write[2]).to_be('updating ' .. README)
+    - it diagnoses a missing file: |
+        os.remove(README)
+        release = setup(passing())
+        L = verbosely(mkL {replacements = replacements {{['?branch=master'] = '?branch=release-v1.0'}}})
+        expect(release(L, env, build)).to_be(1)
+        expect(L.reported[#L.reported]).to_be('checking whether ' .. README .. ' exists... no\n')
+    - it diagnoses text that the file does not contain: |
+        readme(BADGES)
+        release = setup(passing())
+        L = verbosely(mkL {replacements = replacements {{['/branch/master/'] = '/branch/release-v1.0/'}}})
+        expect(release(L, env, build)).to_be(1)
+        expect(L.reported[#L.reported]).to_be('checking whether ' .. README .. " contains '/branch/master/'... no\n")
+        expect(slurp(README)).to_be(BADGES)
+    - it is not a branch to copy files to: |
+        readme(BADGES)
+        release = setup(passing())
+        L = mkL {replacements = replacements {{['?branch=master'] = '?branch=release-v1.0'}}}
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[#L.write]).to_contain 'git push origin master release-v1.0 v1.0\n'
+
 - describe copy_command:
   - before: |
       E = require 'luke.environment'

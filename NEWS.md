@@ -32,6 +32,13 @@
     publishes its contents at the root, as for LDoc output on
     `gh-pages`.
 
+  - A `replacements` list in the `release` table edits files on the
+    release branch alone, replacing each text as written with a
+    template filled with the release `@version@`, in the order written,
+    such as to point README badges at `release-vX.Y` rather than
+    `master`.  Each file must exist and contain each text it replaces
+    before the release starts.
+
   - `$gitref` is the abbreviated hash of the commit checked out, and
     `$abs_top_srcdir` the absolute path of the source tree, so that
     `version = '$USER/$gitref'` identifies who built an unreleased

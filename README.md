@@ -2,7 +2,7 @@
 
 [![License](http://img.shields.io/:license-mit-blue.svg)](http://mit-license.org)
 [![workflow status](https://github.com/gvvaughan/luke/actions/workflows/spec.yml/badge.svg?branch=master)](https://github.com/gvvaughan/luke/actions)
-[![codecov.io](https://codecov.io/gh/gvvaughan/luke/branch/master/graph/badge.svg)](https://codecov.io/gh/gvvaughan/luke)
+[![codecov.io](https://codecov.io/gh/gvvaughan/luke/graph/badge.svg?branch=master)](https://codecov.io/gh/gvvaughan/luke?branch=master)
 
 [Luke][] is a lightweight, self-bootstrapping build utility for
 [LuaJIT][] and [Lua][] 5.1, 5.2, 5.3, 5.4 and 5.5.  It builds Lua and C

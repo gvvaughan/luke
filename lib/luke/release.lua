@@ -92,6 +92,17 @@ local function edit(L, path, fn, dest)
 end
 
 
+-- *text*, with every occurrence of each find string in the ordered map
+-- *pairs* replaced, in the order written, as plain text rather than as
+-- a pattern, by its replacement, filled from *substitute*.
+local function replace(text, substitute, pairs)
+   return reduce(pairs, text, function(r, pair)
+      local find, replacement = destructure(pair)
+      return (gsub(r, (gsub(find, '%p', '%%%0')), (gsub(expand(substitute, replacement), '%%', '%%%%'))))
+   end)
+end
+
+
 -- The release rockspec for *version*, from development *rockspec*.
 local function rockspec_name(rockspec, version)
    return (gsub(rockspec, DEVROCKSPEC, '%1' .. version .. '%2'))
@@ -143,8 +154,8 @@ end
 -- Each check that must pass before cutting a release of *version* from
 -- *main*, the branch checked out, as a description, a predicate, and
 -- the command that undoes what a failed release did to make it fail,
--- if any.
-local function preconditions(env, release, version, main)
+-- if any.  Replacements are filled from *substitute*.
+local function preconditions(env, release, version, main, substitute)
    local branch, tag = 'release-v' .. version, 'v' .. version
    local name = choose(main ~= nil, main, 'a branch')
    local checkout = format('git checkout --force %s', name)
@@ -179,6 +190,23 @@ local function preconditions(env, release, version, main)
          return news ~= nil and find(news, 'release ' .. version .. ' (', 1, true) == nil
       end})
    end
+
+   map(release.replacements or {}, function(entry)
+      local path, pairs = destructure(entry)
+      append(checks, {format('%s exists', path), function()
+         return exists(path)
+      end})
+      -- Each find string is looked for in the text that the
+      -- replacements before it leave.
+      reduce(pairs, {}, function(before, pair)
+         local text, earlier = destructure(pair), copy(before)
+         append(checks, {format("%s contains '%s'", path, text), function()
+            local content = slurp(File(path))
+            return content ~= nil and find(replace(content, substitute, earlier), text, 1, true) ~= nil
+         end})
+         append(before, pair)
+      end)
+   end)
 
    map(branches(release), function(pages)
       local copies = release[pages]
@@ -246,7 +274,8 @@ return {
    -- table, calling *build* to build everything for that version.
    release = function(L, env, build)
       local version, main = L.release, git(env, 'symbolic-ref --short HEAD')
-      local checks = preconditions(env, L.luke.release or {}, version, main)
+      local substitute = mkenv({version = version}, L.clidefs, L.luke.substitute, SHELLENV)
+      local checks = preconditions(env, L.luke.release or {}, version, main, substitute)
       local failed = dropuntil(checks, function(check)
          local description, predicate = unpack(check)
          L.verbose('checking whether ', description, '... ')
@@ -273,8 +302,6 @@ return {
          r[branch] = tmpname()
          rm(r[branch])
       end)
-      local substitute = mkenv({version = version}, L.clidefs, L.luke.substitute, SHELLENV)
-
       -- TODO: before branching, rename any PACKAGE-git-1.rockspec to
       -- PACKAGE-dev-1.rockspec, setting its _MODREV from 'git' to 'dev'.
       local steps = flatten(
@@ -284,6 +311,10 @@ return {
          },
          bind(run, {L, env, 'git checkout -b', 'release-v' .. version}),
          news and bind(edit, {L, news, remove_placeholder}),
+         map(rules.replacements or {}, function(entry)
+            local path, pairs = destructure(entry)
+            return bind(edit, {L, path, bind(replace, {[2]=substitute, [3]=pairs})})
+         end),
          function()
             if L.dryrun then
                L.write(format('building with version=%s', version), '\n')

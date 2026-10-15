@@ -562,6 +562,11 @@ is:
     release = {
        news         = 'NEWS.md',
        rockspec     = 'luke-dev-1.rockspec',
+       replacements = {
+          {['README.md'] = {
+             {['?branch=master'] = '?branch=release-v@version@'},
+          }},
+       },
        ['gh-pages'] = {
           {['index.md'] = 'doc/luke.md'},
           '_config.yml.in',
@@ -595,6 +600,9 @@ Luke checks, before changing anything, that:
     local _MODREV, _SPECREV = 'dev', '-1'
 {% endhighlight %}
 
+ * each file in `replacements` exists, and has each text it replaces,
+   after the replacements written before it (see
+   [Replacements](#84-replacements));
  * each branch that the release copies files to, such as `gh-pages`, is
    up to date with origin, and is not checked out in another worktree,
    as Luke updates it in a worktree of its own; and each template
@@ -616,8 +624,8 @@ Then Luke:
 
         ## Noteworthy changes in release 1.2 (2026-10-13) [stable]
 
-2. checks out a new `release-vX.Y` branch, and removes the placeholder
-   from `news` there;
+2. checks out a new `release-vX.Y` branch, removes the placeholder
+   from `news` there, and makes the `replacements`;
 3. builds everything with `version=X.Y`;
 4. writes the release rockspec, such as `luke-X.Y-1.rockspec`, with
    `_MODREV` set to X.Y, in place of `rockspec`;
@@ -676,6 +684,28 @@ there, keeping only the templates already on `gh-pages`:
     }
 {% endhighlight %}
 
+### 8.4. Replacements
+
+A `replacements` list edits files on the release branch alone, such as
+README badges that show the status of `master`, which should show the
+release branch instead.  Like `modules`, it is a list of tables that
+each pair a file with its own list of `{text = replacement}` pairs:
+
+{% highlight lua %}
+    replacements = {
+       {['README.md'] = {
+          {['?branch=master'] = '?branch=release-v@version@'},
+       }},
+    }
+{% endhighlight %}
+
+Luke replaces every occurrence of each text, as written rather than as
+a Lua pattern, in the order written, so that a later text can match
+what an earlier replacement wrote.  A replacement is a
+[template](#43-templates), with `@version@` set to X.Y.  The release
+commits the edited files with everything else, and the branch checked
+out keeps them as they were.
+
 
 ## 9. Lukefile Reference
 
@@ -707,9 +737,10 @@ and `./` is `.`, the directory itself.  It leaves `..` alone.
 | `ldocs`                 | an LDoc configuration file                                   | [3.6](#36-ldocs) |
 | `variables`             | variable names, each mapped to a value                       | [4.1](#41-variables) |
 | `substitute`            | template names, each mapped to a value                       | [4.3](#43-templates) |
-| `release`               | a table with `news`, `rockspec`, `add` and branches          | [8](#8-releases) |
+| `release`               | a table with `news`, `rockspec`, `add`, `replacements` and branches | [8](#8-releases) |
 | `release.news`          | the NEWS file                                                | [8.1](#81-checks), [8.2](#82-steps) |
 | `release.rockspec`      | the development rockspec                                     | [8.1](#81-checks), [8.2](#82-steps) |
+| `release.replacements`  | `{path = {{text = replacement}, ...}}` entries, in order     | [8.4](#84-replacements) |
 | `release.add`           | a list of paths to commit to the release                     | [8.2](#82-steps) |
 | `release[branch]`       | `{path = source}` entries, or paths on their own, in order   | [8.3](#83-publishing-to-branches) |
 

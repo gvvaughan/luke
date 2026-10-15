@@ -117,6 +117,28 @@ specify luke:
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error "bad release['gh-pages'][1].api: string expected, got number"
+  - it diagnoses malformed release replacements at their path: |
+      spit(fname, [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+         release = {replacements = {{['README.md'] = {{['?branch=master'] = 42}}}}}
+      ]])
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "bad release.replacements[1]['README.md'][1]['?branch=master']: string expected, got number"
+  - it diagnoses replacements written as a keyed table: |
+      spit(fname, [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+         release = {replacements = {{['README.md'] = {['?branch=master'] = 'x'}}}}
+      ]])
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "list entry expected"
   - it diagnoses malformed modules at their path: |
       spit(fname, "luke_format = 0\nmodules = {{['a.b'] = 42}}")
       p = luke('--file=' .. fname)
@@ -144,6 +166,7 @@ specify luke:
             add = {'doc/'},
             news = './NEWS.md',
             rockspec = './example-dev-1.rockspec',
+            replacements = {{['./README.md'] = {{['?branch=master'] = '?branch=release-v@version@'}}}},
             ['gh-pages'] = {{['./'] = 'doc/'}},
          }
       ]])
@@ -155,6 +178,9 @@ specify luke:
       expect(luke.release.add).to_equal {'doc'}
       expect(luke.release.news).to_be 'NEWS.md'
       expect(luke.release.rockspec).to_be 'example-dev-1.rockspec'
+      expect(luke.release.replacements).to_equal {
+         {['README.md'] = {{['?branch=master'] = '?branch=release-v@version@'}}},
+      }
       expect(luke.release['gh-pages']).to_equal {{['.'] = {optional = false, source = 'doc'}}}
   - it keeps defines in order, with platform defines after the rest: |
       spit(fname, [[
