@@ -34,8 +34,6 @@ local function build_script(L, env, substitute, entry)
    if isstring(rules) then
       fill_template(L, substitute, rules)
    else
-      -- TODO: a template shared with a module being built is filled
-      -- twice.
       local sources = map(rules.sources, function(source)
          return fill_template(L, substitute, source)
       end)

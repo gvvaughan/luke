@@ -140,18 +140,22 @@ local function fill_templates(env, src, dest)
          cm:write(expand(env, line) .. '\n')
       end
    end)
-   return dest
 end
 
 
 local function rewrite_template_files(L, env, source)
    return case(source, {
       ['(.+)%.in'] = function(r)
-         L.write('creating ' .. r .. '\n')
-         if L.dryrun then
-            return r
+         -- Fill each template once, even when a module and a script
+         -- share it.
+         if not L.filled[r] then
+            L.filled[r] = true
+            L.write('creating ' .. r .. '\n')
+            if not L.dryrun then
+               fill_templates(env, r .. '.in', r)
+            end
          end
-         return fill_templates(env, r .. '.in', r)
+         return r
       end,
 
       source,

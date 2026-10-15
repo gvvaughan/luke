@@ -396,6 +396,23 @@ specify luke:
   - it writes nothing with --quiet: |
       expect(luke('--file=' .. fname, '--quiet', 'PREFIX=' .. tmpdir, 'all', 'install')).
          to_succeed_with ''
+  - it fills a template shared by a module and a script once: |
+      spit(fname, [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = ']] .. tmpdir .. [[/example.lua.in'}}
+         bin = {
+            {[']] .. tmpdir .. [[/bundle'] = {
+               command = 'cat $sources > $target',
+               sources = ']] .. tmpdir .. [[/example.lua.in',
+            }},
+         }
+      ]])
+      p = luke('--file=' .. fname)
+      expect(p).to_succeed()
+      expect(select(2, p.output:gsub('creating ', ''))).to_be(1)
+      expect(slurp(tmpdir .. '/bundle')).to_be "return 'example 1.0'\n"
   - it writes failing commands even with --quiet: |
       p = luke('--file=' .. fname, '--quiet', 'PREFIX=' .. tmpdir, 'install')
       expect(p).to_fail_while_containing 'example.lua'

@@ -269,6 +269,7 @@ return {
          clidefs = parsed.clidefs,
          debug   = parsed.debug,
          dryrun  = parsed.dryrun,
+         filled  = {},
          install = install,
          log     = parsed.log,
          luke    = luke,

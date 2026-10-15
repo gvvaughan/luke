@@ -131,6 +131,10 @@
     on every run, after all the probes of the kinds that run before
     them.
 
+  - A template that is a source of both a module and a script, such
+    as a `version.lua.in` bundled into a single-file program, is filled
+    once per run, rather than once for each.
+
   - A lone '@' in a template, such as in an email address, no longer
     removes the text up to the next '@'.  As with `$NAME` variables,
     only names made of word characters are expanded in `@NAME@`.
