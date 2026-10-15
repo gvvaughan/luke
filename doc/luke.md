@@ -121,10 +121,10 @@ earlier, whose syntax format 0 replaces.
 ### 3.1. Modules
 
 Like the rockspec `builtin` backend, `modules` maps each module name to
-its source, but as a list of pair tables that map each name with its
+its source, but as a list of pair tables that map each name to its
 source.  Luke builds and installs modules in the order written.
-Luke diagnoses module names used as top-level keys of the `modules`
-table, and a duplicate module names as syntax errers.
+Luke diagnoses a module name used as a top-level key of the `modules`
+table, or a module name written twice, as a syntax error.
 
 A Lua module is installed beneath `$INST_LUADIR`, and a C module is
 compiled to `$objdir/<name>.$LIB_EXTENSION` and then installed
@@ -563,7 +563,7 @@ is:
        news         = 'NEWS.md',
        rockspec     = 'luke-dev-1.rockspec',
        ['gh-pages'] = {
-          ['index.md'] = 'doc/luke.md',
+          {['index.md'] = 'doc/luke.md'},
           '_config.yml.in',
        },
     }
@@ -640,9 +640,9 @@ Then Luke:
 Any other key in the `release` table names a branch to copy release
 files to, such as `gh-pages` for GitHub Pages.  Its table is a list,
 like `modules`, which Luke copies in the order written.  Each entry is
-a pair mapping a path on that branch with the file or directory in
-the release that replaces it. A path string alone denotes the same
-path in both branchas and is copied only if the release has it.
+a pair mapping a path on that branch to the file or directory in the
+release that replaces it.  A path on its own stands for the same path
+in both, and is copied only if the release has it.
 For example, [Specl] publishes its manual and API documentation like
 this:
 
