@@ -238,7 +238,7 @@ written:
 
 {% highlight lua %}
     variables = {
-       HELP2MAN = 'help2man',
+       HELP2MAN = {checkprog='HELP2MAN', progs={'help2man', 'true'}},
     }
 
     files = {
@@ -250,8 +250,11 @@ written:
     }
 {% endhighlight %}
 
-`luke release` commits every generated file to the release branch, so
-that building a release needs none of the tools that made them.
+`luke release` commits every generated file to the release branch.
+Luke runs every rule when it builds, so to build a release without the
+tools that made them, find each tool with a `checkprog`
+[probe](#6-build-time-probes) that falls back to `true`, as above: a
+build without `help2man` then leaves the committed man page alone.
 
 ### 3.5. Settings for Every Module
 
@@ -324,6 +327,10 @@ in the environment:
        INST_LUADIR = '$PREFIX/share/lua',
     }
 {% endhighlight %}
+
+A variable can also be a [build-time probe](#6-build-time-probes),
+such as a `checkprog` that finds a program, which commands then see
+as the probe's result.
 
 Use `--value` to see what Luke makes of one:
 
@@ -443,8 +450,8 @@ Anything else is treated as `unix`.
 
 ## 6. Build-Time Probes
 
-Wherever a value in `defines` or `libraries` can go, you can put a
-probe, a table that Luke runs to compute the value on the build
+Wherever a value in `defines`, `libraries` or `variables` can go, you
+can put a probe, a table that Luke runs to compute the value on the build
 machine.  Whatever order you write them in, Luke always runs the kinds
 of probe in this order, and probes of the same kind in the order they
 are written:

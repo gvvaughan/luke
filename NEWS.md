@@ -32,6 +32,10 @@
     publishes its contents at the root, as for LDoc output on
     `gh-pages`.
 
+  - A `variables` entry can be a build-time probe, such as a
+    `checkprog` that falls back to `true`, so that a release builds
+    without the tool that made a committed generated file.
+
   - A `replacements` list in the `release` table edits files on the
     release branch alone, replacing each text as written with a
     template filled with the release `@version@`, in the order written,

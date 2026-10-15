@@ -69,6 +69,9 @@ local function build(L, env)
    -- TODO: this runs the probes in every bin and install.bin rule, even
    -- those not selected by the command line targets.
    L.luke = run_configs(L, conf, L.luke)
+   -- Commands expand the variables that probes have now set, such as a
+   -- program found with checkprog, while command line values still win.
+   env = mkenv(L.clidefs, L.luke.variables, env)
 
    local substitute = mkenv(L.clidefs, L.luke.substitute, SHELLENV)
    local status = 0
@@ -102,6 +105,9 @@ return {
       local status = 0
 
       if not isempty(L.valreqs) then
+         -- Only the probes in `variables` can set a value to print.
+         local probed = run_configs(L, mkenv(CONFIGENV, env), {variables = L.luke.variables})
+         env = mkenv(L.clidefs, probed.variables, env)
          map(L.valreqs, function(name)
             print(interpolate(env, concat {name, "='$", name, "'"}))
          end)
