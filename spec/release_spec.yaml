@@ -3,7 +3,8 @@
 
 before: |
   E = require 'luke.environment'
-  env = E.mkenv({package = 'demo'}, E.DEFAULTENV, E.SHELLENV)
+  -- GH=true skips the probe for gh, which only some hosts have.
+  env = E.mkenv({GH = 'true', package = 'demo'}, E.DEFAULTENV, E.SHELLENV)
 
   -- *r*, where running *command* changes the result of git *query* to
   -- *result*, as checking the release again after a failure sees.
@@ -38,7 +39,7 @@ before: |
         ['git ls-files --others --ignored --exclude-standard -- ' .. RELEASED] = list(0, '', ''),
         ['git ls-files --others --ignored --exclude-standard -- lib/demo.lua ' .. RELEASED] = list(0, '', ''),
         ["git commit -a -m 'Release v1.0.'"] = list(0, '', ''),
-        ['git tag v1.0'] = list(0, '', ''),
+        ['git tag -a --cleanup=verbatim v1.0 -F NOTES'] = list(0, '', ''),
         ['git checkout --quiet master'] = list(0, '', ''),
      }
      changes(r, "git commit -m 'maint: update NEWS.md for 1.0.' " .. NEWS,
@@ -47,7 +48,7 @@ before: |
         'git rev-parse --verify --quiet refs/heads/release-v1.0', list(0, '', 'bcd234\n'))
      changes(r, 'git checkout -b release-v1.0',
         'git symbolic-ref --short HEAD', list(0, '', 'release-v1.0\n'))
-     changes(r, 'git tag v1.0', 'git rev-parse --verify --quiet refs/tags/v1.0', list(0, '', 'bcd234\n'))
+     changes(r, 'git tag -a --cleanup=verbatim v1.0 -F NOTES', 'git rev-parse --verify --quiet refs/tags/v1.0', list(0, '', 'bcd234\n'))
      return r
   end
 
@@ -123,12 +124,18 @@ before: |
      local fatal = Stub()
      replace(require 'luke._base', 'fatal', fatal)
 
-     local worktree
+     local worktree, tags = nil, {}
      replace(require 'luke.compile', 'spawn', function(env, ...)
         local command = table.concat({...}, ' ')
         worktree = worktree or command:match '^git worktree add %-%-quiet (%S+) %S+$'
         if worktree ~= nil then
            command = command:gsub(worktree:gsub('%p', '%%%0'), 'WORKTREE')
+        end
+        -- Keep the message of an annotated tag, which luke removes after.
+        local notes = command:match '^git tag %-a %-%-cleanup=verbatim %S+ %-F (%S+)$'
+        if notes ~= nil then
+           tags[#tags + 1] = slurp(notes)
+           command = command:gsub(notes:gsub('%p', '%%%0'), 'NOTES')
         end
         local r = spawned[command]
         assert(r ~= nil, 'unexpected command: ' .. command)
@@ -139,7 +146,7 @@ before: |
      end)
 
      local release = reload 'luke.release'.release
-     return release, fatal
+     return release, fatal, tags
   end
 
   -- An `L` for releasing version 1.0, with *rules* as its lukefile
@@ -459,7 +466,22 @@ specify luke.release:
       L = mkL()
       expect(release(L, env, build)).to_be(0)
       expect(L.write[2]).to_be "git commit -a -m 'Release v1.0.'"
-      expect(L.write[3]).to_be 'git tag v1.0'
+      expect(L.write[3]).to_match '^git tag %-a %-%-cleanup=verbatim v1%.0 %-F %S+$'
+  - it tags the release with an announcement of its news: |
+      release, _, tags = setup(passing())
+      expect(release(mkL {news = fname}, env, build)).to_be(0)
+      expect(tags).to_equal {'I am happy to announce release 1.0 of demo.\n\n' ..
+         '## Noteworthy changes in release 1.0 (' .. TODAY .. ') [stable]\n\n  - a change\n'}
+  - it says how to announce the release with gh: |
+      release = setup(passing())
+      L = mkL()
+      expect(release(L, E.mkenv({GH = 'gh'}, env), build)).to_be(0)
+      expect(L.write[#L.write]).to_be "   gh release create v1.0 --verify-tag --latest --title '[ANN] demo v1.0 released' --notes-from-tag\n"
+  - it says nothing of gh without it: |
+      release = setup(passing())
+      L = mkL()
+      expect(release(L, env, build)).to_be(0)
+      expect(table.concat(L.write)).not_to_contain 'gh release'
   - it returns to master, and says how to publish the release: |
       release = setup(passing())
       L = mkL()
@@ -599,12 +621,12 @@ specify luke.release:
         expect(L.write[#L.write - 1]).to_match '^git worktree remove %-%-force %S+$'
     - it removes no worktree when a step fails before adding one: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
-        spawned['git tag v1.0'] = list(1, '', '')
+        spawned['git tag -a --cleanup=verbatim v1.0 -F NOTES'] = list(1, '', '')
         spawned['git worktree add --quiet WORKTREE gh-pages'] = nil
         release = setup(spawned)
         L = mkL(rules)
         expect(release(L, env, build)).to_be(1)
-        expect(L.write[#L.write - 1]).to_be 'git tag v1.0'
+        expect(L.write[#L.write - 1]).to_match '^git tag %-a %-%-cleanup=verbatim v1%.0 %-F %S+$'
     - it removes the worktree when the gh-pages commit fails: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
         spawned["git -C WORKTREE add -A && git -C WORKTREE commit -m 'gh-pages: update to $package 1.0.'"] = list(1, '', '')
@@ -684,6 +706,14 @@ specify luke.release:
         L.luke.files = {{['doc/demo.1'] = {command = 'true', sources = {'demo.in'}}}}
         expect(release(L, env, build)).to_be(0)
         expect(L.write[4]).to_be('git add -f lib/demo.lua lib/demo/version.lua doc/demo.1 ' .. RELEASED)
+    - it announces the project summary and home page, and how to install it: |
+        rockspec("local _MODREV, _SPECREV = 'dev', '-1'\n\npackage = 'demo'\n" ..
+           "description = {summary = 'A demo.', homepage = 'https://example.com/demo'}\n")
+        release, _, tags = setup(passing())
+        expect(release(mkL {rockspec = ROCKSPEC}, env, build)).to_be(0)
+        expect(tags).to_equal {"A demo.\n\nI am happy to announce release 1.0 of demo.\n\n" ..
+           "demo's home page is at https://example.com/demo\n\n" ..
+           "Install it with LuaRocks, using:\n\n    luarocks install demo 1.0\n"}
     - it says how to upload the release rockspec: |
         release = setup(passing())
         L = mkL {rockspec = ROCKSPEC}

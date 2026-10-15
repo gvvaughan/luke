@@ -660,16 +660,25 @@ Then Luke:
    ignores them, so that the release can be used, or its files copied
    by hand, without building anything; removes each line of a
    `.gitignore` that ignores them, so that the release branch ignores
-   nothing it tracks; and tags the commit `vX.Y`;
+   nothing it tracks; and tags the commit `vX.Y`, with an announcement
+   of the release as the tag message: the `description.summary` and
+   `description.homepage` from `rockspec`, the release's news from
+   `news`, and how to install it with LuaRocks, as far as the release
+   table has each of them;
 6. copies files to each branch that the release table names, such as
    `gh-pages`, and commits them;
 7. checks out that branch again, and prints the commands to publish the
    release, which for `master` are:
 
         git push origin master release-v1.2 v1.2 gh-pages
+        gh release create v1.2 --verify-tag --latest --title '[ANN] luke v1.2 released' --notes-from-tag
         git checkout release-v1.2
         luarocks upload luke-1.2-1.rockspec
         git checkout master
+
+   The `gh` command, which makes the tag the latest GitHub release and
+   its message the release notes, only appears when Luke finds `gh` on
+   the `PATH`, or `GH` names it; `GH=true` leaves it out.
 
 ### 8.3. Publishing to Branches
 

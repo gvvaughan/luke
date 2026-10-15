@@ -85,11 +85,12 @@ an up-to-date branch that origin can fetch, that neither the branch
 X.Y, and that each branch to publish to matches origin.  Then, as the
 lukefile 'release' table directs, it adds X.Y to NEWS, builds everything
 on a new release-vX.Y branch, writes the release rockspec, edits files for
-the release, commits generated files, tags vX.Y, and copies files to
-branches such as gh-pages, filling any templates there.  It pushes
-nothing, but prints the commands to publish the release.  With --dry-run,
-it prints the commands instead, and after a failed step, it prints the
-commands to undo the release so far.
+the release, commits generated files, tags vX.Y with an announcement of
+the release, and copies files to branches such as gh-pages, filling any
+templates there.  It pushes nothing, but prints the commands to publish
+the release, and to announce it with gh if that is on the PATH.  With
+--dry-run, it prints the commands instead, and after a failed step, it
+prints the commands to undo the release so far.
 
 The full manual is at https://gvvaughan.github.io/luke.
 

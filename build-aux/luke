@@ -702,7 +702,7 @@ end),function(k)r[k]=narrow(layer[k],k)end)end)end
 return{filter_platforms=filter_platforms,isplatform=isplatform,layers=layers,platforms=supported,toplatforms=toplatforms,}
 end
 package.preload['luke.release']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.environment','luke.functional','luke.lukefile','type.context-manager','type.path',date=os.date,}local PLACEHOLDER='\n(## [^\n]*%?%.%?[^\n]*\n)'local MODREV="^(local _MODREV, _SPECREV = ')[^']*(')"local DEVROCKSPEC='^(.-%-)dev(%-%d+%.rockspec)$'local function git(env,...)local status,err,out=spawn(env,'git',...)if status==0 then
+local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.configure','luke.environment','luke.functional','luke.lukefile','type.context-manager','type.path',date=os.date,}local PLACEHOLDER='\n(## [^\n]*%?%.%?[^\n]*\n)'local MODREV="^(local _MODREV, _SPECREV = ')[^']*(')"local DEVROCKSPEC='^(.-%-)dev(%-%d+%.rockspec)$'local function git(env,...)local status,err,out=spawn(env,'git',...)if status==0 then
 return(gsub(out,'\n$',''))end
 end
 local function has_placeholder(text)local header,body=match('\n'..text,'\n(## [^\n]*\n)(.*)')if header==nil or match('\n'..header,PLACEHOLDER)==nil then
@@ -711,10 +711,21 @@ end
 return match(match(body,'^(.-)\n## ')or body,'%S')~=nil
 end
 local function add_release_header(text,version,date)local header=format('## Noteworthy changes in release %s (%s) [stable]',version,date)return(gsub(text,PLACEHOLDER..'\n*','\n%1\n\n'..header..'\n\n',1))end
+local function release_news(text,version)local header='\n(## Noteworthy changes in release '..gsub(version,'%p','%%%0')..' %(.*)'local news=match('\n'..text,header)if news~=nil then
+return(gsub(match(news,'^(.-)\n## ')or news,'%s*$',''))end
+end
+local function rockspec_fields(text)local r={}local chunk=text and loadstring(text,'rockspec',r)if chunk==nil or not pcall(chunk)then
+return{}end
+return r
+end
+local function announcement(package,version,news,rockspec)local fields=rockspec_fields(rockspec)local description=istable(fields.description)and fields.description or{}package=isstring(fields.package)and fields.package or package
+local lines=flatten(isstring(description.summary)and{description.summary,''}or{},format('I am happy to announce release %s of %s.',version,package),'',isstring(description.homepage)and{format("%s's home page is at %s",package,description.homepage),''}or{},news and{news,''}or{},rockspec and{'Install it with LuaRocks, using:','',format('    luarocks install %s %s',package,version)}or{})return package,match(concat(lines,'\n'),'^(.-)%s*$')..'\n'end
 local function remove_placeholder(text)return(gsub(text,PLACEHOLDER..'\n?','\n',1))end
 local function run(L,env,...)local command=concat({...},' ')L.write(interpolate(env,command),'\n')local status,err=L.spawn(env,command)if status~=0 then
 stderr:write(err,'\n')end
 return status
+end
+local function tag(L,env,version,notes)local filename=tmpname()with(File(filename,'w'),function(h)h:write(notes)end)local status=run(L,env,'git tag -a --cleanup=verbatim','v'..version,'-F',filename)rm(filename)return status
 end
 local function edit(L,path,fn,dest)dest=dest or path
 L.write((dest==path and'updating 'or'creating ')..dest,'\n')if not L.dryrun then
@@ -779,9 +790,11 @@ end)if failed~=nil then
 fatal('cannot release %s: check failed: %s',version,failed)return 1
 end
 local rules=L.luke.release or{}local news,rockspec=rules.news,rules.rockspec
-local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.add,generated(L.luke),released)local pages=branches(rules)local worktrees=reduce(pages,{},function(r,branch)r[branch]=tmpname()rm(r[branch])end)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=date'%Y-%m-%d'})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),map(rules.replacements or{},function(entry)local path,pairs=destructure(entry)return bind(edit,{L,path,bind(replace,{[2]=substitute,[3]=pairs})})end),build,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and{bind(unignore,{L,env,added}),bind(run,{L,env,'git add -f',unpack(added)}),}or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(run,{L,env,'git tag','v'..version}),map(pages,function(branch)local worktree=worktrees[branch]return{bind(run,{L,env,'git worktree add --quiet',worktree,branch}),publish_steps(L,env,substitute,worktree,rules[branch]),bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m '%s: update to $package %s.'",branch,version)}),bind(run,{L,env,'git worktree remove',worktree}),}end),bind(run,{L,env,'git checkout --quiet',main}))local status=dropuntil(steps,isnonzero,call)or 0
+local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.add,generated(L.luke),released)local today=date'%Y-%m-%d'local package,notes=announcement((interpolate(env,L.luke.package)),version,news and release_news(add_release_header(slurp(File(news))or'',version,today),version),rockspec and slurp(File(rockspec)))local pages=branches(rules)local worktrees=reduce(pages,{},function(r,branch)r[branch]=tmpname()rm(r[branch])end)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=today})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),map(rules.replacements or{},function(entry)local path,pairs=destructure(entry)return bind(edit,{L,path,bind(replace,{[2]=substitute,[3]=pairs})})end),build,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and{bind(unignore,{L,env,added}),bind(run,{L,env,'git add -f',unpack(added)}),}or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(tag,{L,env,version,notes}),map(pages,function(branch)local worktree=worktrees[branch]return{bind(run,{L,env,'git worktree add --quiet',worktree,branch}),publish_steps(L,env,substitute,worktree,rules[branch]),bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m '%s: update to $package %s.'",branch,version)}),bind(run,{L,env,'git worktree remove',worktree}),}end),bind(run,{L,env,'git checkout --quiet',main}))local status=dropuntil(steps,isnonzero,call)or 0
 choose(status~=0,function()map(filter(sorted(values(worktrees)),exists),function(worktree)run(L,env,'git worktree remove --force',worktree)end)end)if status==0 then
-local pushed=flatten(main,'release-v'..version,'v'..version,pages)L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',version,concat(pushed,' ')))if released~=nil then
+local pushed=flatten(main,'release-v'..version,'v'..version,pages)L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',version,concat(pushed,' ')))local GH=env.GH or configure(L,env,{checkprog='GitHub CLI',progs={'gh','true'}})if GH~='true'then
+L.write(format("   %s release create v%s --verify-tag --latest --title '[ANN] %s v%s released' --notes-from-tag\n",GH,version,package,version))end
+if released~=nil then
 L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout %s\n',version,released,main))end
 else
 local undo=undo_commands(checks)choose(not isempty(undo),function()L.write(format('\nRelease v%s failed.  To undo it before trying again:\n\n%s',version,concat(map(undo,function(command)return'   '..command..'\n'end))))end)end
@@ -861,8 +874,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,luke_format=luke_format,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/cdf4258',versiontext=[[
-luke (Luke) gvv/cdf4258
+return{VERSION='gvv/cd50945',versiontext=[[
+luke (Luke) gvv/cd50945
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

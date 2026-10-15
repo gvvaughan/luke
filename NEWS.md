@@ -37,6 +37,13 @@
     filling any, so that `luke --dry-run install` shows where everything
     would go.
 
+  - `luke release` tags each release with an announcement: the
+    project's summary and home page from the rockspec, the release's
+    news, and how to install it with LuaRocks.  When `gh` is on the
+    `PATH`, Luke also prints the `gh release create` command that
+    publishes the tag as the latest GitHub release, with that
+    announcement as its notes.
+
   - A `variables` entry can be a build-time probe, such as a
     `checkprog` that falls back to `true`, so that a release builds
     without the tool that made a committed generated file.

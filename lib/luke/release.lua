@@ -6,6 +6,7 @@
 local _ENV = require 'luke.normalize' {
    'luke._base',
    'luke.compile',
+   'luke.configure',
    'luke.environment',
    'luke.functional',
    'luke.lukefile',
@@ -55,6 +56,47 @@ local function add_release_header(text, version, date)
 end
 
 
+-- The news for release *version* in NEWS *text*, from its header up to
+-- the header of the release before, if any.
+local function release_news(text, version)
+   local header = '\n(## Noteworthy changes in release ' .. gsub(version, '%p', '%%%0') .. ' %(.*)'
+   local news = match('\n' .. text, header)
+   if news ~= nil then
+      return (gsub(match(news, '^(.-)\n## ') or news, '%s*$', ''))
+   end
+end
+
+
+-- The variables that rockspec *text* sets, or else an empty table.
+local function rockspec_fields(text)
+   local r = {}
+   local chunk = text and loadstring(text, 'rockspec', r)
+   if chunk == nil or not pcall(chunk) then
+      return {}
+   end
+   return r
+end
+
+
+-- The package name and announcement for release *version*: the project
+-- summary and home page from *rockspec* text, the *news* for the
+-- release, and how to install it with LuaRocks, as far as each is
+-- known.  The name in *rockspec* wins over *package*.
+local function announcement(package, version, news, rockspec)
+   local fields = rockspec_fields(rockspec)
+   local description = istable(fields.description) and fields.description or {}
+   package = isstring(fields.package) and fields.package or package
+   local lines = flatten(
+      isstring(description.summary) and {description.summary, ''} or {},
+      format('I am happy to announce release %s of %s.', version, package), '',
+      isstring(description.homepage) and {format("%s's home page is at %s", package, description.homepage), ''} or {},
+      news and {news, ''} or {},
+      rockspec and {'Install it with LuaRocks, using:', '', format('    luarocks install %s %s', package, version)} or {}
+   )
+   return package, match(concat(lines, '\n'), '^(.-)%s*$') .. '\n'
+end
+
+
 -- NEWS *text* without the placeholder, and the blank line after it.
 local function remove_placeholder(text)
    return (gsub(text, PLACEHOLDER .. '\n?', '\n', 1))
@@ -70,6 +112,20 @@ local function run(L, env, ...)
    if status ~= 0 then
       stderr:write(err, '\n')
    end
+   return status
+end
+
+
+-- Tag release *version* with the annotated message *notes*, written to
+-- a temporary file for git to read as it is, keeping the '#' of each
+-- Markdown header; return the exit status.
+local function tag(L, env, version, notes)
+   local filename = tmpname()
+   with(File(filename, 'w'), function(h)
+      h:write(notes)
+   end)
+   local status = run(L, env, 'git tag -a --cleanup=verbatim', 'v' .. version, '-F', filename)
+   rm(filename)
    return status
 end
 
@@ -350,6 +406,13 @@ return {
       local news, rockspec = rules.news, rules.rockspec
       local released = rockspec and rockspec_name(rockspec, version)
       local added = flatten(rules.add, generated(L.luke), released)
+      local today = date '%Y-%m-%d'
+
+      -- Compose the announcement before any step changes NEWS, so that
+      -- --dry-run tags with the same message.
+      local package, notes = announcement((interpolate(env, L.luke.package)), version,
+         news and release_news(add_release_header(slurp(File(news)) or '', version, today), version),
+         rockspec and slurp(File(rockspec)))
 
       -- A temporary worktree for updating each branch that the release
       -- copies files to.
@@ -362,7 +425,7 @@ return {
       -- PACKAGE-dev-1.rockspec, setting its _MODREV from 'git' to 'dev'.
       local steps = flatten(
          news and {
-            bind(edit, {L, news, bind(add_release_header, {[2]=version, [3]=date '%Y-%m-%d'})}),
+            bind(edit, {L, news, bind(add_release_header, {[2]=version, [3]=today})}),
             bind(run, {L, env, 'git commit', format("-m 'maint: update NEWS.md for %s.'", version), news}),
          },
          bind(run, {L, env, 'git checkout -b', 'release-v' .. version}),
@@ -381,7 +444,7 @@ return {
             bind(run, {L, env, 'git add -f', unpack(added)}),
          } or nil,
          bind(run, {L, env, format("git commit -a -m 'Release v%s.'", version)}),
-         bind(run, {L, env, 'git tag', 'v' .. version}),
+         bind(tag, {L, env, version, notes}),
          map(pages, function(branch)
             local worktree = worktrees[branch]
             return {
@@ -408,6 +471,12 @@ return {
          local pushed = flatten(main, 'release-v' .. version, 'v' .. version, pages)
          L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',
             version, concat(pushed, ' ')))
+         -- GH=true skips announcing the release on GitHub.
+         local GH = env.GH or configure(L, env, {checkprog='GitHub CLI', progs={'gh', 'true'}})
+         if GH ~= 'true' then
+            L.write(format("   %s release create v%s --verify-tag --latest --title '[ANN] %s v%s released' --notes-from-tag\n",
+               GH, version, package, version))
+         end
          if released ~= nil then
             L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout %s\n',
                version, released, main))
