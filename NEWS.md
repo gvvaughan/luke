@@ -2,6 +2,9 @@
 
 ## Noteworthy changes in release ?.? (????-??-??) [?]
 
+
+## Noteworthy changes in release 0.5 (2026-10-15) [stable]
+
 ### New features:
 
   - Like the rockspec `build.install.bin` table, an `install.bin` table
