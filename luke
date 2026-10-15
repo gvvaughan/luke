@@ -29,9 +29,81 @@ package.preload['luke.version'] = function()
    return assert((rawget(_G, 'loadstring') or load)(s, '@' .. filename))()
 end
 
--- Consume our own option, which luke itself would reject.
+-- The full help for luke from this source tree, which describes our own
+-- options too.  It stays out of build-aux/luke, which keeps the short
+-- help that projects copy around.
+local help = [[
+Usage: luke [OPTION]... [VAR=VALUE]... [TARGET]...
+
+Use the source, Luke!
+
+Build the Lua and C modules, scripts and generated files that a lukefile
+describes, install them, or cut a release of them.  Luke needs only a Lua
+interpreter, LuaJIT or 5.1 through 5.5, and a C compiler for C modules.
+
+      --help           print this help, then exit
+      --version        print version number, then exit
+      --dry-run        print the commands for a release, without running
+                       them
+      --file=FILE      use FILE instead of 'lukefile'
+      --value=NAME     print the value of variable NAME, after running any
+                       probe that sets it, then exit
+      --quiet          without any output
+      --verbose        provide more progress output
+      --strict=WHEN    check that luke itself declares every variable it
+                       uses [default=yes]
+
+Each VAR=VALUE sets variable VAR, overriding the lukefile 'variables'
+table, the defaults and the environment, in that order.  For example:
+
+  LUA=CMD              the Lua interpreter to run [default=lua]
+  LUA_INCDIR=DIR       where to find lua.h, for C modules
+  PREFIX=DIR           where to install [default=/usr/local]
+  INST_LUADIR=DIR      where to install Lua modules
+                       [default=$PREFIX/share/lua/$LUAVERSION]
+  INST_LIBDIR=DIR      where to install C modules
+                       [default=$PREFIX/lib/lua/$LUAVERSION]
+  INST_BINDIR=DIR      where to install scripts [default=$PREFIX/bin]
+  CC=CMD, CFLAGS=FLAGS how to compile C modules
+  version=VERSION      the version to build, or to release
+
+A lukefile can also use any variable that it sets or probes for, such as
+LDOC=true to skip rebuilding LDocs that a release already committed.
+
+Each TARGET can be the name of an entry in the lukefile 'modules', 'bin',
+'install.bin' or 'files' tables, or one of:
+
+  all                  build all targets in lukefile [default]
+  install              build, then copy each module and installable script
+                       beneath $INST_LUADIR, $INST_LIBDIR or $INST_BINDIR
+  release              cut the release given by version=X.Y or X.Y.Z
+
+Releasing:
+
+'luke release version=X.Y' first checks that the working tree is clean, on
+an up-to-date branch that origin can fetch, that neither the branch
+'release-vX.Y' nor the tag 'vX.Y' exists yet, that NEWS has no entry for
+X.Y, and that each branch to publish to matches origin.  Then, as the
+lukefile 'release' table directs, it adds X.Y to NEWS, builds everything
+on a new release-vX.Y branch, writes the release rockspec, edits files for
+the release, commits generated files, tags vX.Y, and copies files to
+branches such as gh-pages, filling any templates there.  It pushes
+nothing, but prints the commands to publish the release.  With --dry-run,
+it prints the commands instead, and after a failed step, it prints the
+commands to undo the release so far.
+
+The full manual is at https://gvvaughan.github.io/luke.
+
+Report bugs to https://github.com/gvvaughan/luke/issues.]]
+
+-- Consume our own options, which luke itself would reject or answer
+-- with its short help.
 local enabled, i = true, 1
 while arg[i] ~= nil do
+   if arg[i] == '--help' then
+      print(help)
+      os.exit(0)
+   end
    local optarg = arg[i] == '--strict' and 'yes' or arg[i]:match '^%-%-strict=(.*)$'
    if optarg == nil then
       i = i + 1
