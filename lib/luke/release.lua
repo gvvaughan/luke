@@ -258,12 +258,71 @@ local function undo_commands(checks)
 end
 
 
--- The targets of every generated file in *luke*, which are committed to
--- the release branch.
+-- Every file that the build of *luke* generates, which is committed to
+-- the release branch, so that the release needs no build to use: each
+-- module filled from a template, and then the target of each generated
+-- file.
 local function generated(luke)
-   return map(ordered_keys(luke.files), function(name)
-      return script_target(name, ordered_get(luke.files, name))
+   local templates = map(luke.modules or {}, function(pair)
+      local _, rules = destructure(pair)
+      return map(filter(rules.sources or {}, function(source)
+         return match(source, '%.in$') ~= nil
+      end), function(source)
+         return (gsub(source, '%.in$', ''))
+      end)
    end)
+   return flatten(templates, map(ordered_keys(luke.files), function(name)
+      return script_target(name, ordered_get(luke.files, name))
+   end))
+end
+
+
+-- The number of each line of a .gitignore in the working tree that
+-- ignores an untracked file beneath *paths*, by .gitignore path.  Git
+-- names a .gitignore in the working tree by its relative path, and any
+-- other source of ignore patterns, such as .git/info/exclude or a
+-- global excludes file, which a release leaves alone, otherwise.
+local function ignoring(env, paths)
+   local files = {}
+   local listed = git(env, 'ls-files --others --ignored --exclude-standard --', unpack(map(paths, shellword)))
+   for file in gmatch(listed or '', '[^\n]+') do
+      append(files, shellword(file))
+   end
+   local r = {}
+   if not isempty(files) then
+      local verbose = git(env, 'check-ignore --no-index --verbose --', unpack(files))
+      for source, n in gmatch(verbose or '', '([^\n]-):(%d+):[^\n]*') do
+         if match(source, '^[^/]') and match(source, '^%.git/') == nil and match(source, '%.gitignore$') then
+            r[source] = r[source] or {}
+            r[source][tonumber(n)] = true
+         end
+      end
+   end
+   return r
+end
+
+
+-- Remove each line of a .gitignore in the working tree that ignores a
+-- file beneath *paths*, until none does, so that the release branch
+-- ignores none of the files it tracks; return 0.
+local function unignore(L, env, paths)
+   repeat
+      local lines = ignoring(env, paths)
+      local sources = sorted(keys(lines))
+      map(sources, function(source)
+         edit(L, source, function(text)
+            local kept, n = {}, 0
+            for line in gmatch(text, '[^\n]*\n?') do
+               if line ~= '' then
+                  n = n + 1
+                  choose(not lines[source][n], bind(append, {kept, line}))
+               end
+            end
+            return concat(kept)
+         end)
+      end)
+   until L.dryrun or isempty(sources)
+   return 0
 end
 
 
@@ -326,7 +385,10 @@ return {
             bind(edit, {L, rockspec, bind(set_modrev, {[2]=version}), released}),
             bind(run, {L, env, 'git rm --quiet', rockspec}),
          },
-         not isempty(added) and bind(run, {L, env, 'git add -f', unpack(added)}) or nil,
+         not isempty(added) and {
+            bind(unignore, {L, env, added}),
+            bind(run, {L, env, 'git add -f', unpack(added)}),
+         } or nil,
          bind(run, {L, env, format("git commit -a -m 'Release v%s.'", version)}),
          bind(run, {L, env, 'git tag', 'v' .. version}),
          map(pages, function(branch)

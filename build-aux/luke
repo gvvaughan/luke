@@ -749,7 +749,28 @@ end})end
 return checks
 end
 local function undo_commands(checks)return reduce(filter(checks,function(check)local _,predicate,undo=unpack(check)return undo~=nil and not predicate()end),{},function(r,check)choose(not contains(r,check[3]),bind(append,{r,check[3]}))end)end
-local function generated(luke)return map(ordered_keys(luke.files),function(name)return script_target(name,ordered_get(luke.files,name))end)end
+local function generated(luke)local templates=map(luke.modules or{},function(pair)local _,rules=destructure(pair)return map(filter(rules.sources or{},function(source)return match(source,'%.in$')~=nil
+end),function(source)return(gsub(source,'%.in$',''))end)end)return flatten(templates,map(ordered_keys(luke.files),function(name)return script_target(name,ordered_get(luke.files,name))end))end
+local function ignoring(env,paths)local files={}local listed=git(env,'ls-files --others --ignored --exclude-standard --',unpack(map(paths,shellword)))for file in gmatch(listed or'','[^\n]+')do
+append(files,shellword(file))end
+local r={}if not isempty(files)then
+local verbose=git(env,'check-ignore --no-index --verbose --',unpack(files))for source,n in gmatch(verbose or'','([^\n]-):(%d+):[^\n]*')do
+if match(source,'^[^/]')and match(source,'^%.git/')==nil and match(source,'%.gitignore$')then
+r[source]=r[source]or{}r[source][tonumber(n)]=true
+end
+end
+end
+return r
+end
+local function unignore(L,env,paths)repeat
+local lines=ignoring(env,paths)local sources=sorted(keys(lines))map(sources,function(source)edit(L,source,function(text)local kept,n={},0
+for line in gmatch(text,'[^\n]*\n?')do
+if line~=''then
+n=n+1
+choose(not lines[source][n],bind(append,{kept,line}))end
+end
+return concat(kept)end)end)until L.dryrun or isempty(sources)return 0
+end
 return{copy_command=copy_command,release=function(L,env,build)local version,main=L.release,git(env,'symbolic-ref --short HEAD')local substitute=mkenv({version=version},L.clidefs,L.luke.substitute,SHELLENV)local checks=preconditions(env,L.luke.release or{},version,main,substitute)local failed=dropuntil(checks,function(check)local description,predicate=unpack(check)L.verbose('checking whether ',description,'... ')local ok=predicate()L.verbose(ok and'yes\n'or'no\n')if not ok then
 return description
 end
@@ -760,7 +781,7 @@ local rules=L.luke.release or{}local news,rockspec=rules.news,rules.rockspec
 local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.add,generated(L.luke),released)local pages=branches(rules)local worktrees=reduce(pages,{},function(r,branch)r[branch]=tmpname()rm(r[branch])end)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=date'%Y-%m-%d'})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),map(rules.replacements or{},function(entry)local path,pairs=destructure(entry)return bind(edit,{L,path,bind(replace,{[2]=substitute,[3]=pairs})})end),function()if L.dryrun then
 L.write(format('building with version=%s',version),'\n')return 0
 end
-return build()end,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and bind(run,{L,env,'git add -f',unpack(added)})or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(run,{L,env,'git tag','v'..version}),map(pages,function(branch)local worktree=worktrees[branch]return{bind(run,{L,env,'git worktree add --quiet',worktree,branch}),publish_steps(L,env,substitute,worktree,rules[branch]),bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m '%s: update to $package %s.'",branch,version)}),bind(run,{L,env,'git worktree remove',worktree}),}end),bind(run,{L,env,'git checkout --quiet',main}))local status=dropuntil(steps,isnonzero,call)or 0
+return build()end,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and{bind(unignore,{L,env,added}),bind(run,{L,env,'git add -f',unpack(added)}),}or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(run,{L,env,'git tag','v'..version}),map(pages,function(branch)local worktree=worktrees[branch]return{bind(run,{L,env,'git worktree add --quiet',worktree,branch}),publish_steps(L,env,substitute,worktree,rules[branch]),bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m '%s: update to $package %s.'",branch,version)}),bind(run,{L,env,'git worktree remove',worktree}),}end),bind(run,{L,env,'git checkout --quiet',main}))local status=dropuntil(steps,isnonzero,call)or 0
 choose(status~=0,function()map(filter(sorted(values(worktrees)),exists),function(worktree)run(L,env,'git worktree remove --force',worktree)end)end)if status==0 then
 local pushed=flatten(main,'release-v'..version,'v'..version,pages)L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',version,concat(pushed,' ')))if released~=nil then
 L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout %s\n',version,released,main))end
@@ -842,8 +863,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,luke_format=luke_format,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/0fc6e94',versiontext=[[
-luke (Luke) gvv/0fc6e94
+return{VERSION='gvv/64561e0',versiontext=[[
+luke (Luke) gvv/64561e0
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

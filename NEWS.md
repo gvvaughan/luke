@@ -36,6 +36,11 @@
     `checkprog` that falls back to `true`, so that a release builds
     without the tool that made a committed generated file.
 
+  - `luke release` also commits each module filled from a template,
+    such as `version.lua`, so that a release can be used, or its files
+    copied by hand, without building it; and removes each `.gitignore`
+    line that ignores a file the release commits.
+
   - A `replacements` list in the `release` table edits files on the
     release branch alone, replacing each text as written with a
     template filled with the release `@version@`, in the order written,

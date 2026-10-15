@@ -554,6 +554,20 @@ along the settings LuaRocks has chosen.  [luaposix] does it like this:
     }
 {% endhighlight %}
 
+A release commits its LDocs (see [Releases](#8-releases)), so its
+rockspec need not build them again, which would fail with an `ldoc`
+that doesn't work with the Lua it is installed for.  Setting `LDOC` to
+`true` on the command line skips them, and `build_dependencies`, from
+rockspec format 3.0, gives development builds an `ldoc` to run:
+
+{% highlight lua %}
+    if _MODREV == 'dev' then
+       build_dependencies = {'ldoc'}
+    else
+       build.build_command = build.build_command .. ' LDOC=true'
+    end
+{% endhighlight %}
+
 For now, that repeats some of the `lukefile` in the rockspec.  One day,
 Luke may read the extra syntax it needs directly from your rockspec,
 so that a separate `lukefile` is no longer necessary.
@@ -636,10 +650,13 @@ Then Luke:
 3. builds everything with `version=X.Y`;
 4. writes the release rockspec, such as `luke-X.Y-1.rockspec`, with
    `_MODREV` set to X.Y, in place of `rockspec`;
-5. commits every path in the `add` list, every [generated
+5. commits every path in the `add` list, every module filled from a
+   [template](#43-templates), every [generated
    file](#34-generated-files) and the release rockspec, even if git
-   ignores them, so that the release builds without the tools that made
-   them, and tags the commit `vX.Y`;
+   ignores them, so that the release can be used, or its files copied
+   by hand, without building anything; removes each line of a
+   `.gitignore` that ignores them, so that the release branch ignores
+   nothing it tracks; and tags the commit `vX.Y`;
 6. copies files to each branch that the release table names, such as
    `gh-pages`, and commits them;
 7. checks out that branch again, and prints the commands to publish the

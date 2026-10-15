@@ -35,6 +35,8 @@ before: |
         ['git rm --quiet ' .. ROCKSPEC] = list(0, '', ''),
         ['git add -f ' .. RELEASED] = list(0, '', ''),
         ['git add -f lib/demo.lua ' .. RELEASED] = list(0, '', ''),
+        ['git ls-files --others --ignored --exclude-standard -- ' .. RELEASED] = list(0, '', ''),
+        ['git ls-files --others --ignored --exclude-standard -- lib/demo.lua ' .. RELEASED] = list(0, '', ''),
         ["git commit -a -m 'Release v1.0.'"] = list(0, '', ''),
         ['git tag v1.0'] = list(0, '', ''),
         ['git checkout --quiet master'] = list(0, '', ''),
@@ -644,6 +646,7 @@ specify luke.release:
         expect(L.write[4]).to_be('git add -f lib/demo.lua ' .. RELEASED)
     - it adds every generated file, in the order written: |
         spawned = passing()
+        spawned['git ls-files --others --ignored --exclude-standard -- lib/demo.lua doc/demo.md doc/demo.1 ' .. RELEASED] = list(0, '', '')
         spawned['git add -f lib/demo.lua doc/demo.md doc/demo.1 ' .. RELEASED] = list(0, '', '')
         release = setup(spawned)
         L = mkL {rockspec = ROCKSPEC, add = {'lib/demo.lua'}}
@@ -653,6 +656,19 @@ specify luke.release:
         }
         expect(release(L, env, build)).to_be(0)
         expect(L.write[4]).to_be('git add -f lib/demo.lua doc/demo.md doc/demo.1 ' .. RELEASED)
+    - it adds each filled module template, before generated files: |
+        spawned = passing()
+        spawned['git ls-files --others --ignored --exclude-standard -- lib/demo.lua lib/demo/version.lua doc/demo.1 ' .. RELEASED] = list(0, '', '')
+        spawned['git add -f lib/demo.lua lib/demo/version.lua doc/demo.1 ' .. RELEASED] = list(0, '', '')
+        release = setup(spawned)
+        L = mkL {rockspec = ROCKSPEC, add = {'lib/demo.lua'}}
+        L.luke.modules = {
+           {demo = {sources = {'lib/demo/init.lua'}}},
+           {['demo.version'] = {sources = {'lib/demo/version.lua.in'}}},
+        }
+        L.luke.files = {{['doc/demo.1'] = {command = 'true', sources = {'demo.in'}}}}
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[4]).to_be('git add -f lib/demo.lua lib/demo/version.lua doc/demo.1 ' .. RELEASED)
     - it says how to upload the release rockspec: |
         release = setup(passing())
         L = mkL {rockspec = ROCKSPEC}
@@ -760,6 +776,77 @@ specify luke.release:
         L = mkL {replacements = replacements {{['?branch=master'] = '?branch=release-v1.0'}}}
         expect(release(L, env, build)).to_be(0)
         expect(L.write[#L.write]).to_contain 'git push origin master release-v1.0 v1.0\n'
+
+  - context with ignored release files:
+    - before: |
+        -- Git reports a .gitignore in the working tree by its relative
+        -- path, so this one is beneath the source tree, which the
+        -- examples run in.
+        DIR = '.luke-spec-' .. os.time() .. '-' .. math.random(1e6)
+        assert(os.execute('mkdir ' .. DIR))
+        IGNORE = DIR .. '/.gitignore'
+        local h = assert(io.open(IGNORE, 'w'))
+        h:write '*~\n*.html\n/doc\n/lib/demo/version.lua\n!/demo-dev-*.rockspec\n'
+        h:close()
+
+        ADDED = 'doc/api lib/demo/version.lua'
+        LSFILES = 'git ls-files --others --ignored --exclude-standard -- ' .. ADDED
+        CHECK = 'git check-ignore --no-index --verbose -- doc/api/index.html lib/demo/version.lua'
+
+        -- *r*, where successive `git ls-files` and `git check-ignore`
+        -- queries answer each of *listed* and *checked* in turn.
+        function ignoring(r, listed, checked)
+           local n, m = 0, 0
+           r[LSFILES] = function()
+              n = n + 1
+              return 0, '', listed[n] or ''
+           end
+           local function check()
+              m = m + 1
+              return 0, '', checked[m] or ''
+           end
+           r[CHECK] = check
+           r['git check-ignore --no-index --verbose -- doc/api/index.html'] = check
+           r['git check-ignore --no-index --verbose -- lib/demo/version.lua'] = check
+           r['git add -f ' .. ADDED] = list(0, '', '')
+           return r
+        end
+    - after: |
+        os.execute('rm -rf ' .. DIR)
+
+    - it removes each line that ignores a file the release commits: |
+        release = setup(ignoring(passing(),
+           {'doc/api/index.html\nlib/demo/version.lua\n'},
+           {IGNORE .. ':3:/doc\tdoc/api/index.html\n' .. IGNORE .. ':4:/lib/demo/version.lua\tlib/demo/version.lua\n'}))
+        L = mkL {add = {'doc/api', 'lib/demo/version.lua'}}
+        expect(release(L, env, build)).to_be(0)
+        expect(slurp(IGNORE)).to_be '*~\n*.html\n!/demo-dev-*.rockspec\n'
+    - it removes lines until nothing ignores those files: |
+        release = setup(ignoring(passing(),
+           {'doc/api/index.html\nlib/demo/version.lua\n', 'doc/api/index.html\n'},
+           {IGNORE .. ':3:/doc\tdoc/api/index.html\n' .. IGNORE .. ':4:/lib/demo/version.lua\tlib/demo/version.lua\n',
+            IGNORE .. ':2:*.html\tdoc/api/index.html\n'}))
+        L = mkL {add = {'doc/api', 'lib/demo/version.lua'}}
+        expect(release(L, env, build)).to_be(0)
+        expect(slurp(IGNORE)).to_be '*~\n!/demo-dev-*.rockspec\n'
+    - it updates the .gitignore on the release branch, before adding the files: |
+        release = setup(ignoring(passing(),
+           {'lib/demo/version.lua\n'},
+           {IGNORE .. ':4:/lib/demo/version.lua\tlib/demo/version.lua\n'}))
+        L = mkL {add = {'doc/api', 'lib/demo/version.lua'}}
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[1]).to_be 'git checkout -b release-v1.0'
+        expect(L.write[2]).to_be('updating ' .. IGNORE)
+        expect(L.write[3]).to_be('git add -f ' .. ADDED)
+    - it leaves ignore files outside the working tree alone: |
+        release = setup(ignoring(passing(),
+           {'lib/demo/version.lua\n', 'lib/demo/version.lua\n'},
+           {'.git/info/exclude:1:/lib/demo/version.lua\tlib/demo/version.lua\n',
+            '/home/me/.config/git/ignore:1:version.lua\tlib/demo/version.lua\n'}))
+        L = mkL {add = {'doc/api', 'lib/demo/version.lua'}}
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[2]).to_be('git add -f ' .. ADDED)
+        expect(slurp(IGNORE)).to_be '*~\n*.html\n/doc\n/lib/demo/version.lua\n!/demo-dev-*.rockspec\n'
 
 - describe copy_command:
   - before: |
