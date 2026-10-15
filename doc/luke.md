@@ -36,6 +36,13 @@ It is a single, minified Lua script with everything it needs, so there
 is nothing else to install, and nothing for your users to install
 either.
 
+The `luke` rock installs the same file as the `luke` command, so that
+you can run it, or copy it into your project, without a clone of the
+repository:
+
+    luarocks install luke
+    cp "$(luarocks show --rock-dir luke)/bin/luke" build-aux/luke
+
 Luke builds that file from its own sources, with its own `lukefile`.
 If you change those sources, run `./luke` in the Luke source tree to
 regenerate `build-aux/luke`.

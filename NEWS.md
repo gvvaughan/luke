@@ -37,6 +37,10 @@
     filling any, so that `luke --dry-run install` shows where everything
     would go.
 
+  - The `luke` rock installs `build-aux/luke` as the `luke` command,
+    so that a project can run it, or copy it from the rock directory
+    into place, without cloning the Luke repository.
+
   - `luke release` tags each release with an announcement: the
     project's summary and home page from the rockspec, the release's
     news, and how to install it with LuaRocks.  When `gh` is on the

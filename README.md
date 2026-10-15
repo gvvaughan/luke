@@ -17,7 +17,11 @@ itself).  There is no warranty.
 ## Installation
 
 To avoid unnecessary dependencies, simply copy `build-aux/luke`
-directly into your project.
+directly into your project.  [LuaRocks][] installs the same file as
+the `luke` command, from which you can also copy it:
+
+    luarocks install luke
+    cp "$(luarocks show --rock-dir luke)/bin/luke" build-aux/luke
 
 Note that this is an uglified version of the formatted sources
 combined into a single file for ease of use and minimal size.  If

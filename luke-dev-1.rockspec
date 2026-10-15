@@ -30,12 +30,21 @@ if _MODREV == 'dev' then
 end
 
 -- Luke builds itself, running in strict mode from this source tree.
--- Projects copy build-aux/luke rather than installing a luke rock, so
--- this rockspec only drives the specs, and installs nothing.
+-- The rock installs only build-aux/luke, the single file that projects
+-- copy, as the `luke` command.
 build = {
    type = 'command',
    build_command = '$(LUA) ./luke package="' .. package .. '" LUA="$(LUA)"',
+   install = {
+      bin = {luke = 'build-aux/luke'},
+   },
 }
+
+if _MODREV ~= 'dev' then
+   -- A release tarball has no git to stamp $USER/$gitref from, so
+   -- stamp build-aux/luke with the release version, as the release did.
+   build.build_command = build.build_command .. ' version="' .. _MODREV .. '"'
+end
 
 test_dependencies = {
    'ansicolors',
