@@ -148,6 +148,9 @@ local function rewrite_template_files(L, env, source)
    return case(source, {
       ['(.+)%.in'] = function(r)
          L.write('creating ' .. r .. '\n')
+         if L.dryrun then
+            return r
+         end
          return fill_templates(env, r .. '.in', r)
       end,
 

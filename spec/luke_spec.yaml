@@ -387,6 +387,12 @@ specify luke:
       expect(luke('--file=' .. fname, 'PREFIX=' .. tmpdir, 'all', 'install')).
          to_succeed()
       expect(slurp(installed .. 'example.lua')).to_be "return 'example 1.0'\n"
+  - it only writes what it would do with --dry-run: |
+      p = luke('--file=' .. fname, '--dry-run', 'PREFIX=' .. tmpdir, 'all', 'install')
+      expect(p).to_succeed_while_containing('creating ' .. tmpdir .. '/example.lua\n')
+      expect(p).to_contain_output('cp ' .. tmpdir .. '/other.lua ' .. installed)
+      expect(slurp(tmpdir .. '/example.lua')).to_be(nil)
+      expect(slurp(installed .. 'other.lua')).to_be(nil)
   - it writes nothing with --quiet: |
       expect(luke('--file=' .. fname, '--quiet', 'PREFIX=' .. tmpdir, 'all', 'install')).
          to_succeed_with ''
@@ -665,6 +671,11 @@ specify luke:
       expect(slurp(tmpdir .. '/b.txt')).to_be 'example\n'
       expect(slurp(tmpdir .. '/doc/a.out')).to_be 'a\n'
       expect(isexecutable(tmpdir .. '/doc/a.out')).to_be(false)
+  - it only writes the commands with --dry-run: |
+      p = luke('--file=' .. fname, '--dry-run')
+      expect(p).to_succeed_while_containing('cat ' .. tmpdir .. '/a.txt > ' .. tmpdir .. '/doc/a.out\n')
+      expect(slurp(tmpdir .. '/b.txt')).to_be(nil)
+      expect((io.open(tmpdir .. '/doc'))).to_be(nil)
   - it rebuilds a generated file named as a target: |
       p = luke('--file=' .. fname, tmpdir .. '/doc/a.out')
       expect(p).to_succeed_with('cat ' .. tmpdir .. '/a.txt > ' .. tmpdir .. '/doc/a.out\n')

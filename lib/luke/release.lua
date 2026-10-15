@@ -61,15 +61,12 @@ local function remove_placeholder(text)
 end
 
 
--- Write and run *...* as a shell command, or with --dry-run only write
--- it; return its exit status.
+-- Write *...* as a shell command, and run it with `L.spawn`, which only
+-- pretends to with --dry-run; return its exit status.
 local function run(L, env, ...)
    local command = concat({...}, ' ')
    L.write(interpolate(env, command), '\n')
-   if L.dryrun then
-      return 0
-   end
-   local status, err = spawn(env, command)
+   local status, err = L.spawn(env, command)
    if status ~= 0 then
       stderr:write(err, '\n')
    end
@@ -374,13 +371,7 @@ return {
             local path, pairs = destructure(entry)
             return bind(edit, {L, path, bind(replace, {[2]=substitute, [3]=pairs})})
          end),
-         function()
-            if L.dryrun then
-               L.write(format('building with version=%s', version), '\n')
-               return 0
-            end
-            return build()
-         end,
+         build,
          rockspec and {
             bind(edit, {L, rockspec, bind(set_modrev, {[2]=version}), released}),
             bind(run, {L, env, 'git rm --quiet', rockspec}),

@@ -111,20 +111,26 @@ specify luke.compile:
       env = E.mkenv({}, E.DEFAULTENV, E.SHELLENV)
 
   - it writes the command, and returns its status and output:
-      L = {write = Stub()}
+      L = {spawn = compile.spawn, write = Stub()}
       expect(list(compile.run_command(L, env, {'echo', 'hello'}))).to_equal(list(0, 'hello\n', ''))
       expect(L.write).to_contain 'echo hello'
+
+  - it runs the command with L.spawn:
+      L = {spawn = function() return 0, '', '' end, write = Stub()}
+      expect(list(compile.run_command(L, env, {'false'}))).to_equal(list(0, '', ''))
+      expect(L.write).to_contain 'false'
 
   - it reports the error output of a failing command: |
       p = capture(function(L, env)
          return require 'luke.compile'.run_command(L, env, {'(echo oops >&2; false)'})
-      end, {write = Stub()}, env)
+      end, {spawn = compile.spawn, write = Stub()}, env)
       expect(p).to_fail_with 'oops\n\n'
 
   - it writes a failing command even when quiet: |
       p = capture(function(env)
          local nop = require 'luke.functional'.nop
-         return require 'luke.compile'.run_command({write = nop}, env, {'false'})
+         local compile = require 'luke.compile'
+         return compile.run_command({spawn = compile.spawn, write = nop}, env, {'false'})
       end, env)
       expect(p).to_exit(1)
       expect(p).to_output 'false\n'
@@ -134,7 +140,7 @@ specify luke.compile:
       dest = tmpdir()
       env = E.mkenv({INST_LUADIR=dest .. '/share', INST_LIBDIR=dest .. '/lib'}, E.DEFAULTENV, E.SHELLENV)
       luke = {variables = {objdir = dest .. '/obj'}}
-      L = {write = function() end}
+      L = {spawn = compile.spawn, write = function() end}
 
   - after:
       os.execute("rm -rf '" .. dest .. "'")
@@ -149,7 +155,7 @@ specify luke.compile:
 
   - it installs modules in the order written: |
       written = {}
-      L = {write = function(s) written[#written + 1] = s end}
+      L = {spawn = compile.spawn, write = function(s) written[#written + 1] = s end}
       expect(compile.install_modules(L, env, luke, {
          {['type.dict'] = {sources={'lib/type/dict.lua'}}},
          {['luke'] = {sources={'lib/luke/init.lua'}}},

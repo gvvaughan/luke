@@ -16,7 +16,7 @@ fatal(...)end
 end,fatal=fatal,}
 end
 package.preload['luke.cli']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.lukefile','luke.platforms','luke.functional','luke.version','type.context-manager',}local function version()print(versiontext)exit(0)end
+local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.lukefile','luke.platforms','luke.functional','luke.version','type.context-manager',}local function version()print(versiontext)exit(0)end
 local function help()print[[
 Usage: luke [OPTION]... [VAR=VALUE]... [TARGET]
 
@@ -24,7 +24,7 @@ Use the source, Luke!
 
   --help        print this help, then exit
   --version     print version number, then exit
-  --dry-run     print the commands for a release, without running them
+  --dry-run     print the commands, without running them
   --file=FILE   use FILE instead of lukefile
   --value=NAME  print the value of variable NAME
   --quiet       without any output
@@ -49,9 +49,10 @@ end
 local function interpolate_to_substitute(s)return(gsub(s,'%$([%w_]+)','@%1@'))end
 local function gitref()local out=slurp(Pipe('git rev-parse --short HEAD 2>/dev/null'))return match(out or'','^(%x+)\n?$')or''end
 local function abs_top_srcdir()return(gsub(slurp(Pipe('pwd'))or'','\n$',''))end
-return{parse_arguments=function(args)local r={clidefs={},debug=false,dryrun=false,valreqs={},fname='lukefile',install={},log=nop,targets={},verbose=nop,write=display,}map(args,function(opt)case(opt,{['--debug']=function()r.debug=true
+return{parse_arguments=function(args)local r={clidefs={},debug=false,dryrun=false,valreqs={},fname='lukefile',install={},log=nop,spawn=spawn,targets={},verbose=nop,write=display,}map(args,function(opt)case(opt,{['--debug']=function()r.debug=true
 r.log=dump
 end,['--dry-run']=function()r.dryrun=true
+r.spawn=function()return 0,'',''end
 end,['%-%-file=(.+)']=function(optarg)r.fname=optarg
 end,['%-%-value=(.+)']=function(optarg)r.valreqs[#r.valreqs+1]=optarg
 end,['--quiet']=function()r.write=nop
@@ -81,11 +82,11 @@ install,scripts.install=luke.modules,ordered_keys(installbin)else
 install,scripts.install=build,ordered_keys(ordered_pluck(named,installbin))end
 end
 luke.modules=build
-local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merge(luke.substitute or{},{abs_top_srcdir=srcdir,gitref=ref,package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),})luke.variables=merge(luke.variables or{},collect_variables(luke),{LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUAVERSION',LUA_LIBDIR='$LUA_DIR/lib',abs_top_srcdir=srcdir,gitref=ref,objdir=platforms[1],package=luke.package,version=luke.version,})return{clidefs=parsed.clidefs,debug=parsed.debug,dryrun=parsed.dryrun,install=install,log=parsed.log,luke=luke,release=release,scripts=scripts,valreqs=parsed.valreqs,verbose=parsed.verbose,write=parsed.write,}end,}
+local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merge(luke.substitute or{},{abs_top_srcdir=srcdir,gitref=ref,package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),})luke.variables=merge(luke.variables or{},collect_variables(luke),{LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUAVERSION',LUA_LIBDIR='$LUA_DIR/lib',abs_top_srcdir=srcdir,gitref=ref,objdir=platforms[1],package=luke.package,version=luke.version,})return{clidefs=parsed.clidefs,debug=parsed.debug,dryrun=parsed.dryrun,install=install,log=parsed.log,luke=luke,release=release,scripts=scripts,spawn=parsed.spawn,valreqs=parsed.valreqs,verbose=parsed.verbose,write=parsed.write,}end,}
 end
 package.preload['luke.compile']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.environment','luke.functional','type.context-manager','type.path',}local function spawn(env,...)local command=interpolate(env,concat({...},' '))return with(TmpFile(),TmpFile(),function(out,err)local pipe=concat{'{ ',command,'\n} >',out.filename,' 2>',err.filename,'; printf $?'}return tonumber(slurp(Pipe(pipe))),slurp(File(err.filename)),slurp(File(out.filename))end)end
-local function run(L,env,command)L.write(interpolate(env,concat(command,' ')),'\n')local status,err,out=spawn(env,unpack(command))if status~=0 then
+local function run(L,env,command)L.write(interpolate(env,concat(command,' ')),'\n')local status,err,out=L.spawn(env,unpack(command))if status~=0 then
 if L.write==nop then
 stdout:write(concat(command,' ')..'\n')end
 stderr:write(err..'\n')end
@@ -108,7 +109,7 @@ return name
 end
 local function c_sources(sources)return dropuntil(sources,bind(match,{[2]='%.[ch]$'}))end
 local function module_to_path(module,sources,objdir)return dropuntil(sources,function(source)return case(source,{['.*%.[ch]']=bind(c_source,{module,objdir}),['(.*%.[ch])%.in']=bind(c_source,{module,objdir}),['.*%.lua']=bind(lua_source,{module}),['(.*%.lua)%.in']=bind(lua_source,{module}),function(src)fatal("unsupported source type '%s'",src)end,})end)end
-return{build_c_module=function(L,env,luke,name)local rules=ordered_get(luke.modules,name)local c_module=c_module_path(luke.variables.objdir,name)local command={'$MAKEDIRS',dirname(c_module)}local status,err,out=spawn(env,unpack(command))if status~=0 then
+return{build_c_module=function(L,env,luke,name)local rules=ordered_get(luke.modules,name)local c_module=c_module_path(luke.variables.objdir,name)local command={'$MAKEDIRS',dirname(c_module)}local status,err,out=L.spawn(env,unpack(command))if status~=0 then
 stdout:write(concat(command,' ')..'\n')stderr:write(err..'\n')exit(status)end
 return run(L,env,flatten('$CC $CFLAGS $LIBFLAG $PKGFLAGS $CPPFLAGS',defines(luke.defines,rules.defines),incdirs(rules.incdirs,luke.incdirs),rules.sources,'-o',c_module,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries))end,c_modules=function(modules)return filter(ordered_keys(modules),function(name)return dropuntil(ordered_get(modules,name).sources,bind(match,{[2]='%.[ch]$'}))end)end,defines=defines,incdirs=incdirs,install_modules=function(L,env,luke,modules)return reduce(ordered_keys(modules),0,function(status,name)if status==0 then
 local src,dir=module_to_path(name,ordered_get(modules,name).sources,luke.variables.objdir)if not exists(interpolate(env,dir))then
@@ -118,7 +119,7 @@ status=run(L,env,{'$INSTALL',src,dir..'/'})end
 end
 return status
 end)end,build_program=function(L,env,luke,rules,target,sources)if match(target,'/')then
-local command={'$MAKEDIRS',dirname(target)}local status,err=spawn(env,unpack(command))if status~=0 then
+local command={'$MAKEDIRS',dirname(target)}local status,err=L.spawn(env,unpack(command))if status~=0 then
 stdout:write(concat(command,' ')..'\n')stderr:write(err..'\n')return status
 end
 end
@@ -524,7 +525,10 @@ local function fill_templates(env,src,dest)with(File(dest,'w'),function(cm)for l
 cm:write(expand(env,line)..'\n')end
 end)return dest
 end
-local function rewrite_template_files(L,env,source)return case(source,{['(.+)%.in']=function(r)L.write('creating '..r..'\n')return fill_templates(env,r..'.in',r)end,source,})end
+local function rewrite_template_files(L,env,source)return case(source,{['(.+)%.in']=function(r)L.write('creating '..r..'\n')if L.dryrun then
+return r
+end
+return fill_templates(env,r..'.in',r)end,source,})end
 local function collect_variables(luke,variables)for k,v in next,luke do
 if k=='external_dependencies'then
 map(ordered_keys(v),function(name)local rootdir=concat{'$',name,'_DIR'}variables[name..'_DIR']='/usr'variables[name..'_BINDIR']=rootdir..'/bin'variables[name..'_INCDIR']=rootdir..'/include'variables[name..'_LIBDIR']=rootdir..'/lib'end)elseif istable(v)then
@@ -708,10 +712,7 @@ return match(match(body,'^(.-)\n## ')or body,'%S')~=nil
 end
 local function add_release_header(text,version,date)local header=format('## Noteworthy changes in release %s (%s) [stable]',version,date)return(gsub(text,PLACEHOLDER..'\n*','\n%1\n\n'..header..'\n\n',1))end
 local function remove_placeholder(text)return(gsub(text,PLACEHOLDER..'\n?','\n',1))end
-local function run(L,env,...)local command=concat({...},' ')L.write(interpolate(env,command),'\n')if L.dryrun then
-return 0
-end
-local status,err=spawn(env,command)if status~=0 then
+local function run(L,env,...)local command=concat({...},' ')L.write(interpolate(env,command),'\n')local status,err=L.spawn(env,command)if status~=0 then
 stderr:write(err,'\n')end
 return status
 end
@@ -778,10 +779,7 @@ end)if failed~=nil then
 fatal('cannot release %s: check failed: %s',version,failed)return 1
 end
 local rules=L.luke.release or{}local news,rockspec=rules.news,rules.rockspec
-local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.add,generated(L.luke),released)local pages=branches(rules)local worktrees=reduce(pages,{},function(r,branch)r[branch]=tmpname()rm(r[branch])end)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=date'%Y-%m-%d'})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),map(rules.replacements or{},function(entry)local path,pairs=destructure(entry)return bind(edit,{L,path,bind(replace,{[2]=substitute,[3]=pairs})})end),function()if L.dryrun then
-L.write(format('building with version=%s',version),'\n')return 0
-end
-return build()end,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and{bind(unignore,{L,env,added}),bind(run,{L,env,'git add -f',unpack(added)}),}or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(run,{L,env,'git tag','v'..version}),map(pages,function(branch)local worktree=worktrees[branch]return{bind(run,{L,env,'git worktree add --quiet',worktree,branch}),publish_steps(L,env,substitute,worktree,rules[branch]),bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m '%s: update to $package %s.'",branch,version)}),bind(run,{L,env,'git worktree remove',worktree}),}end),bind(run,{L,env,'git checkout --quiet',main}))local status=dropuntil(steps,isnonzero,call)or 0
+local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.add,generated(L.luke),released)local pages=branches(rules)local worktrees=reduce(pages,{},function(r,branch)r[branch]=tmpname()rm(r[branch])end)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=date'%Y-%m-%d'})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),map(rules.replacements or{},function(entry)local path,pairs=destructure(entry)return bind(edit,{L,path,bind(replace,{[2]=substitute,[3]=pairs})})end),build,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and{bind(unignore,{L,env,added}),bind(run,{L,env,'git add -f',unpack(added)}),}or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(run,{L,env,'git tag','v'..version}),map(pages,function(branch)local worktree=worktrees[branch]return{bind(run,{L,env,'git worktree add --quiet',worktree,branch}),publish_steps(L,env,substitute,worktree,rules[branch]),bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m '%s: update to $package %s.'",branch,version)}),bind(run,{L,env,'git worktree remove',worktree}),}end),bind(run,{L,env,'git checkout --quiet',main}))local status=dropuntil(steps,isnonzero,call)or 0
 choose(status~=0,function()map(filter(sorted(values(worktrees)),exists),function(worktree)run(L,env,'git worktree remove --force',worktree)end)end)if status==0 then
 local pushed=flatten(main,'release-v'..version,'v'..version,pages)L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',version,concat(pushed,' ')))if released~=nil then
 L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout %s\n',version,released,main))end
@@ -863,8 +861,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,luke_format=luke_format,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/4f9509d',versiontext=[[
-luke (Luke) gvv/4f9509d
+return{VERSION='gvv/cdf4258',versiontext=[[
+luke (Luke) gvv/cdf4258
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

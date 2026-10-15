@@ -32,6 +32,11 @@
     publishes its contents at the root, as for LDoc output on
     `gh-pages`.
 
+  - `--dry-run` works for every target, printing the commands that
+    Luke would run and the templates it would fill, without running or
+    filling any, so that `luke --dry-run install` shows where everything
+    would go.
+
   - A `variables` entry can be a build-time probe, such as a
     `checkprog` that falls back to `true`, so that a release builds
     without the tool that made a committed generated file.

@@ -5,6 +5,7 @@
 
 local _ENV = require 'luke.normalize' {
    'luke._base',
+   'luke.compile',
    'luke.lukefile',
    'luke.platforms',
    'luke.functional',
@@ -27,7 +28,7 @@ Use the source, Luke!
 
   --help        print this help, then exit
   --version     print version number, then exit
-  --dry-run     print the commands for a release, without running them
+  --dry-run     print the commands, without running them
   --file=FILE   use FILE instead of lukefile
   --value=NAME  print the value of variable NAME
   --quiet       without any output
@@ -108,6 +109,7 @@ return {
          fname   = 'lukefile',
          install = {},
          log     = nop,
+         spawn   = spawn,
          targets = {},
          verbose = nop,
          write   = display,
@@ -123,6 +125,9 @@ return {
 
             ['--dry-run'] = function()
                r.dryrun = true
+               r.spawn = function()
+                  return 0, '', ''
+               end
             end,
 
             ['%-%-file=(.+)'] = function(optarg)
@@ -269,6 +274,7 @@ return {
          luke    = luke,
          release = release,
          scripts = scripts,
+         spawn   = parsed.spawn,
          valreqs = parsed.valreqs,
          verbose = parsed.verbose,
          write   = parsed.write,

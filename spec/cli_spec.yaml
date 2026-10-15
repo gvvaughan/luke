@@ -17,3 +17,11 @@ specify luke.cli:
       argt = parse_arguments {'--file=foo', 'file=bar'}
       expect(argt.fname).to_be 'foo'
       expect(argt.clidefs).to_equal {file='bar'}
+
+  - it spawns commands:
+      expect(parse_arguments {}.spawn).to_be(require 'luke.compile'.spawn)
+
+  - it only pretends to spawn commands with --dry-run: |
+      argt = parse_arguments {'--dry-run'}
+      expect(argt.dryrun).to_be(true)
+      expect(list(argt.spawn({}, 'exit 1'))).to_equal(list(0, '', ''))

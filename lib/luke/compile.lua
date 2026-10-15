@@ -23,9 +23,11 @@ local function spawn(env, ...)
 end
 
 
+-- Write *command*, and run it with `L.spawn`, which only pretends to
+-- with --dry-run; return its exit status, output and error output.
 local function run(L, env, command)
    L.write(interpolate(env, concat(command, ' ')), '\n')
-   local status, err, out = spawn(env, unpack(command))
+   local status, err, out = L.spawn(env, unpack(command))
    if status ~= 0 then
       if L.write == nop then
          stdout:write(concat(command, ' ') .. '\n')
@@ -128,7 +130,7 @@ return {
       local c_module = c_module_path(luke.variables.objdir, name)
 
       local command = {'$MAKEDIRS', dirname(c_module)}
-      local status, err, out = spawn(env, unpack(command))
+      local status, err, out = L.spawn(env, unpack(command))
       if status ~= 0 then
          stdout:write(concat(command, ' ') .. '\n')
          stderr:write(err .. '\n')
@@ -177,7 +179,7 @@ return {
    build_program = function(L, env, luke, rules, target, sources)
       if match(target, '/') then
          local command = {'$MAKEDIRS', dirname(target)}
-         local status, err = spawn(env, unpack(command))
+         local status, err = L.spawn(env, unpack(command))
          if status ~= 0 then
             stdout:write(concat(command, ' ') .. '\n')
             stderr:write(err .. '\n')

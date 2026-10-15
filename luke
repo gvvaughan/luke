@@ -43,8 +43,7 @@ interpreter, LuaJIT or 5.1 through 5.5, and a C compiler for C modules.
 
       --help           print this help, then exit
       --version        print version number, then exit
-      --dry-run        print the commands for a release, without running
-                       them
+      --dry-run        print the commands, without running them
       --file=FILE      use FILE instead of 'lukefile'
       --value=NAME     print the value of variable NAME, after running any
                        probe that sets it, then exit

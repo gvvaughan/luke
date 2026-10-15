@@ -77,7 +77,7 @@ The options are:
 
     --help        print help, then exit
     --version     print version number, then exit
-    --dry-run     print the commands for a release, without running them
+    --dry-run     print the commands, without running them
     --file=FILE   use FILE instead of lukefile
     --value=NAME  print the value of variable NAME, then exit
     --quiet       without any output
@@ -85,6 +85,10 @@ The options are:
 
 Even with `--quiet`, Luke shows any command that fails, along with its
 error output.
+
+With `--dry-run`, Luke still runs its probes, so that it prints the
+commands that it would run for any target, but it runs none of them,
+and fills no templates.
 
 
 ## 3. The lukefile

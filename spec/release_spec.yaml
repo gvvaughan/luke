@@ -147,10 +147,21 @@ before: |
   function mkL(rules)
      return {
         release = '1.0',
+        spawn = function(...)
+           return require 'luke.compile'.spawn(...)
+        end,
         verbose = Stub(),
         write = Stub(),
         luke = {package = 'demo', release = rules},
      }
+  end
+
+  -- Set up *L* as --dry-run does.
+  function dryrun(L)
+     L.dryrun = true
+     L.spawn = function()
+        return 0, '', ''
+     end
   end
 
   -- Every NEWS file in these examples.
@@ -412,7 +423,7 @@ specify luke.release:
       spawned['git checkout -b release-v1.0'] = nil
       release = setup(spawned)
       L = mkL {news = fname}
-      L.dryrun = true
+      dryrun(L)
       before = slurp(NEWS)
       expect(release(L, env, build)).to_be(0)
       expect(slurp(NEWS)).to_be(before)
@@ -434,11 +445,15 @@ specify luke.release:
       spawned["git commit -a -m 'Release v1.0.'"] = nil
       release = setup(spawned)
       expect(release(mkL(), env, function() return 2 end)).to_be(2)
-  - it does not build with --dry-run: |
+  - it builds with --dry-run, which only writes the build commands: |
       release = setup(passing())
       L = mkL()
-      L.dryrun = true
-      expect(release(L, env, function() error 'built' end)).to_be(0)
+      dryrun(L)
+      expect(release(L, env, function()
+         built = true
+         return 0
+      end)).to_be(0)
+      expect(built).to_be(true)
   - it commits and tags the release: |
       release = setup(passing())
       L = mkL()
@@ -623,7 +638,7 @@ specify luke.release:
         spawned['git worktree add --quiet WORKTREE gh-pages'] = nil
         release = setup(spawned)
         L = mkL(rules)
-        L.dryrun = true
+        dryrun(L)
         expect(release(L, env, build)).to_be(0)
 
   - context with a rockspec:
@@ -677,7 +692,7 @@ specify luke.release:
     - it writes no rockspec with --dry-run: |
         release = setup(passing())
         L = mkL {rockspec = ROCKSPEC}
-        L.dryrun = true
+        dryrun(L)
         expect(release(L, env, build)).to_be(0)
         expect(slurp(RELEASED)).to_be(nil)
 
@@ -753,7 +768,7 @@ specify luke.release:
         readme(BADGES)
         release = setup(passing())
         L = mkL {replacements = replacements {{['?branch=master'] = '?branch=release-v1.0'}}}
-        L.dryrun = true
+        dryrun(L)
         expect(release(L, env, build)).to_be(0)
         expect(slurp(README)).to_be(BADGES)
         expect(L.write[2]).to_be('updating ' .. README)
