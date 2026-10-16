@@ -33,8 +33,11 @@ before: |
 specify luke:
 - describe command line:
   - it prints its version: |
-      expect(luke '--version').
-         to_succeed_while_matching '^luke %(Luke%) [^/%s]*/%x%x%x%x%x%x%x+\n'
+      -- USER/GITREF in a source tree, or the version a rockspec gives.
+      expect(luke '--version').to_succeed_while_matching.any_of {
+         '^luke %(Luke%) [^/%s]*/%x%x%x%x%x%x%x+\n',
+         '^luke %(Luke%) %d+%.%d+[%.%d]*\n',
+      }
   - it prints help: |
       expect(luke '--help').to_succeed_while_containing 'Usage: luke'
   - it diagnoses unknown options: |
