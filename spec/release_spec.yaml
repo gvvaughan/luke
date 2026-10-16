@@ -91,7 +91,9 @@ before: |
      branch = branch or 'gh-pages'
      r['git rev-parse refs/heads/' .. branch] = list(0, '', 'fed789\n')
      r['git rev-parse origin/' .. branch] = list(0, '', 'fed789\n')
-     r['git cat-file -e ' .. branch .. ':_config.yml.in'] = list(0, '', '')
+     r['git cat-file -e origin/' .. branch .. ':_config.yml.in'] = list(0, '', '')
+     -- The commit that publishes to the branch puts it ahead of origin.
+     r['git merge-base --is-ancestor cde345 fed789'] = list(1, '', '')
      r['git worktree list --porcelain'] = list(0, '', WORKTREES)
      r['git worktree add --quiet WORKTREE ' .. branch] = function(worktree)
         os.execute("mkdir '" .. worktree .. "'")
@@ -333,12 +335,35 @@ specify luke.release:
         os.remove(NEWS)
 
   - context with gh-pages:
-    - it diagnoses gh-pages behind or ahead of origin: |
+    - it diagnoses gh-pages ahead of origin: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
         spawned['git rev-parse origin/gh-pages'] = list(0, '', 'abc123\n')
+        spawned['git merge-base --is-ancestor fed789 abc123'] = list(1, '', '')
         release = setup(spawned)
         expect(release(mkL {['gh-pages'] = {}}, env, build)).to_be(1)
-    - it diagnoses a missing gh-pages branch: |
+    - it fast-forwards gh-pages behind origin: |
+        spawned = with_ghpages(passing(), 'release-no: @version@\n')
+        spawned['git rev-parse origin/gh-pages'] = list(0, '', 'abc123\n')
+        spawned['git merge-base --is-ancestor fed789 abc123'] = list(0, '', '')
+        spawned['git merge-base --is-ancestor cde345 abc123'] = list(1, '', '')
+        spawned['git branch --quiet --force gh-pages origin/gh-pages'] = list(0, '', '')
+        release, fatal = setup(spawned)
+        L = mkL {['gh-pages'] = GHPAGES}
+        expect(release(L, env, build)).to_be(0)
+        expect(#fatal).to_be(0)
+        expect(L.write[4]).to_be 'git branch --quiet --force gh-pages origin/gh-pages'
+        expect(L.write[5]).to_match '^git worktree add %-%-quiet %S+ gh%-pages$'
+    - it creates gh-pages from origin when there is none here: |
+        spawned = with_ghpages(passing(), 'release-no: @version@\n')
+        spawned['git rev-parse refs/heads/gh-pages'] = list(128, '', '')
+        spawned['git branch --quiet --force gh-pages origin/gh-pages'] = list(0, '', '')
+        release, fatal = setup(spawned)
+        L = mkL {['gh-pages'] = GHPAGES}
+        expect(release(L, env, build)).to_be(0)
+        expect(#fatal).to_be(0)
+        expect(L.write[4]).to_be 'git branch --quiet --force gh-pages origin/gh-pages'
+        expect(L.write[5]).to_match '^git worktree add %-%-quiet %S+ gh%-pages$'
+    - it diagnoses a gh-pages branch on neither here nor origin: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
         spawned['git rev-parse refs/heads/gh-pages'] = list(128, '', '')
         spawned['git rev-parse origin/gh-pages'] = list(128, '', '')
@@ -366,7 +391,7 @@ specify luke.release:
         expect(#fatal).to_be(0)
     - it diagnoses a template in neither gh-pages nor the release: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
-        spawned['git cat-file -e gh-pages:_config.yml.in'] = list(128, 'fatal: not a valid object', '')
+        spawned['git cat-file -e origin/gh-pages:_config.yml.in'] = list(128, 'fatal: not a valid object', '')
         release, fatal = setup(spawned)
         expect(release(mkL {['gh-pages'] = GHPAGES}, env, build)).to_be(1)
         expect(fatal[1]).to_be 'cannot release %s: check failed: %s'

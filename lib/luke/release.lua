@@ -263,9 +263,13 @@ local function preconditions(env, release, version, main, substitute)
 
    map(branches(release), function(pages)
       local copies = release[pages]
-      append(checks, {format('%s is up to date with origin', pages), function()
-         local ref = git(env, 'rev-parse refs/heads/' .. pages)
-         return ref ~= nil and ref == git(env, 'rev-parse origin/' .. pages)
+      -- A branch that is only on origin, as in a fresh clone, or that
+      -- is behind it, is set to origin's before the release adds its
+      -- worktree; one with commits that origin lacks is diagnosed.
+      append(checks, {format('%s is not ahead of origin', pages), function()
+         local ref, origin = git(env, 'rev-parse refs/heads/' .. pages), git(env, 'rev-parse origin/' .. pages)
+         return origin ~= nil and (ref == nil or ref == origin
+            or git(env, 'merge-base --is-ancestor', ref, origin) ~= nil)
       end, format('git branch -f %s origin/%s', pages, pages)})
       -- git checks out a branch in only one worktree at a time.
       append(checks, {format('%s can be checked out in a new worktree', pages), function()
@@ -280,7 +284,7 @@ local function preconditions(env, release, version, main, substitute)
          return ordered_get(copies, path).optional and match(path, '%.in$') ~= nil
       end), function(template)
          append(checks, {format('%s or the release has %s', pages, template), function()
-            return exists(template) or git(env, format('cat-file -e %s:%s', pages, template)) ~= nil
+            return exists(template) or git(env, format('cat-file -e origin/%s:%s', pages, template)) ~= nil
          end})
       end)
    end)
@@ -448,6 +452,8 @@ return {
          map(pages, function(branch)
             local worktree = worktrees[branch]
             return {
+               git(env, 'rev-parse refs/heads/' .. branch) ~= git(env, 'rev-parse origin/' .. branch)
+                  and bind(run, {L, env, 'git branch --quiet --force', branch, 'origin/' .. branch}) or {},
                bind(run, {L, env, 'git worktree add --quiet', worktree, branch}),
                publish_steps(L, env, substitute, worktree, rules[branch]),
                bind(run, {L, env, 'git -C', worktree, "add -A && git -C", worktree,

@@ -636,10 +636,12 @@ Luke checks, before changing anything, that:
    after the replacements written before it (see
    [Replacements](#84-replacements));
  * each branch that the release copies files to, such as `gh-pages`, is
-   up to date with origin, and is not checked out in another worktree,
-   as Luke updates it in a worktree of its own; and each template
-   copied there from the same path is in the release or on that branch
-   (see [Publishing to Branches](#83-publishing-to-branches)).
+   on origin, and has no commits that origin lacks, as Luke sets it to
+   origin's before publishing, which creates it in a fresh clone and
+   fast-forwards it when it is behind; is not checked out in another
+   worktree, as Luke updates it in a worktree of its own; and each
+   template copied there from the same path is in the release or on
+   that branch (see [Publishing to Branches](#83-publishing-to-branches)).
 
 `--verbose` shows each check as Luke makes it.
 

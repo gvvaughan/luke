@@ -8,6 +8,11 @@
     to run on that branch after copying, such as to remove files from
     a copied directory that should not be published.
 
+  - `luke release` creates a local branch to publish to, such as
+    `gh-pages`, from origin when there is none, as in a fresh clone,
+    and fast-forwards one that is behind origin, rather than failing
+    its check that the branch matches origin.
+
 
 ## Noteworthy changes in release 0.5 (2026-10-15) [stable]
 
