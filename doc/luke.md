@@ -728,6 +728,19 @@ there, keeping only the templates already on `gh-pages`:
     }
 {% endhighlight %}
 
+A branch table can also have a `command`, which Luke runs on that
+branch after copying everything, before committing, such as to remove
+files that a copied directory should not publish.  [luaposix] keeps the
+sources of its examples off `gh-pages`, publishing only their LDoc
+pages, like this:
+
+{% highlight lua %}
+    ['gh-pages'] = {
+       {['.'] = 'doc/'},
+       command = 'rm -f examples/*.lua',
+    }
+{% endhighlight %}
+
 ### 8.4. Replacements
 
 A `replacements` list edits files on the release branch alone, such as

@@ -450,14 +450,23 @@ end
 
 -- Copies of release files to a branch, as an ordered map of
 -- `copy_entry`s, in the order written, where a path that a template is
--- filled into is diagnosed when it is also copied.  Unlike other lists,
--- a single string is diagnosed, as any key of the `release` table that
--- luke does not know names a branch, and that is more likely a typo.
+-- filled into is diagnosed when it is also copied, and with the
+-- `command`, if any, to run in the branch after copying, such as to
+-- remove files that a copied directory should not publish.  Unlike
+-- other lists, a single string is diagnosed, as any key of the
+-- `release` table that luke does not know names a branch, and that is
+-- more likely a typo.
 -- TODO: a branch table is named for its branch, not in ORDERED, so its
 -- platforms are filtered before this, and only this platform's copies
 -- are diagnosed.
 local function copies(x, path)
-   local r = ordered_map(copy_entry)(mkcheck 'table'(x, path), path)
+   if mkcheck 'table'(x, path) == nil then
+      return nil
+   end
+   local entries = copy(x)
+   entries.command = nil
+   local r = ordered_map(copy_entry)(entries, path)
+   r.command = mkcheck 'string'(x.command, index(path, 'command'))
    -- Every path written: each destination, then the path that each
    -- template copied under its own name is filled into.
    local written = reduce(ordered_keys(r), {}, function(written, dest)

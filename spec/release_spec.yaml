@@ -607,6 +607,15 @@ specify luke.release:
         expect(release(L, env, build)).to_be(0)
         expect(L.write[5]).to_match "^git %-C %S+ rm %-r %-%-quiet %-%-ignore%-unmatch %-%- %. ':%(exclude%)%*%.in' && if test %-d doc; then mkdir %-p %S+/%. && cp %-R doc/%. %S+/%.; "
         expect(L.write[6]).to_match "%-%- %+1%.html "
+    - it runs the command in the worktree after copying: |
+        spawned = with_ghpages(passing(), '')
+        spawned['cd WORKTREE && rm -f api/*.lua'] = list(0, '', '')
+        release = setup(spawned)
+        copies = ghpages {{api = 'doc/api/'}, {['index.md'] = 'doc/demo.md'}, '_config.yml.in', command = 'rm -f api/*.lua'}
+        L = mkL {['gh-pages'] = copies}
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[9]).to_match '^cd %S+ && rm %-f api/%*%.lua$'
+        expect(L.write[10]).to_match '^git %-C %S+ add %-A && '
     - it removes the worktree when a gh-pages step fails: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
         spawned[copying('doc/api', 'api')] = list(1, '', '')

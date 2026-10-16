@@ -374,6 +374,15 @@ specify luke.schema:
       schema = setup()
       expect(schema.copies({api = 'doc/api'}, 'p')).
          to_raise 'bad p.api: list entry expected, such as {api = ...}'
+  - it keeps a command to run after copying: |
+      schema = setup()
+      r = schema.copies({{['.'] = 'doc'}, command = 'rm -f examples/*.lua'}, 'p')
+      expect(r.command).to_be 'rm -f examples/*.lua'
+      expect(r[1]).to_equal {['.'] = {optional = false, source = 'doc'}}
+  - it diagnoses a command that is not a string: |
+      schema = setup()
+      expect(schema.copies({command = 42}, 'p')).
+         to_raise 'bad p.command: string expected, got number'
 
 - describe files:
   - it names a bare entry after the path of its source: |

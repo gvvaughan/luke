@@ -2,6 +2,12 @@
 
 ## Noteworthy changes in release ?.? (????-??-??) [?]
 
+### New features:
+
+  - A branch table in the lukefile `release` table can have a `command`
+    to run on that branch after copying, such as to remove files from
+    a copied directory that should not be published.
+
 
 ## Noteworthy changes in release 0.5 (2026-10-15) [stable]
 

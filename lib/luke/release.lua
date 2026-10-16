@@ -184,9 +184,9 @@ end
 -- The steps for publishing each of *copies*, from a branch table in the
 -- lukefile `release` table, in the order written, to the *worktree* of
 -- that branch: copy its source there. A template is filled in place
--- without its '.in' suffix.
+-- without its '.in' suffix.  Then run its `command`, if any, there.
 local function publish_steps(L, env, substitute, worktree, copies)
-   return map(copies, function(pair)
+   return flatten(map(copies, function(pair)
       local path, copy = destructure(pair)
       local source, optional = copy.source, copy.optional
       local dest = worktree .. '/' .. path
@@ -200,7 +200,7 @@ local function publish_steps(L, env, substitute, worktree, copies)
                (gsub(dest, '%.in$', ''))})
          end)
       ), nil)
-   end)
+   end), copies.command and bind(run, {L, env, 'cd', worktree, '&&', copies.command}))
 end
 
 
