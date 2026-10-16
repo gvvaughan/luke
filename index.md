@@ -145,7 +145,7 @@ A module made from several C sources, or that needs extra compiler
 or linker settings, takes a full table in place of a single source
 string:
 
-{% highlight lua %}
+{% highlight lua %}{% raw %}
     modules = {
        {['posix.sys.socket'] = {
           defines   = {{HAVE_NET_IF_H = {checkheader='net/if.h', include='sys/socket.h'}}},
@@ -155,7 +155,7 @@ string:
           sources   = {'ext/posix/sys/socket.c'},
        }},
     }
-{% endhighlight %}
+{% endraw %}{% endhighlight %}
 
 Like the rockspec `defines` array, `defines` is a list of macro
 definitions, which Luke passes to the compiler in the order written.
@@ -784,7 +784,7 @@ and `./` is `.`, the directory itself.  It leaves `..` alone.
 | `release`               | a table with `news`, `rockspec`, `add`, `replacements` and branches | [8](#8-releases) |
 | `release.news`          | the NEWS file                                                | [8.1](#81-checks), [8.2](#82-steps) |
 | `release.rockspec`      | the development rockspec                                     | [8.1](#81-checks), [8.2](#82-steps) |
-| `release.replacements`  | `{path = {{text = replacement}, ...}}` entries, in order     | [8.4](#84-replacements) |
+| `release.replacements`  | {% raw %}`{path = {{text = replacement}, ...}}`{% endraw %} entries, in order     | [8.4](#84-replacements) |
 | `release.add`           | a list of paths to commit to the release                     | [8.2](#82-steps) |
 | `release[branch]`       | `{path = source}` entries, or paths on their own, in order   | [8.3](#83-publishing-to-branches) |
 
