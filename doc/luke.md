@@ -632,6 +632,9 @@ Luke checks, before changing anything, that:
     local _MODREV, _SPECREV = 'dev', '-1'
 {% endhighlight %}
 
+ * with `check_dependencies = true`, LuaRocks (`LUAROCKS`, or else
+   `luarocks`) has every dependency of `rockspec` installed for the Lua
+   that runs Luke; Luke lists any that are missing, and installs none;
  * each file in `replacements` exists, and has each text it replaces,
    after the replacements written before it (see
    [Replacements](#84-replacements));
@@ -796,9 +799,10 @@ and `./` is `.`, the directory itself.  It leaves `..` alone.
 | `ldocs`                 | an LDoc configuration file                                   | [3.6](#36-ldocs) |
 | `variables`             | variable names, each mapped to a value                       | [4.1](#41-variables) |
 | `substitute`            | template names, each mapped to a value                       | [4.3](#43-templates) |
-| `release`               | a table with `news`, `rockspec`, `add`, `replacements` and branches | [8](#8-releases) |
+| `release`               | a table with `news`, `rockspec`, `check_dependencies`, `add`, `replacements` and branches | [8](#8-releases) |
 | `release.news`          | the NEWS file                                                | [8.1](#81-checks), [8.2](#82-steps) |
 | `release.rockspec`      | the development rockspec                                     | [8.1](#81-checks), [8.2](#82-steps) |
+| `release.check_dependencies` | `true` to check that LuaRocks has the rockspec's dependencies | [8.1](#81-checks) |
 | `release.replacements`  | {% raw %}`{path = {{text = replacement}, ...}}`{% endraw %} entries, in order     | [8.4](#84-replacements) |
 | `release.add`           | a list of paths to commit to the release                     | [8.2](#82-steps) |
 | `release[branch]`       | `{path = source}` entries, or paths on their own, in order   | [8.3](#83-publishing-to-branches) |

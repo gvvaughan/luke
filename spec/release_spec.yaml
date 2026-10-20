@@ -165,6 +165,18 @@ before: |
      }
   end
 
+  -- *L*, collecting each line of its --verbose output in `L.reported`.
+  function verbosely(L)
+     L.reported, L.line = {}, ''
+     L.verbose = function(...)
+        L.line = L.line .. table.concat {...}
+        if L.line:match '\n$' then
+           L.reported[#L.reported + 1], L.line = L.line, ''
+        end
+     end
+     return L
+  end
+
   -- Set up *L* as --dry-run does.
   function dryrun(L)
      L.dryrun = true
@@ -406,6 +418,60 @@ specify luke.release:
         rockspec "package = 'demo'\nversion = 'dev-1'\n"
         release = setup(passing())
         expect(release(mkL {rockspec = ROCKSPEC}, env, build)).to_be(1)
+
+    - context with check_dependencies:
+      - before: |
+          rockspec "local _MODREV, _SPECREV = 'dev', '-1'\n\npackage = 'demo'\n"
+
+          -- The command, before spawn interpolates it, that asks
+          -- LuaRocks, run as *luarocks*, whether the dependencies of
+          -- ROCKSPEC are installed.
+          function deps_command(luarocks)
+             return (luarocks or 'luarocks') .. ' --lua-version=$LUAVERSION'
+                .. ' make --only-deps --only-server= ' .. require 'luke.environment'.shellword(ROCKSPEC)
+          end
+
+          MISSING = 'Missing dependencies for demo dev-1:\n   std.prototype >= 2 (not installed)\n'
+
+          CHECKING = 'checking whether the dependencies of ' .. ROCKSPEC .. ' are installed... '
+      - after: |
+          os.remove(RELEASED)
+
+      - it does not check dependencies unless asked to: |
+          release, fatal = setup(passing())
+          L = verbosely(mkL {rockspec = ROCKSPEC})
+          expect(release(L, env, build)).to_be(0)
+          expect(table.concat(L.reported)).not_to_contain 'dependencies'
+      - it passes when LuaRocks has every dependency installed: |
+          spawned = passing()
+          spawned[deps_command()] = list(0, '', '')
+          release, fatal = setup(spawned)
+          L = verbosely(mkL {rockspec = ROCKSPEC, check_dependencies = true})
+          expect(release(L, env, build)).to_be(0)
+          expect(#fatal).to_be(0)
+          expect(L.reported).to_contain(CHECKING .. 'yes\n')
+      - it diagnoses missing dependencies, and writes which: |
+          spawned = passing()
+          spawned[deps_command()] = list(1, 'Error: Could not satisfy dependency std.prototype >= 2',
+             MISSING .. '\ndemo dev-1 depends on std.prototype >= 2 (not installed)\n')
+          written = {}
+          -- luke.release writes to the io.stderr that luke.normalize
+          -- saved when it loaded.
+          replace(require 'luke.normalize', 'stderr', {write = function(self, ...)
+             written[#written + 1] = table.concat {...}
+          end})
+          release, fatal = setup(spawned)
+          L = verbosely(mkL {rockspec = ROCKSPEC, check_dependencies = true})
+          expect(release(L, env, build)).to_be(1)
+          expect(fatal[1]).to_be 'cannot release %s: check failed: %s'
+          expect(L.reported).to_contain(CHECKING .. 'no\n')
+          expect(written).to_equal {MISSING}
+      - it runs LuaRocks as LUAROCKS when set: |
+          spawned = passing()
+          spawned[deps_command '/opt/bin/luarocks'] = list(0, '', '')
+          release, fatal = setup(spawned)
+          expect(release(mkL {rockspec = ROCKSPEC, check_dependencies = true},
+             E.mkenv({LUAROCKS = '/opt/bin/luarocks'}, env), build)).to_be(0)
 
 - describe steps:
   - before: |
@@ -780,18 +846,6 @@ specify luke.release:
            return {{[README] = pairs}}
         end
 
-        -- *L*, collecting each line of its --verbose output in
-        -- `L.reported`.
-        function verbosely(L)
-           L.reported, L.line = {}, ''
-           L.verbose = function(...)
-              L.line = L.line .. table.concat {...}
-              if L.line:match '\n$' then
-                 L.reported[#L.reported + 1], L.line = L.line, ''
-              end
-           end
-           return L
-        end
     - after: |
         os.remove(README)
 

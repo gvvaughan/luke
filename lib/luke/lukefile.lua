@@ -25,14 +25,16 @@ local _ENV = require 'luke.normalize' {
 local string, table = mkcheck 'string', mkcheck 'table'
 
 -- How `luke release` updates NEWS, writes the release rockspec, edits
--- files for the release branch, and commits generated files; any other
--- key names a branch, such as `gh-pages`, mapped to the release files
--- to copy there.
+-- files for the release branch, commits generated files, and whether
+-- it first checks that the rockspec's dependencies are installed; any
+-- other key names a branch, such as `gh-pages`, mapped to the release
+-- files to copy there.
 local RELEASE = fields({
-   add          = list_of(pathname),
-   news         = pathname,
-   replacements = ordered_map(pair_of(ordered_map(pair_of(string)), pathname)),
-   rockspec     = pathname,
+   add                = list_of(pathname),
+   check_dependencies = mkcheck 'boolean',
+   news               = pathname,
+   replacements       = ordered_map(pair_of(ordered_map(pair_of(string)), pathname)),
+   rockspec           = pathname,
 }, copies)
 
 -- TODO: lukefile keys luke does not understand are let through, as a

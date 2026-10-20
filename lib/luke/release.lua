@@ -37,6 +37,19 @@ local function git(env, ...)
 end
 
 
+-- Whether LuaRocks has every dependency of *rockspec* installed for
+-- this Lua, writing any that are missing if not.  With no server to
+-- search, `make --only-deps` installs nothing.
+local function dependencies_installed(env, rockspec)
+   local status, err, out = spawn(env, env.LUAROCKS or 'luarocks', '--lua-version=$LUAVERSION',
+      'make --only-deps --only-server=', shellword(rockspec))
+   if status ~= 0 then
+      stderr:write(match(out or '', '^(Missing dependencies.-)\n\n') or err or '', '\n')
+   end
+   return status == 0
+end
+
+
 -- Whether the first release header in NEWS *text* is the placeholder
 -- for the next release, with some news before the header that follows.
 local function has_placeholder(text)
@@ -297,6 +310,11 @@ local function preconditions(env, release, version, main, substitute)
       append(checks, {format('%s sets _MODREV on its first line', release.rockspec), function()
          return rockspec ~= nil and match(rockspec, MODREV) ~= nil
       end})
+      if release.check_dependencies then
+         append(checks, {format('the dependencies of %s are installed', release.rockspec), function()
+            return dependencies_installed(env, release.rockspec)
+         end})
+      end
    end
 
    return checks

@@ -4,6 +4,11 @@
 
 ### New features:
 
+  - With `check_dependencies = true` in the lukefile `release` table,
+    `luke release` first checks that LuaRocks has every dependency in
+    `rockspec` installed, and lists any that are missing, rather than
+    failing later when the build needs one.
+
   - `luke release` accepts a major version number alone, such as
     `version=4`, as well as X.Y and X.Y.Z.
 
