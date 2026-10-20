@@ -4,6 +4,9 @@
 
 ### New features:
 
+  - `luke release` accepts a major version number alone, such as
+    `version=4`, as well as X.Y and X.Y.Z.
+
   - A branch table in the lukefile `release` table can have a `command`
     to run on that branch after copying, such as to remove files from
     a copied directory that should not be published.

@@ -187,11 +187,12 @@ return {
          release = parsed.clidefs.version
          diagnose(release ~= nil, 'release needs a version=VERSION argument')
          case(release, {
+            ['%d+']           = nop,
             ['%d+%.%d+']      = nop,
             ['%d+%.%d+%.%d+'] = nop,
 
             function()
-               fatal("bad release version '%s': X.Y or X.Y.Z expected", release)
+               fatal("bad release version '%s': X, X.Y or X.Y.Z expected", release)
             end,
          })
          parsed.targets = {}

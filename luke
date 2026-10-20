@@ -75,7 +75,7 @@ Each TARGET can be the name of an entry in the lukefile 'modules', 'bin',
   all                  build all targets in lukefile [default]
   install              build, then copy each module and installable script
                        beneath $INST_LUADIR, $INST_LIBDIR or $INST_BINDIR
-  release              cut the release given by version=X.Y or X.Y.Z
+  release              cut the release given by version=X, X.Y or X.Y.Z
 
 Releasing:
 

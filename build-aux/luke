@@ -68,7 +68,7 @@ if contains(parsed.targets,'release')then
 if len(parsed.targets)>1 then
 fatal('release cannot be combined with other targets')end
 release=parsed.clidefs.version
-diagnose(release~=nil,'release needs a version=VERSION argument')case(release,{['%d+%.%d+']=nop,['%d+%.%d+%.%d+']=nop,function()fatal("bad release version '%s': X.Y or X.Y.Z expected",release)end,})parsed.targets={}end
+diagnose(release~=nil,'release needs a version=VERSION argument')case(release,{['%d+']=nop,['%d+%.%d+']=nop,['%d+%.%d+%.%d+']=nop,function()fatal("bad release version '%s': X, X.Y or X.Y.Z expected",release)end,})parsed.targets={}end
 local sections=script_sections(luke)local installbin=sections.install
 local rulesets={luke.modules,sections.bin,sections.files,installbin}local function hasrule(target)return target=='install'or any(map(rulesets,function(rules)return ordered_get(rules,target)~=nil
 end))end
@@ -881,8 +881,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,luke_format=luke_format,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/72f67d3',versiontext=[[
-luke (Luke) gvv/72f67d3
+return{VERSION='gvv/c201b3f',versiontext=[[
+luke (Luke) gvv/c201b3f
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

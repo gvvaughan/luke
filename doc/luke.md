@@ -586,7 +586,7 @@ so that a separate `lukefile` is no longer necessary.
 
 ## 8. Releases
 
-`luke release version=X.Y` cuts release X.Y (or X.Y.Z) in your git
+`luke release version=X.Y` cuts release X.Y (or X or X.Y.Z) in your git
 working tree, as set out in the lukefile `release` table.  Luke's own
 is:
 

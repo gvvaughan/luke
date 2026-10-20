@@ -308,7 +308,10 @@ specify luke:
   - it diagnoses malformed versions: |
       p = luke('--file=' .. fname, 'release', 'version=1.0rc1')
       expect(p).to_exit(1)
-      expect(p).to_contain_error "bad release version '1.0rc1': X.Y or X.Y.Z expected"
+      expect(p).to_contain_error "bad release version '1.0rc1': X, X.Y or X.Y.Z expected"
+  - it accepts a major version number alone: |
+      p = luke('--file=' .. fname, 'release', 'version=4')
+      expect(p).not_to_contain_error 'bad release version'
   - it cannot be combined with other targets: |
       p = luke('--file=' .. fname, 'release', 'example', 'version=1.0')
       expect(p).to_exit(1)
