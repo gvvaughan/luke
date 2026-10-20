@@ -3,6 +3,11 @@ luke_format = 0
 package  = 'luke'
 version  = '$USER/$gitref'
 
+-- A build without help2man keeps the man page that a release commits.
+variables = {
+   HELP2MAN = {checkprog='HELP2MAN', progs={'help2man', 'true'}},
+}
+
 modules  = {
    {['luke']                 = 'lib/luke/init.lua'},
    {['luke._base']           = 'lib/luke/_base.lua'},
@@ -53,9 +58,17 @@ bin = {
    }},
 }
 
+-- Document build-aux/luke, the luke that projects vendor and LuaRocks installs.
+files = {
+   {['doc/luke.1'] = {
+      command = '$HELP2MAN --output=$target --no-info --name="Use the source, Luke!" build-aux/luke',
+      sources = 'build-aux/luke',
+   }},
+}
+
 -- `luke release version=X.Y` adds the release to NEWS.md, writes the
 -- release rockspec, points the README badges at the release branch,
--- and publishes the manual to gh-pages.
+-- commits the man page, and publishes the manual to gh-pages.
 release = {
    news         = 'NEWS.md',
    rockspec     = 'luke-dev-1.rockspec',

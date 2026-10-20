@@ -2,6 +2,12 @@
 
 ## Noteworthy changes in release ?.? (????-??-??) [?]
 
+### New features:
+
+  - Luke has a man page, `doc/luke.1`, which the build generates from
+    `luke --help` when help2man is installed, and `luke release`
+    commits.
+
 
 ## Noteworthy changes in release 0.6 (2026-10-20) [stable]
 
