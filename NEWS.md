@@ -2,6 +2,9 @@
 
 ## Noteworthy changes in release ?.? (????-??-??) [?]
 
+
+## Noteworthy changes in release 0.6 (2026-10-20) [stable]
+
 ### New features:
 
   - With `check_dependencies = true` in the lukefile `release` table,
