@@ -586,7 +586,7 @@ so that a separate `lukefile` is no longer necessary.
 
 ## 8. Releases
 
-`luke release version=X.Y` cuts release X.Y (or X.Y.Z) in your git
+`luke release version=X.Y` cuts release X.Y (or X or X.Y.Z) in your git
 working tree, as set out in the lukefile `release` table.  Luke's own
 is:
 
@@ -632,14 +632,19 @@ Luke checks, before changing anything, that:
     local _MODREV, _SPECREV = 'dev', '-1'
 {% endhighlight %}
 
+ * with `check_dependencies = true`, LuaRocks (`LUAROCKS`, or else
+   `luarocks`) has every dependency of `rockspec` installed for the Lua
+   that runs Luke; Luke lists any that are missing, and installs none;
  * each file in `replacements` exists, and has each text it replaces,
    after the replacements written before it (see
    [Replacements](#84-replacements));
  * each branch that the release copies files to, such as `gh-pages`, is
-   up to date with origin, and is not checked out in another worktree,
-   as Luke updates it in a worktree of its own; and each template
-   copied there from the same path is in the release or on that branch
-   (see [Publishing to Branches](#83-publishing-to-branches)).
+   on origin, and has no commits that origin lacks, as Luke sets it to
+   origin's before publishing, which creates it in a fresh clone and
+   fast-forwards it when it is behind; is not checked out in another
+   worktree, as Luke updates it in a worktree of its own; and each
+   template copied there from the same path is in the release or on
+   that branch (see [Publishing to Branches](#83-publishing-to-branches)).
 
 `--verbose` shows each check as Luke makes it.
 
@@ -728,6 +733,19 @@ there, keeping only the templates already on `gh-pages`:
     }
 {% endhighlight %}
 
+A branch table can also have a `command`, which Luke runs on that
+branch after copying everything, before committing, such as to remove
+files that a copied directory should not publish.  [luaposix] keeps the
+sources of its examples off `gh-pages`, publishing only their LDoc
+pages, like this:
+
+{% highlight lua %}
+    ['gh-pages'] = {
+       {['.'] = 'doc/'},
+       command = 'rm -f examples/*.lua',
+    }
+{% endhighlight %}
+
 ### 8.4. Replacements
 
 A `replacements` list edits files on the release branch alone, such as
@@ -781,9 +799,10 @@ and `./` is `.`, the directory itself.  It leaves `..` alone.
 | `ldocs`                 | an LDoc configuration file                                   | [3.6](#36-ldocs) |
 | `variables`             | variable names, each mapped to a value                       | [4.1](#41-variables) |
 | `substitute`            | template names, each mapped to a value                       | [4.3](#43-templates) |
-| `release`               | a table with `news`, `rockspec`, `add`, `replacements` and branches | [8](#8-releases) |
+| `release`               | a table with `news`, `rockspec`, `check_dependencies`, `add`, `replacements` and branches | [8](#8-releases) |
 | `release.news`          | the NEWS file                                                | [8.1](#81-checks), [8.2](#82-steps) |
 | `release.rockspec`      | the development rockspec                                     | [8.1](#81-checks), [8.2](#82-steps) |
+| `release.check_dependencies` | `true` to check that LuaRocks has the rockspec's dependencies | [8.1](#81-checks) |
 | `release.replacements`  | {% raw %}`{path = {{text = replacement}, ...}}`{% endraw %} entries, in order     | [8.4](#84-replacements) |
 | `release.add`           | a list of paths to commit to the release                     | [8.2](#82-steps) |
 | `release[branch]`       | `{path = source}` entries, or paths on their own, in order   | [8.3](#83-publishing-to-branches) |
