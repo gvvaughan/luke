@@ -16,6 +16,11 @@
 
 ### Bug fixes:
 
+  - The build runs `luke --help` for the man page with the Lua that it
+    builds for, rather than with whichever `lua` is first on the `PATH`,
+    which may not be there at all, and so fails the install when
+    help2man is installed.
+
   - `luke release` says why it cannot release in words that read as
     a reason, "expected that the dependencies of X are installed",
     rather than "check failed: the dependencies of X are installed",

@@ -61,7 +61,7 @@ bin = {
 -- Document build-aux/luke, the luke that projects vendor and LuaRocks installs.
 files = {
    {['doc/luke.1'] = {
-      command = '$HELP2MAN --output=$target --no-info --name="Use the source, Luke!" build-aux/luke',
+      command = '$HELP2MAN --output=$target --no-info --name="Use the source, Luke!" "$LUA build-aux/luke"',
       sources = 'build-aux/luke',
    }},
 }
