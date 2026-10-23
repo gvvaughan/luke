@@ -124,7 +124,19 @@ specify luke.compile:
       p = capture(function(L, env)
          return require 'luke.compile'.run(L, env, {'(echo oops >&2; false)'})
       end, {spawn = compile.spawn, write = Stub()}, env)
-      expect(p).to_fail_with 'oops\n\n'
+      expect(p).to_fail_with 'oops\n'
+
+  - it ends the error output of a failing command with a newline: |
+      p = capture(function(L, env)
+         return require 'luke.compile'.run(L, env, {'(printf oops >&2; false)'})
+      end, {spawn = compile.spawn, write = Stub()}, env)
+      expect(p).to_fail_with 'oops\n'
+
+  - it writes no error output for a failing command without any: |
+      p = capture(function(L, env)
+         return require 'luke.compile'.run(L, env, {'false'})
+      end, {spawn = compile.spawn, write = Stub()}, env)
+      expect(p).to_fail_with ''
 
   - it writes a failing command even when quiet: |
       p = capture(function(env)

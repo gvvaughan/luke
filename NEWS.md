@@ -16,6 +16,10 @@
 
 ### Bug fixes:
 
+  - A build command that fails has its error output written once, with
+    no blank line after it, where it used to be followed by one, and a
+    command that fails without saying anything writes no blank line.
+
   - The build runs `luke --help` for the man page with the Lua that it
     builds for, rather than with whichever `lua` is first on the `PATH`,
     which may not be there at all, and so fails the install when

@@ -23,6 +23,15 @@ local function spawn(env, ...)
 end
 
 
+-- Write the error output *err* of a failed command as it is, ending with
+-- a newline, and nothing at all if there was none.
+local function write_error(err)
+   if err ~= '' then
+      stderr:write(err, match(err, '\n$') and '' or '\n')
+   end
+end
+
+
 -- Write *command*, and run it with `L.spawn`, which only pretends to
 -- with --dry-run; return its exit status, output and error output.
 local function run(L, env, command)
@@ -32,7 +41,7 @@ local function run(L, env, command)
       if L.quiet then
          stdout:write(concat(command, ' ') .. '\n')
       end
-      stderr:write(err .. '\n')
+      write_error(err)
    end
    return status, out, err
 end
@@ -136,7 +145,7 @@ local function make_dir(L, env, dir)
    local status, err = L.spawn(env, unpack(command))
    if status ~= 0 then
       stdout:write(concat(command, ' ') .. '\n')
-      stderr:write(err .. '\n')
+      write_error(err)
    end
    return status
 end

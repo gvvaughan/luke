@@ -87,10 +87,13 @@ local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merged({abs_top_srcdir
 end
 package.preload['luke.compile']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.environment','luke.functional','type.context-manager','type.path',}local function spawn(env,...)local command=interpolate(env,concat({...},' '))return with(TmpFile(),TmpFile(),function(out,err)local pipe=concat{'{ ',command,'\n} >',out.filename,' 2>',err.filename,'; printf $?'}return tonumber(slurp(Pipe(pipe))),slurp(File(err.filename)),slurp(File(out.filename))end)end
+local function write_error(err)if err~=''then
+stderr:write(err,match(err,'\n$')and''or'\n')end
+end
 local function run(L,env,command)L.write(interpolate(env,concat(command,' ')),'\n')local status,err,out=L.spawn(env,unpack(command))if status~=0 then
 if L.quiet then
 stdout:write(concat(command,' ')..'\n')end
-stderr:write(err..'\n')end
+write_error(err)end
 return status,out,err
 end
 local function defines(...)return map(ordered_merge(...),function(definition)local name,value=destructure(definition)local fmt=cond({int(value)==1,'-D%s'},{true,'-D%s=%s'})return format(fmt,name,shellword(value))end)end
@@ -106,7 +109,7 @@ local function module_to_path(module,sources,objdir)return case(sources[1],{{'.*
 local function sequence(steps)return firstof(steps,isnonzero,call)or 0
 end
 local function make_dir(L,env,dir)local command={'$MAKEDIRS',dir}local status,err=L.spawn(env,unpack(command))if status~=0 then
-stdout:write(concat(command,' ')..'\n')stderr:write(err..'\n')end
+stdout:write(concat(command,' ')..'\n')write_error(err)end
 return status
 end
 local function install_dir(L,env,dir)return choose(exists(interpolate(env,dir)),0,function()return run(L,env,{'$MAKEDIRS',dir})end)end
@@ -874,8 +877,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/f21ea86',versiontext=[[
-luke (Luke) gvv/f21ea86
+return{VERSION='gvv/4b2367b',versiontext=[[
+luke (Luke) gvv/4b2367b
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
