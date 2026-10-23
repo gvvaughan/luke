@@ -10,18 +10,24 @@ local _ENV = require 'luke.normalize' {
 }
 
 
+-- Call *fn* with the arguments.
+local function call(fn, ...)
+   return fn(...)
+end
+
+
+-- Call *fn* with the items of the list *argu*, even trailing nils.
+local function apply(fn, argu)
+   return fn(unpack(argu))
+end
+
+
 -- Call a branch if it is callable, otherwise return it as it is.
-local function call(branch, ...)
+local function force(branch, ...)
    if iscallable(branch) then
       return branch(...)
    end
    return branch
-end
-
-
--- As `call`, with the arguments in the list *argu*.
-local function apply(branch, argu)
-   return call(branch, unpack(argu))
 end
 
 
@@ -34,7 +40,7 @@ local function choose(test, consequent, alternative)
    if test then
       leg = consequent
    end
-   return call(leg, test)
+   return force(leg, test)
 end
 
 
@@ -400,18 +406,18 @@ return {
    -- branch is called with *s*, or the captures of the pattern.
    case = function(s, branches)
       if branches[s] ~= nil then
-         return call(branches[s], s)
+         return force(branches[s], s)
       end
       if type(s) == 'string' then
          for i = 1, len(branches) do
             local pattern, branch = unpack(branches[i], 1, 2)
             local captures = list(match(s, '^' .. pattern .. '$'))
             if captures[1] ~= nil then
-               return call(branch, unpack(captures, 1, captures.n))
+               return force(branch, unpack(captures, 1, captures.n))
             end
          end
       end
-      return call(branches.default, s)
+      return force(branches.default, s)
    end,
 
    choose = choose,
@@ -425,7 +431,7 @@ return {
       for i = 1, clauses.n do
          local expr, consequence = unpack(clauses[i], 1, 2)
          if expr then
-            return call(consequence, expr)
+            return force(consequence, expr)
          end
       end
    end,
@@ -466,6 +472,8 @@ return {
    flatten = flatten,
 
    foldl = foldl,
+
+   force = force,
 
    get = function(dict, key)
       return (dict or {})[key]

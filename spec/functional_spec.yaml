@@ -35,10 +35,22 @@ specify luke.functional:
       expect(call(function(a, b) return a + b end, 1, 2)).to_be(3)
   - it calls a functable:
       expect(call(setmetatable({}, {__call = function(_, x) return x end}), 'a')).to_be 'a'
+  - it raises an error for an argument that cannot be called:
+      expect(call('a', 1, 2)).to_raise()
+      expect(call(nil, 1, 2)).to_raise()
+
+- describe force:
+  - before:
+      force = functional.force
+
+  - it calls a function with the arguments:
+      expect(force(function(a, b) return a + b end, 1, 2)).to_be(3)
+  - it calls a functable:
+      expect(force(setmetatable({}, {__call = function(_, x) return x end}), 'a')).to_be 'a'
   - it returns anything else as it is:
-      expect(call('a', 1, 2)).to_be 'a'
-      expect(call(false, 1, 2)).to_be(false)
-      expect(call(nil, 1, 2)).to_be(nil)
+      expect(force('a', 1, 2)).to_be 'a'
+      expect(force(false, 1, 2)).to_be(false)
+      expect(force(nil, 1, 2)).to_be(nil)
 
 - describe apply:
   - before:
@@ -48,9 +60,9 @@ specify luke.functional:
       expect(apply(function(a, b) return a + b end, {1, 2})).to_be(3)
   - it passes trailing nils of a list with its length in `n`:
       expect(apply(function(...) return select('#', ...) end, list(1, nil, nil))).to_be(3)
-  - it returns anything else as it is:
-      expect(apply('a', {1, 2})).to_be 'a'
-      expect(apply(nil, {1, 2})).to_be(nil)
+  - it raises an error for an argument that cannot be called:
+      expect(apply('a', {1, 2})).to_raise()
+      expect(apply(nil, {1, 2})).to_raise()
 
 - describe choose:
   - before:
