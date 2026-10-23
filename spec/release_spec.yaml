@@ -427,7 +427,7 @@ specify luke.release:
           -- LuaRocks, run as *luarocks*, whether the dependencies of
           -- ROCKSPEC are installed.
           function deps_command(luarocks)
-             return (luarocks or 'luarocks') .. ' --lua-version=$LUAVERSION'
+             return (luarocks or 'luarocks') .. ' --lua-version=$LUA_VERSION'
                 .. ' make --only-deps --only-server= ' .. require 'luke.environment'.shellword(ROCKSPEC)
           end
 

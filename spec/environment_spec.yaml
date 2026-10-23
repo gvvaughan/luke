@@ -84,8 +84,8 @@ specify luke.environment:
     - before:
         defines = {
            PREFIX        = '/usr/local',
-           INST_LIBDIR   = '$PREFIX/lib/lua/$LUAVERSION',
-           INST_LUADIR   = '$PREFIX/share/lua/$LUAVERSION',
+           INST_LIBDIR   = '$PREFIX/lib/lua/$LUA_VERSION',
+           INST_LUADIR   = '$PREFIX/share/lua/$LUA_VERSION',
 
            LIB_EXTENSION = 'so',
            OBJ_EXTENSION = 'o',
@@ -116,8 +116,8 @@ specify luke.environment:
     - it sets the right defines on Darwin:
         expect(filter_platforms(defines, CANON.Darwin, isplatform)).to_equal {
            PREFIX        = '/usr/local',
-           INST_LIBDIR   = '$PREFIX/lib/lua/$LUAVERSION',
-           INST_LUADIR   = '$PREFIX/share/lua/$LUAVERSION',
+           INST_LIBDIR   = '$PREFIX/lib/lua/$LUA_VERSION',
+           INST_LUADIR   = '$PREFIX/share/lua/$LUA_VERSION',
 
            LIB_EXTENSION = 'so',
            OBJ_EXTENSION = 'o',
@@ -132,8 +132,8 @@ specify luke.environment:
     - it sets the right defines on Linux:
         expect(filter_platforms(defines, CANON.Linux, isplatform)).to_equal {
            PREFIX        = '/usr/local',
-           INST_LIBDIR   = '$PREFIX/lib/lua/$LUAVERSION',
-           INST_LUADIR   = '$PREFIX/share/lua/$LUAVERSION',
+           INST_LIBDIR   = '$PREFIX/lib/lua/$LUA_VERSION',
+           INST_LUADIR   = '$PREFIX/share/lua/$LUA_VERSION',
 
            LIB_EXTENSION = 'so',
            OBJ_EXTENSION = 'o',

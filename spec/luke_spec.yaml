@@ -108,6 +108,12 @@ specify luke:
          }
       ]])
       expect(luke('--file=' .. fname, '--value=ECHO')).to_succeed_with "ECHO='echo'\n"
+  - it sets LUA_VERSION to the version of Lua running luke: |
+      expect(luke('--file=' .. fname, '--value=LUA_VERSION')).
+         to_succeed_while_matching "^LUA_VERSION='%d%.%d'\n$"
+  - it still accepts LUAVERSION for LUA_VERSION: |
+      expect(luke('--file=' .. fname, '--value=LUAVERSION', '--value=LUA_VERSION')).
+         to_succeed_while_matching "^LUAVERSION='(%d%.%d)'\nLUA_VERSION='%1'\n$"
   - it sets gitref to the checked out commit: |
       expect(luke('--file=' .. fname, '--value=gitref')).
          to_succeed_while_matching "^gitref='%x%x%x%x%x%x%x+'\n$"
@@ -403,6 +409,10 @@ specify luke:
       spit(tmpdir .. '/example.lua.in', "return '@gitref@'\n")
       expect(luke('--file=' .. fname)).to_succeed()
       expect(slurp(tmpdir .. '/example.lua')).to_match "^return '%x%x%x%x%x%x%x+'\n$"
+  - it fills LUA_VERSION in templates: |
+      spit(tmpdir .. '/example.lua.in', "return '@LUA_VERSION@'\n")
+      expect(luke('--file=' .. fname)).to_succeed()
+      expect(slurp(tmpdir .. '/example.lua')).to_match "^return '%d%.%d'\n$"
   - it installs every module: |
       expect(luke('--file=' .. fname)).to_succeed()
       expect(luke('--file=' .. fname, 'PREFIX=' .. tmpdir, 'install')).

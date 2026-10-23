@@ -6,6 +6,7 @@
 local _ENV = require 'luke.normalize' {
    'luke._base',
    'luke.compile',
+   'luke.environment',
    'luke.lukefile',
    'luke.platforms',
    'luke.functional',
@@ -260,6 +261,7 @@ return {
       luke.substitute = merged({
          abs_top_srcdir = srcdir,
          gitref         = ref,
+         LUA_VERSION    = DEFAULTENV.LUA_VERSION,
          package        = interpolate_to_substitute(luke.package),
          version        = interpolate_to_substitute(luke.version),
       }, luke.substitute)
@@ -267,7 +269,7 @@ return {
       luke.variables = merged({
          LUA_DIR        = '/usr',
          LUA_BINDIR     = '$LUA_DIR/bin',
-         LUA_INCDIR     = '$LUA_DIR/include/lua$LUAVERSION',
+         LUA_INCDIR     = '$LUA_DIR/include/lua$LUA_VERSION',
          LUA_LIBDIR     = '$LUA_DIR/lib',
          abs_top_srcdir = srcdir,
          gitref         = ref,

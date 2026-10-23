@@ -59,9 +59,9 @@ table, the defaults and the environment, in that order.  For example:
   LUA_INCDIR=DIR       where to find lua.h, for C modules
   PREFIX=DIR           where to install [default=/usr/local]
   INST_LUADIR=DIR      where to install Lua modules
-                       [default=$PREFIX/share/lua/$LUAVERSION]
+                       [default=$PREFIX/share/lua/$LUA_VERSION]
   INST_LIBDIR=DIR      where to install C modules
-                       [default=$PREFIX/lib/lua/$LUAVERSION]
+                       [default=$PREFIX/lib/lua/$LUA_VERSION]
   INST_BINDIR=DIR      where to install scripts [default=$PREFIX/bin]
   CC=CMD, CFLAGS=FLAGS how to compile C modules
   version=VERSION      the version to build, or to release

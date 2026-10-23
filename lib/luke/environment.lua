@@ -7,7 +7,7 @@ local _ENV = require 'luke.normalize' {
    'luke._base',
    'luke.platforms',
    'luke.functional',
-   LUAVERSION = string.gsub(_VERSION, '[^0-9%.]+', ''),
+   LUA_VERSION = string.gsub(_VERSION, '[^0-9%.]+', ''),
    SHELLMETACHARS = '[%s%$"\'&;|<>()*?`\\]',
 }
 
@@ -41,12 +41,13 @@ return {
 
    DEFAULTENV = filter_platforms {
       LUA           = 'lua',
-      LUAVERSION    = LUAVERSION,
+      LUA_VERSION   = LUA_VERSION,
+      LUAVERSION    = '$LUA_VERSION',
 
       PREFIX        = '/usr/local',
       INST_BINDIR   = '$PREFIX/bin',
-      INST_LIBDIR   = '$PREFIX/lib/lua/$LUAVERSION',
-      INST_LUADIR   = '$PREFIX/share/lua/$LUAVERSION',
+      INST_LIBDIR   = '$PREFIX/lib/lua/$LUA_VERSION',
+      INST_LUADIR   = '$PREFIX/share/lua/$LUA_VERSION',
 
       LIB_EXTENSION = 'so',
       OBJ_EXTENSION = 'o',

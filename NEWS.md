@@ -4,6 +4,12 @@
 
 ### New features:
 
+  - Templates can fill in `@LUA_VERSION@`, the version of the Lua running
+    Luke, such as `5.4`, to find the directories of the modules for it.
+
+  - The variable that holds that version is now spelled `LUA_VERSION`,
+    as LuaRocks spells it.  `LUAVERSION` still works, as an alias.
+
   - Luke has a man page, `doc/luke.1`, which the build generates from
     `luke --help` when help2man is installed, and `luke release`
     commits.

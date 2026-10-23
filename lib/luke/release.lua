@@ -41,7 +41,7 @@ end
 -- this Lua, writing any that are missing if not.  With no server to
 -- search, `make --only-deps` installs nothing.
 local function dependencies_installed(env, rockspec)
-   local status, err, out = spawn(env, env.LUAROCKS or 'luarocks', '--lua-version=$LUAVERSION',
+   local status, err, out = spawn(env, env.LUAROCKS or 'luarocks', '--lua-version=$LUA_VERSION',
       'make --only-deps --only-server=', shellword(rockspec))
    if status ~= 0 then
       stderr:write(match(out or '', '^(Missing dependencies.-)\n\n') or err or '', '\n')

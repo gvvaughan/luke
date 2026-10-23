@@ -357,13 +357,13 @@ runs Luke (see [Rockspecs](#7-rockspecs)), are:
 |-----------------|---------------------------------------------|
 | `PREFIX`        | `/usr/local`                                |
 | `INST_BINDIR`   | `$PREFIX/bin`                               |
-| `INST_LIBDIR`   | `$PREFIX/lib/lua/$LUAVERSION`               |
-| `INST_LUADIR`   | `$PREFIX/share/lua/$LUAVERSION`             |
+| `INST_LIBDIR`   | `$PREFIX/lib/lua/$LUA_VERSION`              |
+| `INST_LUADIR`   | `$PREFIX/share/lua/$LUA_VERSION`            |
 | `LUA`           | `lua`                                       |
-| `LUAVERSION`    | the version of the Lua running Luke         |
+| `LUA_VERSION`   | the version of the Lua running Luke         |
 | `LUA_DIR`       | `/usr`                                      |
 | `LUA_BINDIR`    | `$LUA_DIR/bin`                              |
-| `LUA_INCDIR`    | `$LUA_DIR/include/lua$LUAVERSION`           |
+| `LUA_INCDIR`    | `$LUA_DIR/include/lua$LUA_VERSION`          |
 | `LUA_LIBDIR`    | `$LUA_DIR/lib`                              |
 | `CC`            | the first of `cc`, `gcc` or `clang` found   |
 | `CFLAGS`        | `-O2`                                       |
@@ -383,6 +383,8 @@ The compile command also uses `CPPFLAGS`, `LDFLAGS`, `LIBS` and
 Luke also sets:
 
  * `package` and `version`, from `lukefile`;
+ * `LUA_VERSION`, the version of the Lua running Luke, which is also a
+   variable with that default (`LUAVERSION` is an older name for it);
  * `gitref`, the abbreviated hash of the commit checked out in the
    current directory, or the empty string outside a git working tree;
  * `abs_top_srcdir`, the absolute path of the current directory.

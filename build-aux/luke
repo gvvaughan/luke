@@ -21,7 +21,7 @@ end
 return M
 end
 package.preload['luke.cli']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.lukefile','luke.platforms','luke.functional','luke.version','type.context-manager',}local function version()print(versiontext)exit(0)end
+local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.environment','luke.lukefile','luke.platforms','luke.functional','luke.version','type.context-manager',}local function version()print(versiontext)exit(0)end
 local function help()print[[
 Usage: luke [OPTION]... [VAR=VALUE]... [TARGET]
 
@@ -83,7 +83,7 @@ opterr("unrecognized option '%s'",opt)end
 append(r.targets,opt)end,})end)return r
 end,validate_arguments=function(parsed)local luke=check_lukefile(parsed)local release=release_version(parsed)local sections=script_sections(luke)local installbin=sections.install
 local rulesets={luke.modules,sections.bin,sections.files,installbin}local targets=selected_targets(choose(release,{},parsed.targets),rulesets)local named=reject(targets,'install')local build=ordered_pluck(luke.modules,named)local install,install_scripts=installs(luke,installbin,build,named,targets)local scripts={build=script_entries(sections,named),install=install_scripts}luke.modules=build
-local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merged({abs_top_srcdir=srcdir,gitref=ref,package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),},luke.substitute)luke.variables=merged({LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUAVERSION',LUA_LIBDIR='$LUA_DIR/lib',abs_top_srcdir=srcdir,gitref=ref,objdir=platforms[1],package=luke.package,version=luke.version,},collect_variables(luke),luke.variables)return{clidefs=parsed.clidefs,debug=parsed.debug,dryrun=parsed.dryrun,filled={},install=install,log=parsed.log,luke=luke,quiet=parsed.quiet,release=release,scripts=scripts,spawn=parsed.spawn,valreqs=parsed.valreqs,verbose=parsed.verbose,write=parsed.write,}end,}
+local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merged({abs_top_srcdir=srcdir,gitref=ref,LUA_VERSION=DEFAULTENV.LUA_VERSION,package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),},luke.substitute)luke.variables=merged({LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUA_VERSION',LUA_LIBDIR='$LUA_DIR/lib',abs_top_srcdir=srcdir,gitref=ref,objdir=platforms[1],package=luke.package,version=luke.version,},collect_variables(luke),luke.variables)return{clidefs=parsed.clidefs,debug=parsed.debug,dryrun=parsed.dryrun,filled={},install=install,log=parsed.log,luke=luke,quiet=parsed.quiet,release=release,scripts=scripts,spawn=parsed.spawn,valreqs=parsed.valreqs,verbose=parsed.verbose,write=parsed.write,}end,}
 end
 package.preload['luke.compile']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.environment','luke.functional','type.context-manager','type.path',}local function spawn(env,...)local command=interpolate(env,concat({...},' '))return with(TmpFile(),TmpFile(),function(out,err)local pipe=concat{'{ ',command,'\n} >',out.filename,' 2>',err.filename,'; printf $?'}return tonumber(slurp(Pipe(pipe))),slurp(File(err.filename)),slurp(File(out.filename))end)end
@@ -268,9 +268,9 @@ return env
 end,configure=configure,isprobe=isprobe,}
 end
 package.preload['luke.environment']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.platforms','luke.functional',LUAVERSION=string.gsub(_VERSION,'[^0-9%.]+',''),SHELLMETACHARS='[%s%$"\'&;|<>()*?`\\]',}local function interpolate_with(pattern,env,s)local ok,result=pcall(converge,s,function(text)return(gsub(text,pattern,function(varname)return env[varname]or''end))end)return diagnose(ok and result,"cannot expand '%s': its names refer to each other",s)end
+local _ENV=require'luke.normalize'{'luke._base','luke.platforms','luke.functional',LUA_VERSION=string.gsub(_VERSION,'[^0-9%.]+',''),SHELLMETACHARS='[%s%$"\'&;|<>()*?`\\]',}local function interpolate_with(pattern,env,s)local ok,result=pcall(converge,s,function(text)return(gsub(text,pattern,function(varname)return env[varname]or''end))end)return diagnose(ok and result,"cannot expand '%s': its names refer to each other",s)end
 local function quoted(s)return"'"..gsub(s,"'",[['\'']]).."'"end
-return{CONFIGENV={compile='$CC -c $CFLAGS $CPPFLAGS',libs='',link='$CC $CFLAGS $CPPFLAGS $LDFLAGS',},DEFAULTENV=filter_platforms{LUA='lua',LUAVERSION=LUAVERSION,PREFIX='/usr/local',INST_BINDIR='$PREFIX/bin',INST_LIBDIR='$PREFIX/lib/lua/$LUAVERSION',INST_LUADIR='$PREFIX/share/lua/$LUAVERSION',LIB_EXTENSION='so',OBJ_EXTENSION='o',CHMOD='chmod',INSTALL='cp',MAKEDIRS='mkdir -p',CFLAGS='-O2',platforms={macosx={LIBFLAG='-fPIC -bundle -undefined dynamic_lookup -all_load',},LIBFLAG='-shared -fPIC',},},SHELLENV=setmetatable({},{__index=function(_,v)return getenv(v)end,}),expand=bind(interpolate_with,{'@([%w_]+)@'}),interpolate=bind(interpolate_with,{'%$([%w_]+)'}),shellword=function(s)if match(s,SHELLMETACHARS)then
+return{CONFIGENV={compile='$CC -c $CFLAGS $CPPFLAGS',libs='',link='$CC $CFLAGS $CPPFLAGS $LDFLAGS',},DEFAULTENV=filter_platforms{LUA='lua',LUA_VERSION=LUA_VERSION,LUAVERSION='$LUA_VERSION',PREFIX='/usr/local',INST_BINDIR='$PREFIX/bin',INST_LIBDIR='$PREFIX/lib/lua/$LUA_VERSION',INST_LUADIR='$PREFIX/share/lua/$LUA_VERSION',LIB_EXTENSION='so',OBJ_EXTENSION='o',CHMOD='chmod',INSTALL='cp',MAKEDIRS='mkdir -p',CFLAGS='-O2',platforms={macosx={LIBFLAG='-fPIC -bundle -undefined dynamic_lookup -all_load',},LIBFLAG='-shared -fPIC',},},SHELLENV=setmetatable({},{__index=function(_,v)return getenv(v)end,}),expand=bind(interpolate_with,{'@([%w_]+)@'}),interpolate=bind(interpolate_with,{'%$([%w_]+)'}),shellword=function(s)if match(s,SHELLMETACHARS)then
 return quoted(s)end
 return s
 end,mkenv=function(...)local tables,found=reject(list(...),nil),{}return setmetatable({},{__index=function(_,varname)if found[varname]==nil then
@@ -700,7 +700,7 @@ package.preload['luke.release']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.configure','luke.environment','luke.functional','luke.lukefile','type.context-manager','type.path',date=os.date,}local PLACEHOLDER='\n(## [^\n]*%?%.%?[^\n]*\n)'local MODREV="^(local _MODREV, _SPECREV = ')[^']*(')"local DEVROCKSPEC='^(.-%-)dev(%-%d+%.rockspec)$'local function git(env,...)local status,err,out=spawn(env,'git',...)if status==0 then
 return(gsub(out,'\n$',''))end
 end
-local function dependencies_installed(env,rockspec)local status,err,out=spawn(env,env.LUAROCKS or'luarocks','--lua-version=$LUAVERSION','make --only-deps --only-server=',shellword(rockspec))if status~=0 then
+local function dependencies_installed(env,rockspec)local status,err,out=spawn(env,env.LUAROCKS or'luarocks','--lua-version=$LUA_VERSION','make --only-deps --only-server=',shellword(rockspec))if status~=0 then
 stderr:write(match(out or'','^(Missing dependencies.-)\n\n')or err or'','\n')end
 return status==0
 end
@@ -874,8 +874,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/1ea63ca',versiontext=[[
-luke (Luke) gvv/1ea63ca
+return{VERSION='gvv/9e91241',versiontext=[[
+luke (Luke) gvv/9e91241
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

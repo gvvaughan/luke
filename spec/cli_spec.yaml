@@ -68,6 +68,7 @@ specify luke.cli:
       expect(L.luke.substitute.package).to_be 'example'
       expect(L.luke.substitute.version).to_be '1.0'
       expect(L.luke.substitute.gitref).to_match '^%x*$'
+      expect(L.luke.substitute.LUA_VERSION).to_match '^%d%.%d$'
   - it prefers lukefile substitutions to the ones that luke makes up: |
       fname = spit [[
          luke_format = 0
