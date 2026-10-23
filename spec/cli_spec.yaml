@@ -46,3 +46,45 @@ specify luke.cli:
       expect(capture(function()
          require 'luke.cli'.parse_arguments({'--debug'}).log('one\ntwo\n\n\n')
       end)).to_output_error '   DEBUG: one\n   DEBUG: two\n'
+
+- describe validate_arguments:
+  - before:
+      function spit(content)
+         local filename = os.tmpname()
+         local h = assert(io.open(filename, 'w'))
+         h:write(content)
+         h:close()
+         return filename
+      end
+
+  - it makes substitutions for the lukefile: |
+      fname = spit [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+      ]]
+      L = cli.validate_arguments(cli.parse_arguments {'--file=' .. fname})
+      expect(L.luke.substitute.package).to_be 'example'
+      expect(L.luke.substitute.version).to_be '1.0'
+      expect(L.luke.substitute.gitref).to_match '^%x*$'
+  - it prefers lukefile substitutions to the ones that luke makes up: |
+      fname = spit [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+         substitute = {gitref = 'mine', extra = 'more'}
+      ]]
+      L = cli.validate_arguments(cli.parse_arguments {'--file=' .. fname})
+      expect(L.luke.substitute.gitref).to_be 'mine'
+      expect(L.luke.substitute.extra).to_be 'more'
+  - it passes quiet on: |
+      fname = spit [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+      ]]
+      expect(cli.validate_arguments(cli.parse_arguments {'--file=' .. fname, '--quiet'}).quiet).to_be(true)
+      expect(cli.validate_arguments(cli.parse_arguments {'--file=' .. fname}).quiet).to_be(false)

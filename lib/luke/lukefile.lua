@@ -155,17 +155,18 @@ local function dependency_variables(name)
 end
 
 
-local function collect_variables(luke, variables)
-   for k, v in next, luke do
-      if k == 'external_dependencies' then
-         each(ordered_keys(v), function(name)
-            merge(variables, dependency_variables(name))
-         end)
-      elseif istable(v) then
-         collect_variables(v, variables)
-      end
-   end
-   return variables
+local function collect_variables(luke)
+   return merged(unpack(flatmap(keys(luke), function(k)
+      local v = luke[k]
+      return cond(
+         {k == 'external_dependencies', function()
+            return map(ordered_keys(v), dependency_variables)
+         end},
+         {istable(v), function()
+            return {collect_variables(v)}
+         end}
+      )
+   end)))
 end
 
 
@@ -258,9 +259,7 @@ return {
       return LUKEFILE(normalize_configs(narrow_platforms(r, ORDERED)), '')
    end,
 
-   collect_variables = function(luke)
-      return collect_variables(luke, {})
-   end,
+   collect_variables = collect_variables,
 
    -- The branches that the lukefile *release* table copies files to,
    -- in sorted order.
@@ -313,7 +312,7 @@ return {
    run_templates = function(L, env, luke)
       local rewrite = bind(rewrite_template_files, {L, env})
       local function rewritten(rules)
-         return merge({sources = map(rules.sources, rewrite)}, rules)
+         return merged(rules, {sources = map(rules.sources, rewrite)})
       end
 
       local r = copy(luke)

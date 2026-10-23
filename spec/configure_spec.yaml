@@ -218,6 +218,21 @@ specify luke.configure:
          libraries={'poop'},
       })).to_equal {}
 
+  - it prefers the directories of an external dependency to the config's:
+      configure, run_configs, L = setup {LINK_SUCCESS}
+      logged = {}
+      L.log = function(s) logged[#logged + 1] = s end
+      env = E.mkenv({CC='cc', YAML_INCDIR='/yaml/include'}, E.DEFAULTENV, E.SHELLENV)
+      configure(L, env, {checkheader='yaml.h', incdir='mine'}, 'YAML')
+      expect(logged[1]).to_contain '-I/yaml/include'
+      expect(logged[1]).not_to_contain '-Imine'
+  - it keeps the directories of the config without an external dependency:
+      configure, run_configs, L = setup {LINK_SUCCESS}
+      logged = {}
+      L.log = function(s) logged[#logged + 1] = s end
+      env = E.mkenv({CC='cc'}, E.DEFAULTENV, E.SHELLENV)
+      configure(L, env, {checkheader='yaml.h', incdir='mine'})
+      expect(logged[1]).to_contain '-Imine'
   - it searches for external dependencies:
       configure, run_configs, L = setup {LINK_FAILURE, LINK_SUCCESS}
       env = E.mkenv(

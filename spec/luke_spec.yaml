@@ -111,6 +111,41 @@ specify luke:
   - it sets gitref to the checked out commit: |
       expect(luke('--file=' .. fname, '--value=gitref')).
          to_succeed_while_matching "^gitref='%x%x%x%x%x%x%x+'\n$"
+  - it prefers lukefile variables to the ones that luke makes up: |
+      spit(fname, [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+         variables = {LUA_DIR = '/opt/lua', gitref = 'mine'}
+      ]])
+      expect(luke('--file=' .. fname, '--value=LUA_DIR', '--value=gitref')).
+         to_succeed_with "LUA_DIR='/opt/lua'\ngitref='mine'\n"
+  - it makes variables for an external dependency: |
+      spit(fname, [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+         external_dependencies = {
+            {YAML = {library = {checksymbol = 'yaml_document_initialize', libraries = {'yaml'}}}},
+         }
+      ]])
+      expect(luke('--file=' .. fname, '--value=YAML_DIR', '--value=YAML_INCDIR')).
+         to_succeed_with "YAML_DIR='/usr'\nYAML_INCDIR='/usr/include'\n"
+  - it prefers lukefile variables to the ones for an external dependency: |
+      spit(fname, [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+         variables = {YAML_DIR = '/opt/yaml'}
+         external_dependencies = {
+            {YAML = {library = {checksymbol = 'yaml_document_initialize', libraries = {'yaml'}}}},
+         }
+      ]])
+      expect(luke('--file=' .. fname, '--value=YAML_DIR', '--value=YAML_INCDIR')).
+         to_succeed_with "YAML_DIR='/opt/yaml'\nYAML_INCDIR='/opt/yaml/include'\n"
   - it expands gitref in lukefile values: |
       spit(fname, [[
          luke_format = 0

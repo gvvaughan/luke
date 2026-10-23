@@ -379,7 +379,7 @@ local configure = setmetatable(OrderedDict({
          ['table'] = function()
             return diagnose(firstof(self, function(fname)
                if config[fname] ~= nil then
-                  return apply(self[fname], list(L, env, merge(external_dirs(env, prefix), config)))
+                  return apply(self[fname], list(L, env, merged(config, external_dirs(env, prefix))))
                end
             end), "unable to configure with keys '%s'", concat(keys(config), "', '"))
          end,

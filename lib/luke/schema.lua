@@ -176,11 +176,11 @@ end
 -- Choose by the type of *x*, a string or a table, with the *branches*
 -- for them, and diagnose anything else at *path*.
 local function string_or_table(x, path, branches)
-   return case(type(x), merge({
+   return case(type(x), merged(branches, {
       default = function(kind)
          bad(path, 'string or table expected, got %s', kind)
       end,
-   }, branches))
+   }))
 end
 
 
@@ -321,17 +321,15 @@ local function rules(x, path)
       end,
 
       ['table'] = function()
-         return cond({len(x) > 0, {sources = x}}, {isstring(x.sources), function()
-            return merge({sources = {x.sources}}, x)
-         end}, {true, x})
+         return cond({len(x) > 0, {sources = x}}, {true, x})
       end,
    })
-   return r and merge({
+   return r and merged(r, {
       defines = defines(r.defines, index(path, 'defines')),
       sources = listof(pathname)(r.sources, index(path, 'sources')),
       incdirs = listof(pathname)(r.incdirs, index(path, 'incdirs')),
       libdirs = listof(pathname)(r.libdirs, index(path, 'libdirs')),
-   }, r)
+   })
 end
 
 

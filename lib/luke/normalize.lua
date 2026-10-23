@@ -266,16 +266,6 @@ return setmetatable({
       return n
    end,
 
-   merge = function(r, ...)
-      local argu = pack(...)
-      for i = 1, argu.n do
-         for k, v in next, argu[i] or {} do
-            r[k] = r[k] or v
-         end
-      end
-      return r
-   end,
-
    next          = next,
    open          = io.open,
    pack          = pack,

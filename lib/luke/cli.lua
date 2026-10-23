@@ -257,28 +257,24 @@ return {
 
       local ref, srcdir = gitref(), abs_top_srcdir()
 
-      luke.substitute = merge(luke.substitute or {}, {
+      luke.substitute = merged({
          abs_top_srcdir = srcdir,
          gitref         = ref,
          package        = interpolate_to_substitute(luke.package),
          version        = interpolate_to_substitute(luke.version),
-      })
+      }, luke.substitute)
 
-      luke.variables = merge(
-         luke.variables or {},
-         collect_variables(luke),
-         {
-            LUA_DIR        = '/usr',
-            LUA_BINDIR     = '$LUA_DIR/bin',
-            LUA_INCDIR     = '$LUA_DIR/include/lua$LUAVERSION',
-            LUA_LIBDIR     = '$LUA_DIR/lib',
-            abs_top_srcdir = srcdir,
-            gitref         = ref,
-            objdir         = platforms[1],
-            package        = luke.package,
-            version        = luke.version,
-         }
-      )
+      luke.variables = merged({
+         LUA_DIR        = '/usr',
+         LUA_BINDIR     = '$LUA_DIR/bin',
+         LUA_INCDIR     = '$LUA_DIR/include/lua$LUAVERSION',
+         LUA_LIBDIR     = '$LUA_DIR/lib',
+         abs_top_srcdir = srcdir,
+         gitref         = ref,
+         objdir         = platforms[1],
+         package        = luke.package,
+         version        = luke.version,
+      }, collect_variables(luke), luke.variables)
 
       return {
          clidefs = parsed.clidefs,
