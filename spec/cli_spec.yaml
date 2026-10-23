@@ -25,3 +25,24 @@ specify luke.cli:
       argt = parse_arguments {'--dry-run'}
       expect(argt.dryrun).to_be(true)
       expect(list(argt.spawn({}, 'exit 1'))).to_equal(list(0, '', ''))
+
+  - it is not quiet by default:
+      argt = parse_arguments {}
+      expect(argt.quiet).to_be(false)
+      expect(argt.write).not_to_be(require 'luke.functional'.nop)
+
+  - it writes nothing with --quiet:
+      argt = parse_arguments {'--quiet'}
+      expect(argt.quiet).to_be(true)
+      expect(argt.write).to_be(require 'luke.functional'.nop)
+
+  - it asks for each --value in order:
+      expect(parse_arguments({'--value=B', '--value=A'}).valreqs).to_equal(list('B', 'A'))
+
+  - it takes the rest as targets, in order:
+      expect(parse_arguments({'b', 'a'}).targets).to_equal(list('b', 'a'))
+
+  - it writes each line of debug output with a prefix: |
+      expect(capture(function()
+         require 'luke.cli'.parse_arguments({'--debug'}).log('one\ntwo\n\n\n')
+      end)).to_output_error '   DEBUG: one\n   DEBUG: two\n'

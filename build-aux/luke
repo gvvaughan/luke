@@ -8,10 +8,12 @@ end
 package.loaded[modname]=package.preload[modname](modname,"package.preload")end
 return package.loaded[modname]end
 package.preload['luke._base']=function()
-local _ENV=require'luke.normalize'{}local function fatal(...)local msg=(...)if select('#',...)>1 then
-msg=format(...)end
-stdout:flush()stderr:write('luke: fatal: '..msg..'\n')exit(1)end
+local _ENV=require'luke.normalize'{}local function message(...)if select('#',...)>1 then
+return format(...)end
+return(...)end
+local function fatal(...)stdout:flush()stderr:write('luke: fatal: '..message(...)..'\n')exit(1)end
 local M={}M.fatal=fatal
+M.message=message
 function M.diagnose(predicate,...)if not predicate then
 M.fatal(...)end
 return predicate
@@ -42,55 +44,51 @@ Each TARGET can be one of the module table keys from lukefile, or:
 If no TARGET is given, 'all' is implied.
 
 Report bugs to https://github.com/gvvaughan/luke/issues.]]exit(0)end
-local progname=arg[0]local function opterr(...)local msg=(...)if select('#',...)>1 then
-msg=format(...)end
-msg=gsub(msg,'%.$','')stderr:write('luke: error: '..msg..'.\n')stderr:write("luke: try '"..progname.." --help' for help.\n")exit(2)end
+local progname=arg[0]local function opterr(...)local msg=gsub(message(...),'%.$','')stderr:write('luke: error: '..msg..'.\n')stderr:write("luke: try '"..progname.." --help' for help.\n")exit(2)end
 local function display(...)return stdout:write(concat{...})end
 local function dump(...)local s=concat(map(list(...),str))if len(s)>0 then
-gsub(concat(map(list(...),str)),'\n*$','\n'):gsub('(.-)\n',function(line)stderr:write('   DEBUG: '..line..'\n')end)end
+each(gmatch(match(s,'^(.-)\n*$')..'\n','(.-)\n'),function(line)stderr:write('   DEBUG: '..line..'\n')end)end
 end
 local function interpolate_to_substitute(s)return(gsub(s,'%$([%w_]+)','@%1@'))end
 local function gitref()local out=slurp(Pipe('git rev-parse --short HEAD 2>/dev/null'))return match(out or'','^(%x+)\n?$')or''end
 local function abs_top_srcdir()return(gsub(slurp(Pipe('pwd'))or'','\n$',''))end
-return{parse_arguments=function(args)local r={clidefs={},debug=false,dryrun=false,valreqs={},fname='lukefile',install={},log=nop,spawn=spawn,targets={},verbose=nop,write=display,}each(args,function(opt)case(opt,{['--debug']=function()r.debug=true
+local function check_lukefile(parsed)local luke,err=loadluke(parsed.fname)diagnose(luke~=nil,'bad %s: %s',parsed.fname,err)diagnose(not isempty(luke.modules or{}),"no modules table in '%s', nothing to build",parsed.fname)each({'package','version'},function(key)diagnose(luke[key]~=nil,"no %s in '%s'",key,parsed.fname)end)return luke
+end
+local function release_version(parsed)if not contains(parsed.targets,'release')then
+return nil
+end
+diagnose(len(parsed.targets)==1,'release cannot be combined with other targets')local release=parsed.clidefs.version
+diagnose(release~=nil,'release needs a version=VERSION argument')case(release,{{'%d+',nop},{'%d+%.%d+',nop},{'%d+%.%d+%.%d+',nop},default=function()fatal("bad release version '%s': X, X.Y or X.Y.Z expected",release)end,})return release
+end
+local function selected_targets(targets,rulesets)if isempty(targets)or contains(targets,'all')then
+return reject(flatten(targets,map(rulesets,ordered_keys)),'all')end
+local unknown=reject(targets,function(target)return target=='install'or some(rulesets,function(rules)return ordered_get(rules,target)~=nil
+end)end)diagnose(isempty(unknown),"no rule to make target '%s'",unknown[1])return targets
+end
+local function script_entries(sections,named)return flatmap(SCRIPT_SECTIONS,function(section)return map(ordered_keys(ordered_pluck(sections[section],named)),function(name)return{name=name,section=section}end)end)end
+local function installs(luke,installbin,build,named,targets)if not contains(targets,'install')then
+return nil,{}end
+local everything=isempty(named)return choose(everything,luke.modules,build),choose(everything,ordered_keys(installbin),ordered_keys(ordered_pluck(installbin,named)))end
+return{parse_arguments=function(args)local r={clidefs={},debug=false,dryrun=false,valreqs={},fname='lukefile',install={},log=nop,quiet=false,spawn=spawn,targets={},verbose=nop,write=display,}each(args,function(opt)case(opt,{['--debug']=function()r.debug=true
 r.log=dump
 end,['--dry-run']=function()r.dryrun=true
 r.spawn=function()return 0,'',''end
 end,{'%-%-file=(.+)',function(optarg)r.fname=optarg
-end},{'%-%-value=(.+)',function(optarg)r.valreqs[#r.valreqs+1]=optarg
-end},['--quiet']=function()r.write=nop
+end},{'%-%-value=(.+)',function(optarg)append(r.valreqs,optarg)end},['--quiet']=function()r.quiet=true
+r.write=nop
 end,['--verbose']=function()r.verbose=display
 end,['--help']=help,['--version']=version,{'([^-][^=]-)=(.+)',function(name,value)r.clidefs[name]=value
 end},default=function(opt)if match(opt,'^-')~=nil then
 opterr("unrecognized option '%s'",opt)end
 append(r.targets,opt)end,})end)return r
-end,validate_arguments=function(parsed)local luke,err=loadluke(parsed.fname)diagnose(luke~=nil,'bad %s: %s',parsed.fname,err)if isempty(luke.modules or{})then
-fatal("no modules table in '%s', nothing to build",parsed.fname)end
-each({'package','version'},function(key)diagnose(luke[key]~=nil,"no %s in '%s'",key,parsed.fname)end)local release
-if contains(parsed.targets,'release')then
-if len(parsed.targets)>1 then
-fatal('release cannot be combined with other targets')end
-release=parsed.clidefs.version
-diagnose(release~=nil,'release needs a version=VERSION argument')case(release,{{'%d+',nop},{'%d+%.%d+',nop},{'%d+%.%d+%.%d+',nop},default=function()fatal("bad release version '%s': X, X.Y or X.Y.Z expected",release)end,})parsed.targets={}end
-local sections=script_sections(luke)local installbin=sections.install
-local rulesets={luke.modules,sections.bin,sections.files,installbin}local function hasrule(target)return target=='install'or some(map(rulesets,function(rules)return ordered_get(rules,target)~=nil
-end))end
-local targets=call(function()if isempty(parsed.targets)or contains(parsed.targets,'all')then
-return reject(flatten(parsed.targets,map(rulesets,ordered_keys)),'all')end
-local unknown=reject(parsed.targets,hasrule)diagnose(isempty(unknown),"no rule to make target '%s'",unknown[1])assert(len(parsed.targets)>0,"no build targets specified")return parsed.targets
-end)local named=reject(targets,'install')local build=ordered_pluck(luke.modules,named)local scripts={build=foldl(SCRIPT_SECTIONS,list(),function(entries,section)return foldl(ordered_keys(ordered_pluck(sections[section],named)),entries,function(entries,name)return append(entries,{name=name,section=section})end)end),install={},}local install
-if contains(targets,'install')then
-if isempty(named)then
-install,scripts.install=luke.modules,ordered_keys(installbin)else
-install,scripts.install=build,ordered_keys(ordered_pluck(installbin,named))end
-end
-luke.modules=build
-local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merge(luke.substitute or{},{abs_top_srcdir=srcdir,gitref=ref,package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),})luke.variables=merge(luke.variables or{},collect_variables(luke),{LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUAVERSION',LUA_LIBDIR='$LUA_DIR/lib',abs_top_srcdir=srcdir,gitref=ref,objdir=platforms[1],package=luke.package,version=luke.version,})return{clidefs=parsed.clidefs,debug=parsed.debug,dryrun=parsed.dryrun,filled={},install=install,log=parsed.log,luke=luke,release=release,scripts=scripts,spawn=parsed.spawn,valreqs=parsed.valreqs,verbose=parsed.verbose,write=parsed.write,}end,}
+end,validate_arguments=function(parsed)local luke=check_lukefile(parsed)local release=release_version(parsed)local sections=script_sections(luke)local installbin=sections.install
+local rulesets={luke.modules,sections.bin,sections.files,installbin}local targets=selected_targets(choose(release,{},parsed.targets),rulesets)local named=reject(targets,'install')local build=ordered_pluck(luke.modules,named)local install,install_scripts=installs(luke,installbin,build,named,targets)local scripts={build=script_entries(sections,named),install=install_scripts}luke.modules=build
+local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merge(luke.substitute or{},{abs_top_srcdir=srcdir,gitref=ref,package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),})luke.variables=merge(luke.variables or{},collect_variables(luke),{LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUAVERSION',LUA_LIBDIR='$LUA_DIR/lib',abs_top_srcdir=srcdir,gitref=ref,objdir=platforms[1],package=luke.package,version=luke.version,})return{clidefs=parsed.clidefs,debug=parsed.debug,dryrun=parsed.dryrun,filled={},install=install,log=parsed.log,luke=luke,quiet=parsed.quiet,release=release,scripts=scripts,spawn=parsed.spawn,valreqs=parsed.valreqs,verbose=parsed.verbose,write=parsed.write,}end,}
 end
 package.preload['luke.compile']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.environment','luke.functional','type.context-manager','type.path',}local function spawn(env,...)local command=interpolate(env,concat({...},' '))return with(TmpFile(),TmpFile(),function(out,err)local pipe=concat{'{ ',command,'\n} >',out.filename,' 2>',err.filename,'; printf $?'}return tonumber(slurp(Pipe(pipe))),slurp(File(err.filename)),slurp(File(out.filename))end)end
 local function run(L,env,command)L.write(interpolate(env,concat(command,' ')),'\n')local status,err,out=L.spawn(env,unpack(command))if status~=0 then
-if L.write==nop then
+if L.quiet then
 stdout:write(concat(command,' ')..'\n')end
 stderr:write(err..'\n')end
 return status,out,err
@@ -882,8 +880,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/151169a',versiontext=[[
-luke (Luke) gvv/151169a
+return{VERSION='gvv/a2604af',versiontext=[[
+luke (Luke) gvv/a2604af
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

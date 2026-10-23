@@ -53,11 +53,7 @@ local progname = arg[0]
 
 
 local function opterr(...)
-   local msg = (...)
-   if select('#', ...) > 1 then
-      msg = format(...)
-   end
-   msg = gsub(msg, '%.$', '')
+   local msg = gsub(message(...), '%.$', '')
    stderr:write('luke: error: ' .. msg .. '.\n')
    stderr:write("luke: try '" .. progname .. " --help' for help.\n")
    exit(2)
@@ -72,7 +68,8 @@ end
 local function dump(...)
    local s = concat(map(list(...), str))
    if len(s) > 0 then
-      gsub(concat(map(list(...), str)), '\n*$', '\n'):gsub('(.-)\n', function(line)
+      -- Not gsub '\n*$', which matches again at the end in Lua 5.1.
+      each(gmatch(match(s, '^(.-)\n*$') .. '\n', '(.-)\n'), function(line)
          stderr:write('   DEBUG: ' .. line .. '\n')
       end)
    end
@@ -99,6 +96,81 @@ local function abs_top_srcdir()
 end
 
 
+-- Load the lukefile that *parsed* names, and diagnose what it lacks.
+local function check_lukefile(parsed)
+   local luke, err = loadluke(parsed.fname)
+   diagnose(luke ~= nil, 'bad %s: %s', parsed.fname, err)
+   diagnose(not isempty(luke.modules or {}), "no modules table in '%s', nothing to build", parsed.fname)
+   each({'package', 'version'}, function(key)
+      diagnose(luke[key] ~= nil, "no %s in '%s'", key, parsed.fname)
+   end)
+   return luke
+end
+
+
+-- The version to release if the `release` target is given, which
+-- builds everything, for the version given on the command line.
+local function release_version(parsed)
+   if not contains(parsed.targets, 'release') then
+      return nil
+   end
+   diagnose(len(parsed.targets) == 1, 'release cannot be combined with other targets')
+   local release = parsed.clidefs.version
+   diagnose(release ~= nil, 'release needs a version=VERSION argument')
+   case(release, {
+      {'%d+',           nop},
+      {'%d+%.%d+',      nop},
+      {'%d+%.%d+%.%d+', nop},
+
+      default = function()
+         fatal("bad release version '%s': X, X.Y or X.Y.Z expected", release)
+      end,
+   })
+   return release
+end
+
+
+-- The *targets* to make, or all of those in *rulesets* if there are
+-- none, or `all` is one.
+local function selected_targets(targets, rulesets)
+   if isempty(targets) or contains(targets, 'all') then
+      return reject(flatten(targets, map(rulesets, ordered_keys)), 'all')
+   end
+   local unknown = reject(targets, function(target)
+      return target == 'install' or some(rulesets, function(rules)
+         return ordered_get(rules, target) ~= nil
+      end)
+   end)
+   diagnose(isempty(unknown), "no rule to make target '%s'", unknown[1])
+   return targets
+end
+
+
+-- An entry for each script or file in *sections* that one of the
+-- *named* targets names.
+local function script_entries(sections, named)
+   return flatmap(SCRIPT_SECTIONS, function(section)
+      return map(ordered_keys(ordered_pluck(sections[section], named)), function(name)
+         return {name = name, section = section}
+      end)
+   end)
+end
+
+
+-- What to install, if `install` is one of *targets*: the modules, and
+-- the names of the scripts.  Each target names every module, script and
+-- file called that, and `install` alone installs every module and
+-- installable script.
+local function installs(luke, installbin, build, named, targets)
+   if not contains(targets, 'install') then
+      return nil, {}
+   end
+   local everything = isempty(named)
+   return choose(everything, luke.modules, build),
+      choose(everything, ordered_keys(installbin), ordered_keys(ordered_pluck(installbin, named)))
+end
+
+
 return {
    parse_arguments = function(args)
       local r = {
@@ -109,6 +181,7 @@ return {
          fname   = 'lukefile',
          install = {},
          log     = nop,
+         quiet   = false,
          spawn   = spawn,
          targets = {},
          verbose = nop,
@@ -135,10 +208,11 @@ return {
             end},
 
             {'%-%-value=(.+)', function(optarg)
-               r.valreqs[#r.valreqs + 1] = optarg
+               append(r.valreqs, optarg)
             end},
 
             ['--quiet'] = function()
+               r.quiet = true
                r.write = nop
             end,
 
@@ -167,78 +241,18 @@ return {
    end,
 
    validate_arguments = function(parsed)
-      local luke, err = loadluke(parsed.fname)
-      diagnose(luke ~= nil, 'bad %s: %s', parsed.fname, err)
-
-      if isempty(luke.modules or {}) then
-         fatal("no modules table in '%s', nothing to build", parsed.fname)
-      end
-      each({'package', 'version'}, function(key)
-         diagnose(luke[key] ~= nil, "no %s in '%s'", key, parsed.fname)
-      end)
-
-      -- `release` builds everything, for the version given on the command
-      -- line.
-      local release
-      if contains(parsed.targets, 'release') then
-         if len(parsed.targets) > 1 then
-            fatal('release cannot be combined with other targets')
-         end
-         release = parsed.clidefs.version
-         diagnose(release ~= nil, 'release needs a version=VERSION argument')
-         case(release, {
-            {'%d+',           nop},
-            {'%d+%.%d+',      nop},
-            {'%d+%.%d+%.%d+', nop},
-
-            default = function()
-               fatal("bad release version '%s': X, X.Y or X.Y.Z expected", release)
-            end,
-         })
-         parsed.targets = {}
-      end
+      local luke = check_lukefile(parsed)
+      local release = release_version(parsed)
 
       local sections = script_sections(luke)
       local installbin = sections.install
       local rulesets = {luke.modules, sections.bin, sections.files, installbin}
+      local targets = selected_targets(choose(release, {}, parsed.targets), rulesets)
 
-      local function hasrule(target)
-         return target == 'install' or some(map(rulesets, function(rules)
-            return ordered_get(rules, target) ~= nil
-         end))
-      end
-
-      local targets = call(function()
-         if isempty(parsed.targets) or contains(parsed.targets, 'all') then
-            return reject(flatten(parsed.targets, map(rulesets, ordered_keys)), 'all')
-         end
-         local unknown = reject(parsed.targets, hasrule)
-         diagnose(isempty(unknown), "no rule to make target '%s'", unknown[1])
-         assert(len(parsed.targets) > 0, "no build targets specified")
-         return parsed.targets
-      end)
-
-      -- Each target names every module, script and file called that,
-      -- and `install` alone installs every module and installable
-      -- script.
       local named = reject(targets, 'install')
       local build = ordered_pluck(luke.modules, named)
-      local scripts = {
-         build = foldl(SCRIPT_SECTIONS, list(), function(entries, section)
-            return foldl(ordered_keys(ordered_pluck(sections[section], named)), entries, function(entries, name)
-               return append(entries, {name = name, section = section})
-            end)
-         end),
-         install = {},
-      }
-      local install
-      if contains(targets, 'install') then
-         if isempty(named) then
-            install, scripts.install = luke.modules, ordered_keys(installbin)
-         else
-            install, scripts.install = build, ordered_keys(ordered_pluck(installbin, named))
-         end
-      end
+      local install, install_scripts = installs(luke, installbin, build, named, targets)
+      local scripts = {build = script_entries(sections, named), install = install_scripts}
       luke.modules = build
 
       local ref, srcdir = gitref(), abs_top_srcdir()
@@ -274,6 +288,7 @@ return {
          install = install,
          log     = parsed.log,
          luke    = luke,
+         quiet   = parsed.quiet,
          release = release,
          scripts = scripts,
          spawn   = parsed.spawn,

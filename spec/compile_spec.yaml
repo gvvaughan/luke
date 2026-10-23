@@ -130,7 +130,7 @@ specify luke.compile:
       p = capture(function(env)
          local nop = require 'luke.functional'.nop
          local compile = require 'luke.compile'
-         return compile.run({spawn = compile.spawn, write = nop}, env, {'false'})
+         return compile.run({spawn = compile.spawn, write = nop, quiet = true}, env, {'false'})
       end, env)
       expect(p).to_exit(1)
       expect(p).to_output 'false\n'

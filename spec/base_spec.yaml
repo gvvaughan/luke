@@ -15,6 +15,12 @@ before: |
   end
 
 specify luke._base:
+- describe message:
+  - it is the message as it is, without more arguments:
+      expect(require 'luke._base'.message '100%').to_be '100%'
+  - it formats the message with more arguments:
+      expect(require 'luke._base'.message("no rule for '%s'", 'foo')).to_be "no rule for 'foo'"
+
 - describe fatal:
   - it writes a message and exits with status 1: |
       expect(fatal 'oops').to_fail_with 'luke: fatal: oops\n'

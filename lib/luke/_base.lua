@@ -5,13 +5,18 @@
 
 local _ENV = require 'luke.normalize' {}
 
-local function fatal(...)
-   local msg = (...)
+-- The message *...*, formatted if it has more than the format.
+local function message(...)
    if select('#', ...) > 1 then
-      msg = format(...)
+      return format(...)
    end
+   return (...)
+end
+
+
+local function fatal(...)
    stdout:flush()
-   stderr:write('luke: fatal: ' .. msg .. '\n')
+   stderr:write('luke: fatal: ' .. message(...) .. '\n')
    exit(1)
 end
 
@@ -20,6 +25,9 @@ local M = {}
 
 
 M.fatal = fatal
+
+
+M.message = message
 
 
 -- Like assert, give back *predicate* when it holds.  Fail through M.fatal,

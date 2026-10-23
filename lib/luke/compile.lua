@@ -29,7 +29,7 @@ local function run(L, env, command)
    L.write(interpolate(env, concat(command, ' ')), '\n')
    local status, err, out = L.spawn(env, unpack(command))
    if status ~= 0 then
-      if L.write == nop then
+      if L.quiet then
          stdout:write(concat(command, ' ') .. '\n')
       end
       stderr:write(err .. '\n')
