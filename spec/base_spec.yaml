@@ -29,6 +29,9 @@ specify luke._base:
       expect(p).to_succeed_with ''
       expect(p).to_output_error ''
 
+  - it gives back the predicate when it holds: |
+      expect(require 'luke._base'.diagnose('x', 'oops')).to_be 'x'
+
   - it is fatal when the predicate fails: |
       expect(diagnose(false, 'bad %s', 'lukefile')).
          to_fail_with 'luke: fatal: bad lukefile\n'

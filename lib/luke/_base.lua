@@ -16,12 +16,20 @@ local function fatal(...)
 end
 
 
-return {
-   diagnose = function(predicate, ...)
-      if not predicate then
-         fatal(...)
-      end
-   end,
+local M = {}
 
-   fatal = fatal,
-}
+
+M.fatal = fatal
+
+
+-- Like assert, give back *predicate* when it holds.  Fail through M.fatal,
+-- so that a caller that replaces fatal sees it called.
+function M.diagnose(predicate, ...)
+   if not predicate then
+      M.fatal(...)
+   end
+   return predicate
+end
+
+
+return M

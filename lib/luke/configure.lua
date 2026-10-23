@@ -44,28 +44,29 @@ end
 
 
 local function found_library(L, x)
-   if x == nil or x == '' then
-      L.verbose 'none required'
-   elseif isempty(x) then
-      L.verbose 'not supported'
-   else
-      L.verbose(x)
-   end
+   L.verbose(cond({x == nil or x == '', 'none required'}, {isempty(x), 'not supported'}, {true, x}))
    L.verbose '\n'
    return x
 end
 
 
 local function found_prog(L, x)
-   L.verbose(x and 'yes\n' or 'no\n')
+   L.verbose(choose(x, 'yes\n', 'no\n'))
    return x
 end
 
 
 local function found_result(L, x)
-   L.verbose(x == 0 and 'yes\n' or 'no\n')
+   L.verbose(choose(x == 0, 'yes\n', 'no\n'))
    -- non-zero exit status 'x' is a failure, so define value in 0, otherwise 1
-   return x ~= 0 and 0 or 1
+   return choose(x ~= 0, 0, 1)
+end
+
+
+-- *template* with each '@NAME@' replaced by its value in *values*, in one
+-- pass, so that nothing a value says is replaced again.
+local function fill(template, values)
+   return (gsub(template, '@(%u+)@', values))
 end
 
 
@@ -116,17 +117,20 @@ local function check_executable_in_path(L, env, config, prog)
    local found = firstof(gmatch(PATH, '[^:]+'), function(path)
       local progpath = path .. '/' .. prog
       return with(File(progpath, 'r'), function(h)
-         return h and isfile(h.context) and progpath or nil
+         return choose(h and isfile(h.context), progpath)
       end)
    end)
-   L.log(found and 'found ' .. found or prog .. ' not found')
+   L.log(choose(found, function()
+      return 'found ' .. found
+   end, prog .. ' not found'))
    return found ~= nil
 end
 
 
-local function check_header_compile(L, env, config, header, extra_hdrs)
+-- The status of compiling the C program *source*, for a probe.
+local function compile_probe(L, env, config, source)
    return with(Conftest(L), function(conftest)
-      conftest:write(format('%s\n#include "%s"\n', extra_hdrs, header))
+      conftest:write(source)
       conftest:flush()
       return logspawn(
          L,
@@ -138,39 +142,11 @@ local function check_header_compile(L, env, config, header, extra_hdrs)
 end
 
 
-local function check_struct_member_compile(L, env, config, structname, member, extra_hdrs)
-   return with(Conftest(L), function(conftest)
-      conftest:write(format([[
-%s
-int main () {
-static %s aggr;
-if (sizeof aggr.%s)
-    return 0;
-return 0;
-}
-]], extra_hdrs, structname, member))
-      conftest:flush()
-      return logspawn(
-         L,
-         env,
-         conftest.filename,
-         compile_command(L, env, config, conftest.objfile, conftest.filename)
-      )
-   end)
-end
-
-
-local function try_link(L, env, config, lib, symbol)
+-- The status of compiling and linking the C program *source*, with *lib*
+-- if there is one, for a probe.
+local function link_probe(L, env, config, source, lib)
    return with(Conftest(L), TmpFile(), function(conftest, a_out)
-      conftest:write(format([[
-/* Override any GCC internal prototype to avoid an error.
- Use char because int might match the return type of a GCC
- builtin and then its argument prototype would still apply.   */
-char %s ();
-int main () {
-return %s ();
-}
-]], symbol, symbol))
+      conftest:write(source)
       conftest:flush()
       return logspawn(
          L,
@@ -182,11 +158,41 @@ return %s ();
 end
 
 
+local function check_header_compile(L, env, config, header, extra_hdrs)
+   return compile_probe(L, env, config, format('%s\n#include "%s"\n', extra_hdrs, header))
+end
+
+
+local function check_struct_member_compile(L, env, config, structname, member, extra_hdrs)
+   return compile_probe(L, env, config, fill([[
+@HEADERS@
+int main () {
+static @STRUCT@ aggr;
+if (sizeof aggr.@MEMBER@)
+    return 0;
+return 0;
+}
+]], {HEADERS = extra_hdrs, STRUCT = structname, MEMBER = member}))
+end
+
+
+local function try_link(L, env, config, lib, symbol)
+   return link_probe(L, env, config, fill([[
+/* Override any GCC internal prototype to avoid an error.
+ Use char because int might match the return type of a GCC
+ builtin and then its argument prototype would still apply.   */
+char @SYMBOL@ ();
+int main () {
+return @SYMBOL@ ();
+}
+]], {SYMBOL = symbol}), lib)
+end
+
+
 local function try_compile(L, env, config, headers)
-   return with(Conftest(L), TmpFile(), function(conftest, a_out)
-      conftest:write(format([[
-%s
-#if !defined %s || %s == -1
+   return link_probe(L, env, config, fill([[
+@HEADERS@
+#if !defined @IFDEF@ || @IFDEF@ == -1
 choke me
 #endif
 int
@@ -194,48 +200,30 @@ main()
 {
 return 0;
 }
-]], headers, config.ifdef, config.ifdef))
-      conftest:flush()
-      return logspawn(
-         L,
-         env,
-         conftest.filename,
-         link_command(L, env, config, a_out.filename, conftest.filename)
-      )
-   end)
+]], {HEADERS = headers, IFDEF = config.ifdef}))
 end
 
 
 local function check_func_decl(L, env, config, fname, extra_hdrs)
-   return with(Conftest(L), function(conftest)
-      conftest:write(format([[
-%s
+   return compile_probe(L, env, config, fill([[
+@HEADERS@
 int
 main()
 {
-#ifndef %s
-(void) %s;
+#ifndef @FUNC@
+(void) @FUNC@;
 #endif
 return 0;
 }
-]], extra_hdrs, fname, fname))
-      conftest:flush()
-      return logspawn(
-         L,
-         env,
-         conftest.filename,
-         compile_command(L, env, config, conftest.objfile, conftest.filename)
-      )
-   end)
+]], {HEADERS = extra_hdrs, FUNC = fname}))
 end
 
 
 local function check_func_link(L, env, config, fname)
-   return with(Conftest(L), TmpFile(), function(conftest, a_out)
-      conftest:write(format([[
+   return link_probe(L, env, config, fill([[
 /* Define to an innocous variant, in case <limits.h> declares it.
  For example, HP-UX 11i <limits.h> declares gettimeofday.   */
-#define %s innocuous_%s
+#define @FUNC@ innocuous_@FUNC@
 
 /* System header to define __stub macros and hopefully few prototypes,
  which can conflict with declaration below.
@@ -248,44 +236,44 @@ local function check_func_link(L, env, config, fname)
 # include <assert.h>
 #endif
 
-#undef %s
+#undef @FUNC@
 
 /* Override any GCC internal prototype to avoid an error.
  Use char because int might match the return type of a GCC
  builtin and then its argument prototype would still apply.   */
-char %s ();
+char @FUNC@ ();
 
 /* The GNU C library defines this for functions which it implements
  to always fail with ENOSYS.   Some functions are actually named
  something starting with __ and the normal name is an alias.   */
-#if defined __stub_%s || defined __stub__%s
+#if defined __stub_@FUNC@ || defined __stub__@FUNC@
 choke me
 #endif
 
 int main () {
-return %s ();
+return @FUNC@ ();
 }
-]], fname, fname, fname, fname, fname, fname, fname))
-      conftest:flush()
-      return logspawn(
-         L,
-         env,
-         conftest.filename,
-         link_command(L, env, config, a_out.filename, conftest.filename)
-      )
-   end)
+]], {FUNC = fname}))
 end
 
 
-local function add_external_deps(env, config, prefix)
+-- The kinds of directory that an external dependency can set, with the
+-- variable for each, named for the dependency.
+local DIRVARS = {bindir = '$%s_BINDIR', incdir = '$%s_INCDIR', libdir = '$%s_LIBDIR'}
+
+
+-- The directories that the external dependency *prefix* sets in *env*.
+local function external_dirs(env, prefix)
+   local r = {}
    if prefix ~= nil then
-      for k, v in next, {bindir='$%s_BINDIR', incdir='$%s_INCDIR', libdir='$%s_LIBDIR'} do
-         local envvar = interpolate(env, format(v, prefix))
+      each(keys(DIRVARS), function(k)
+         local envvar = interpolate(env, format(DIRVARS[k], prefix))
          if envvar ~= '' then
-            config[k] = envvar
+            r[k] = envvar
          end
-      end
+      end)
    end
+   return r
 end
 
 
@@ -296,33 +284,41 @@ local function format_includes(includes)
 end
 
 
+-- The includes that a probe puts in its source, one to a line.
+local function include_lines(config)
+   return concat(format_includes(config.includes), '\n')
+end
+
+
+-- Link with *lib* from now on, ahead of the libraries that were found.
+local function add_library(lib)
+   CONFIGENV.libs = choose(CONFIGENV.libs == '', lib, lib .. ' ' .. CONFIGENV.libs)
+end
+
+
 local configure = setmetatable(OrderedDict({
    checkprog = function(L, env, config)
-      return firstof(config.progs, function(prog)
+      return diagnose(firstof(config.progs, function(prog)
          checking(L, 'for', prog)
          if found_prog(L, check_executable_in_path(L, env, config, prog)) then
             return prog
          end
-      end) or fatal('cannot find ' .. config.checkprog)
+      end), 'cannot find %s', config.checkprog)
    end
 }, {
    checkheader = function(L, env, config)
       checking(L, 'for', config.checkheader)
-
-      local extra_hdrs = concat(format_includes(config.includes), '\n')
       return found_result(
          L,
-         check_header_compile(L, env, config, config.checkheader, extra_hdrs)
+         check_header_compile(L, env, config, config.checkheader, include_lines(config))
       )
    end
 }, {
    checkdecl = function(L, env, config)
       checking(L, 'whether', config.checkdecl, 'is declared')
-
-      local extra_hdrs = concat(format_includes(config.includes), '\n')
       return found_result(
          L,
-         check_func_decl(L, env, config, config.checkdecl, extra_hdrs)
+         check_func_decl(L, env, config, config.checkdecl, include_lines(config))
       )
    end
 }, {
@@ -331,25 +327,19 @@ local configure = setmetatable(OrderedDict({
 
       -- Is the feature behind a preprocessor guard?
       if config.ifdef ~= nil then
-         local headers = concat(format_includes(config.includes), '\n')
-         if try_compile(L, env, config, headers) ~= 0 then
+         if try_compile(L, env, config, include_lines(config)) ~= 0 then
             return found_library(L, {})
          end
       end
 
       -- Look for required symbol in libc, and then each of `libraries`.
       local libraries, symbol = config.libraries, config.checksymbol
-      local trylibs = foldl(libraries, {''}, function(r, lib)
-         append(r, '-l' .. lib)
-      end)
+      local trylibs = flatten('', map(libraries, function(lib)
+         return '-l' .. lib
+      end))
       return firstof(trylibs, function(lib)
          if try_link(L, env, config, lib, symbol) == 0 then
-            if lib ~= '' then
-               if CONFIGENV.libs ~= '' then
-                  CONFIGENV.libs = ' ' .. CONFIGENV.libs   -- FIXME
-               end
-               CONFIGENV.libs = lib .. CONFIGENV.libs
-            end
+            choose(lib ~= '', bind(add_library, {lib}))
             return found_library(L, lib)
          end
       end) or call(function()
@@ -367,13 +357,12 @@ local configure = setmetatable(OrderedDict({
    checkmember = function(L, env, config)
       checking(L, 'for', config.checkmember)
 
-      local extra_hdrs = concat(format_includes(config.includes), '\n')
       local i = find(config.checkmember, '%.')
       local structname = sub(config.checkmember, 1, i - 1)
       local member = sub(config.checkmember, i + 1)
       return found_result(
          L,
-         check_struct_member_compile(L, env, config, structname, member, extra_hdrs)
+         check_struct_member_compile(L, env, config, structname, member, include_lines(config))
       )
    end
 }), {
@@ -388,17 +377,15 @@ local configure = setmetatable(OrderedDict({
          end,
 
          ['table'] = function()
-            return firstof(self, function(fname)
+            return diagnose(firstof(self, function(fname)
                if config[fname] ~= nil then
-                  add_external_deps(env, config, prefix)
-                  return apply(self[fname], list(L, env, config))
+                  return apply(self[fname], list(L, env, merge(external_dirs(env, prefix), config)))
                end
-            end) or fatal("unable to configure with keys '%s'",
-               concat(keys(config), "', '"))
+            end), "unable to configure with keys '%s'", concat(keys(config), "', '"))
          end,
 
-         default = function(type)
-            fatal("unsupported configure type '%s'", type)
+         default = function(kind)
+            fatal("unsupported configure type '%s'", kind)
          end,
       })
    end,

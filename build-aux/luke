@@ -11,9 +11,12 @@ package.preload['luke._base']=function()
 local _ENV=require'luke.normalize'{}local function fatal(...)local msg=(...)if select('#',...)>1 then
 msg=format(...)end
 stdout:flush()stderr:write('luke: fatal: '..msg..'\n')exit(1)end
-return{diagnose=function(predicate,...)if not predicate then
-fatal(...)end
-end,fatal=fatal,}
+local M={}M.fatal=fatal
+function M.diagnose(predicate,...)if not predicate then
+M.fatal(...)end
+return predicate
+end
+return M
 end
 package.preload['luke.cli']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.lukefile','luke.platforms','luke.functional','luke.version','type.context-manager',}local function version()print(versiontext)exit(0)end
@@ -153,45 +156,43 @@ L.log('keeping '..cm.filename..' and '..cm.objfile)end
 return cm
 end
 local function checking(L,...)L.verbose('checking ',concat({...},' '),'... ')end
-local function found_library(L,x)if x==nil or x==''then
-L.verbose'none required'elseif isempty(x)then
-L.verbose'not supported'else
-L.verbose(x)end
-L.verbose'\n'return x
+local function found_library(L,x)L.verbose(cond({x==nil or x=='','none required'},{isempty(x),'not supported'},{true,x}))L.verbose'\n'return x
 end
-local function found_prog(L,x)L.verbose(x and'yes\n'or'no\n')return x
+local function found_prog(L,x)L.verbose(choose(x,'yes\n','no\n'))return x
 end
-local function found_result(L,x)L.verbose(x==0 and'yes\n'or'no\n')return x~=0 and 0 or 1
-end
+local function found_result(L,x)L.verbose(choose(x==0,'yes\n','no\n'))return choose(x~=0,0,1)end
+local function fill(template,values)return(gsub(template,'@(%u+)@',values))end
 local function bindirs(...)return map(flatten(...),function(v)return v..':'end)end
 local function compile_command(L,env,config,objfile,filename)local command=flatten('$CC','-c','$CFLAGS',defines(L.luke.defines),incdirs(config.incdir),'$CPPFLAGS','-o',objfile,filename)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
 local function link_command(L,env,config,a_out,source,lib)local command=flatten('$CC','$CFLAGS',defines(L.luke.defines),incdirs(config.incdir),'$CPPFLAGS','-o',a_out,source,libdirs(config.libdir),'$LDFLAGS',lib,'$libs',CONFIGENV.libs)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
 local function check_executable_in_path(L,env,config,prog)local PATH=concat(bindirs(config.bindir))..getenv('PATH')local found=firstof(gmatch(PATH,'[^:]+'),function(path)local progpath=path..'/'..prog
-return with(File(progpath,'r'),function(h)return h and isfile(h.context)and progpath or nil
-end)end)L.log(found and'found '..found or prog..' not found')return found~=nil
+return with(File(progpath,'r'),function(h)return choose(h and isfile(h.context),progpath)end)end)L.log(choose(found,function()return'found '..found
+end,prog..' not found'))return found~=nil
 end
-local function check_header_compile(L,env,config,header,extra_hdrs)return with(Conftest(L),function(conftest)conftest:write(format('%s\n#include "%s"\n',extra_hdrs,header))conftest:flush()return logspawn(L,env,conftest.filename,compile_command(L,env,config,conftest.objfile,conftest.filename))end)end
-local function check_struct_member_compile(L,env,config,structname,member,extra_hdrs)return with(Conftest(L),function(conftest)conftest:write(format([[
-%s
+local function compile_probe(L,env,config,source)return with(Conftest(L),function(conftest)conftest:write(source)conftest:flush()return logspawn(L,env,conftest.filename,compile_command(L,env,config,conftest.objfile,conftest.filename))end)end
+local function link_probe(L,env,config,source,lib)return with(Conftest(L),TmpFile(),function(conftest,a_out)conftest:write(source)conftest:flush()return logspawn(L,env,conftest.filename,link_command(L,env,config,a_out.filename,conftest.filename,lib))end)end
+local function check_header_compile(L,env,config,header,extra_hdrs)return compile_probe(L,env,config,format('%s\n#include "%s"\n',extra_hdrs,header))end
+local function check_struct_member_compile(L,env,config,structname,member,extra_hdrs)return compile_probe(L,env,config,fill([[
+@HEADERS@
 int main () {
-static %s aggr;
-if (sizeof aggr.%s)
+static @STRUCT@ aggr;
+if (sizeof aggr.@MEMBER@)
     return 0;
 return 0;
 }
-]],extra_hdrs,structname,member))conftest:flush()return logspawn(L,env,conftest.filename,compile_command(L,env,config,conftest.objfile,conftest.filename))end)end
-local function try_link(L,env,config,lib,symbol)return with(Conftest(L),TmpFile(),function(conftest,a_out)conftest:write(format([[
+]],{HEADERS=extra_hdrs,STRUCT=structname,MEMBER=member}))end
+local function try_link(L,env,config,lib,symbol)return link_probe(L,env,config,fill([[
 /* Override any GCC internal prototype to avoid an error.
  Use char because int might match the return type of a GCC
  builtin and then its argument prototype would still apply.   */
-char %s ();
+char @SYMBOL@ ();
 int main () {
-return %s ();
+return @SYMBOL@ ();
 }
-]],symbol,symbol))conftest:flush()return logspawn(L,env,conftest.filename,link_command(L,env,config,a_out.filename,conftest.filename,lib))end)end
-local function try_compile(L,env,config,headers)return with(Conftest(L),TmpFile(),function(conftest,a_out)conftest:write(format([[
-%s
-#if !defined %s || %s == -1
+]],{SYMBOL=symbol}),lib)end
+local function try_compile(L,env,config,headers)return link_probe(L,env,config,fill([[
+@HEADERS@
+#if !defined @IFDEF@ || @IFDEF@ == -1
 choke me
 #endif
 int
@@ -199,22 +200,22 @@ main()
 {
 return 0;
 }
-]],headers,config.ifdef,config.ifdef))conftest:flush()return logspawn(L,env,conftest.filename,link_command(L,env,config,a_out.filename,conftest.filename))end)end
-local function check_func_decl(L,env,config,fname,extra_hdrs)return with(Conftest(L),function(conftest)conftest:write(format([[
-%s
+]],{HEADERS=headers,IFDEF=config.ifdef}))end
+local function check_func_decl(L,env,config,fname,extra_hdrs)return compile_probe(L,env,config,fill([[
+@HEADERS@
 int
 main()
 {
-#ifndef %s
-(void) %s;
+#ifndef @FUNC@
+(void) @FUNC@;
 #endif
 return 0;
 }
-]],extra_hdrs,fname,fname))conftest:flush()return logspawn(L,env,conftest.filename,compile_command(L,env,config,conftest.objfile,conftest.filename))end)end
-local function check_func_link(L,env,config,fname)return with(Conftest(L),TmpFile(),function(conftest,a_out)conftest:write(format([[
+]],{HEADERS=extra_hdrs,FUNC=fname}))end
+local function check_func_link(L,env,config,fname)return link_probe(L,env,config,fill([[
 /* Define to an innocous variant, in case <limits.h> declares it.
  For example, HP-UX 11i <limits.h> declares gettimeofday.   */
-#define %s innocuous_%s
+#define @FUNC@ innocuous_@FUNC@
 
 /* System header to define __stub macros and hopefully few prototypes,
  which can conflict with declaration below.
@@ -227,53 +228,49 @@ local function check_func_link(L,env,config,fname)return with(Conftest(L),TmpFil
 # include <assert.h>
 #endif
 
-#undef %s
+#undef @FUNC@
 
 /* Override any GCC internal prototype to avoid an error.
  Use char because int might match the return type of a GCC
  builtin and then its argument prototype would still apply.   */
-char %s ();
+char @FUNC@ ();
 
 /* The GNU C library defines this for functions which it implements
  to always fail with ENOSYS.   Some functions are actually named
  something starting with __ and the normal name is an alias.   */
-#if defined __stub_%s || defined __stub__%s
+#if defined __stub_@FUNC@ || defined __stub__@FUNC@
 choke me
 #endif
 
 int main () {
-return %s ();
+return @FUNC@ ();
 }
-]],fname,fname,fname,fname,fname,fname,fname))conftest:flush()return logspawn(L,env,conftest.filename,link_command(L,env,config,a_out.filename,conftest.filename))end)end
-local function add_external_deps(env,config,prefix)if prefix~=nil then
-for k,v in next,{bindir='$%s_BINDIR',incdir='$%s_INCDIR',libdir='$%s_LIBDIR'}do
-local envvar=interpolate(env,format(v,prefix))if envvar~=''then
-config[k]=envvar
+]],{FUNC=fname}))end
+local DIRVARS={bindir='$%s_BINDIR',incdir='$%s_INCDIR',libdir='$%s_LIBDIR'}local function external_dirs(env,prefix)local r={}if prefix~=nil then
+each(keys(DIRVARS),function(k)local envvar=interpolate(env,format(DIRVARS[k],prefix))if envvar~=''then
+r[k]=envvar
 end
-end
-end
+end)end
+return r
 end
 local function format_includes(includes)return map(includes or{},function(include)return format('#include "%s"',include)end)end
-local configure=setmetatable(OrderedDict({checkprog=function(L,env,config)return firstof(config.progs,function(prog)checking(L,'for',prog)if found_prog(L,check_executable_in_path(L,env,config,prog))then
+local function include_lines(config)return concat(format_includes(config.includes),'\n')end
+local function add_library(lib)CONFIGENV.libs=choose(CONFIGENV.libs=='',lib,lib..' '..CONFIGENV.libs)end
+local configure=setmetatable(OrderedDict({checkprog=function(L,env,config)return diagnose(firstof(config.progs,function(prog)checking(L,'for',prog)if found_prog(L,check_executable_in_path(L,env,config,prog))then
 return prog
 end
-end)or fatal('cannot find '..config.checkprog)end},{checkheader=function(L,env,config)checking(L,'for',config.checkheader)local extra_hdrs=concat(format_includes(config.includes),'\n')return found_result(L,check_header_compile(L,env,config,config.checkheader,extra_hdrs))end},{checkdecl=function(L,env,config)checking(L,'whether',config.checkdecl,'is declared')local extra_hdrs=concat(format_includes(config.includes),'\n')return found_result(L,check_func_decl(L,env,config,config.checkdecl,extra_hdrs))end},{checksymbol=function(L,env,config)checking(L,'for library containing',config.checksymbol)if config.ifdef~=nil then
-local headers=concat(format_includes(config.includes),'\n')if try_compile(L,env,config,headers)~=0 then
+end),'cannot find %s',config.checkprog)end},{checkheader=function(L,env,config)checking(L,'for',config.checkheader)return found_result(L,check_header_compile(L,env,config,config.checkheader,include_lines(config)))end},{checkdecl=function(L,env,config)checking(L,'whether',config.checkdecl,'is declared')return found_result(L,check_func_decl(L,env,config,config.checkdecl,include_lines(config)))end},{checksymbol=function(L,env,config)checking(L,'for library containing',config.checksymbol)if config.ifdef~=nil then
+if try_compile(L,env,config,include_lines(config))~=0 then
 return found_library(L,{})end
 end
 local libraries,symbol=config.libraries,config.checksymbol
-local trylibs=foldl(libraries,{''},function(r,lib)append(r,'-l'..lib)end)return firstof(trylibs,function(lib)if try_link(L,env,config,lib,symbol)==0 then
-if lib~=''then
-if CONFIGENV.libs~=''then
-CONFIGENV.libs=' '..CONFIGENV.libs
-end
-CONFIGENV.libs=lib..CONFIGENV.libs
-end
-return found_library(L,lib)end
-end)or call(function()L.verbose'\n'fatal("required symbol '%s' not found in any of libc, lib%s",symbol,concat(libraries,', lib'))end)end},{checkfunc=function(L,env,config)checking(L,'for',config.checkfunc)return found_result(L,check_func_link(L,env,config,config.checkfunc))end},{checkmember=function(L,env,config)checking(L,'for',config.checkmember)local extra_hdrs=concat(format_includes(config.includes),'\n')local i=find(config.checkmember,'%.')local structname=sub(config.checkmember,1,i-1)local member=sub(config.checkmember,i+1)return found_result(L,check_struct_member_compile(L,env,config,structname,member,extra_hdrs))end}),{__call=function(self,L,env,config,prefix)return case(type(config),{['number']=function()return str(config)end,['string']=function()return config
-end,['table']=function()return firstof(self,function(fname)if config[fname]~=nil then
-add_external_deps(env,config,prefix)return apply(self[fname],list(L,env,config))end
-end)or fatal("unable to configure with keys '%s'",concat(keys(config),"', '"))end,default=function(type)fatal("unsupported configure type '%s'",type)end,})end,})local function isprobe(x)return istable(x)and some(configure,function(name)return x[name]~=nil
+local trylibs=flatten('',map(libraries,function(lib)return'-l'..lib
+end))return firstof(trylibs,function(lib)if try_link(L,env,config,lib,symbol)==0 then
+choose(lib~='',bind(add_library,{lib}))return found_library(L,lib)end
+end)or call(function()L.verbose'\n'fatal("required symbol '%s' not found in any of libc, lib%s",symbol,concat(libraries,', lib'))end)end},{checkfunc=function(L,env,config)checking(L,'for',config.checkfunc)return found_result(L,check_func_link(L,env,config,config.checkfunc))end},{checkmember=function(L,env,config)checking(L,'for',config.checkmember)local i=find(config.checkmember,'%.')local structname=sub(config.checkmember,1,i-1)local member=sub(config.checkmember,i+1)return found_result(L,check_struct_member_compile(L,env,config,structname,member,include_lines(config)))end}),{__call=function(self,L,env,config,prefix)return case(type(config),{['number']=function()return str(config)end,['string']=function()return config
+end,['table']=function()return diagnose(firstof(self,function(fname)if config[fname]~=nil then
+return apply(self[fname],list(L,env,merge(external_dirs(env,prefix),config)))end
+end),"unable to configure with keys '%s'",concat(keys(config),"', '"))end,default=function(kind)fatal("unsupported configure type '%s'",kind)end,})end,})local function isprobe(x)return istable(x)and some(configure,function(name)return x[name]~=nil
 end)end
 return{config_compiler=function(L,env)local CC=env.CC
 if CC==nil then
@@ -894,8 +891,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/e84945d',versiontext=[[
-luke (Luke) gvv/e84945d
+return{VERSION='gvv/9e59043',versiontext=[[
+luke (Luke) gvv/9e59043
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
