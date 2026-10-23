@@ -312,8 +312,6 @@ local function given(d,...)if select('#',...)==0 then
 return d
 end
 return(...)end
-local function isnonnil(x)return x~=nil
-end
 local function topredicate(x)if type(x)=='function'then
 return x
 end
@@ -462,16 +460,13 @@ r[k]=v
 end
 end
 return r
-end,filter=filter,firstof=firstof,flatmap=flatmap,flatten=flatten,foldl=foldl,get=function(dict,key)return(dict or{})[key]end,hoist=function(keylist,dict)return either(foldl(reversed(keylist),{},function(r,key)return merged(r,dict[key])end),nil)end,id=id,indexof=indexof,isempty=isempty,isfile=isfile,isfunction=function(x)return type(x)=='function'end,islistkey=function(t,k)return type(k)=='number'and int(k)==k and k>=1 and k<=len(t)end,isnil=function(x)return x==nil
-end,isnonzero=function(x)return x~=0
+end,filter=filter,firstof=firstof,flatmap=flatmap,flatten=flatten,foldl=foldl,get=function(dict,key)return(dict or{})[key]end,id=id,indexof=indexof,isempty=isempty,isfile=isfile,islistkey=function(t,k)return type(k)=='number'and int(k)==k and k>=1 and k<=len(t)end,isnonzero=function(x)return x~=0
 end,isstring=function(x)return type(x)=='string'end,istable=function(x)return type(x)=='table'end,keys=keys,map=function(seq,block)local r=list()walk(seq,function(...)append(r,(block(...)))end)return r
 end,mapvalues=function(iterable,block)local r={}for k,v in next,iterable or{}do
 r[k]=block(v)end
 return r
 end,merged=merged,nop=function()end,ordered_get=function(om,key)return foldl(om or{},nil,function(_,pair)return pair[key]end)end,ordered_keys=function(om)return foldl(om or{},list(),function(r,pair)return append(r,(destructure(pair)))end)end,ordered_mapvalues=function(om,fn)return foldl(om or{},{},function(r,pair)local k,v=destructure(pair)r[#r+1]={[k]=fn(v)}end)end,ordered_merge=function(...)local at={}return foldl(compact(list(...)),{},function(r,pairs)foldl(pairs,r,function(r,pair)local k,v=destructure(pair)at[k]=at[k]or#r+1
-r[at[k]]={[k]=v}end)end)end,ordered_pluck=function(om,keylist)local wanted=set(keylist)return reject(om or{},function(pair)return not wanted[(destructure(pair))]end)end,partition=function(seq,predicate)predicate=topredicate(predicate)local r,s=list(),list()walk(seq,function(...)append(choose(predicate(...),r,s),(...))end)return r,s
-end,pluck=function(t,keylist)local r={}each(keylist,function(key)r[key]=t[key]end)return r
-end,reject=reject,reversed=reversed,set=set,some=function(seq,...)return walk(seq,topredicate(given(id,...)))==true
+r[at[k]]={[k]=v}end)end)end,ordered_pluck=function(om,keylist)local wanted=set(keylist)return reject(om or{},function(pair)return not wanted[(destructure(pair))]end)end,reject=reject,reversed=reversed,set=set,some=function(seq,...)return walk(seq,topredicate(given(id,...)))==true
 end,sorted=sorted,sorted_keys=function(iterable)local rank={number=1,string=2}local r=keys(iterable)sort(r,function(a,b)local ra,rb=rank[type(a)]or 3,rank[type(b)]or 3
 return ra<rb or ra==rb and(ra<3 and a<b or ra==3 and str(a)<str(b))end)return r
 end,tabulate=tabulate,values=function(iterable)local r=list()for _,v in next,iterable or{}do
@@ -874,8 +869,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/9e91241',versiontext=[[
-luke (Luke) gvv/9e91241
+return{VERSION='gvv/51f99e0',versiontext=[[
+luke (Luke) gvv/51f99e0
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

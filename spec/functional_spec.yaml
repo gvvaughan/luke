@@ -173,22 +173,6 @@ specify luke.functional:
       expect(a).to_equal {x = 1}
       expect(b).to_equal {x = 2}
 
-- describe hoist:
-  - before:
-      hoist = functional.hoist
-
-  - it merges the entries for the keys, the first key winning:
-      expect(hoist({'a', 'b'}, {a = {x = 1}, b = {x = 2, y = 3}})).to_equal {x = 1, y = 3}
-  - it skips keys without entries:
-      expect(hoist({'a', 'z', 'b'}, {a = {x = 1}, b = {y = 2}})).to_equal {x = 1, y = 2}
-  - it returns nil for nothing:
-      expect(hoist({'z'}, {a = {x = 1}})).to_be(nil)
-      expect(hoist({}, {a = {x = 1}})).to_be(nil)
-  - it leaves the entries as they were:
-      dict = {a = {x = 1}, b = {x = 2}}
-      hoist({'a', 'b'}, dict)
-      expect(dict).to_equal {a = {x = 1}, b = {x = 2}}
-
 - describe tabulate:
   - before:
       tabulate = functional.tabulate
@@ -275,18 +259,6 @@ specify luke.functional:
       t = {{a = 1}}
       expect(ordered_mapvalues(t, function(v) return v + 1 end)).to_equal {{a = 2}}
       expect(t).to_equal {{a = 1}}
-
-- describe partition:
-  - before:
-      partition = functional.partition
-      square, nonsquare = partition(list(1, 2, 3, 4, 5, 6, 7, 8, 9), function(x)
-         local sqrt = math.sqrt(x)
-         return math.ceil(sqrt) == sqrt
-      end)
-
-  - it separates a list according to a predicate:
-      expect(square).to_equal(list(1, 4, 9))
-      expect(nonsquare).to_equal(list(2, 3, 5, 6, 7, 8))
 
 - describe foldl:
   - before:
@@ -514,17 +486,6 @@ specify luke.functional:
       expect(either(0, 'b')).to_be(0)
   - it returns nil if the default is nil:
       expect(either({})).to_be(nil)
-
-- describe pluck:
-  - before:
-      pluck = functional.pluck
-
-  - it copies just the entries for the keys:
-      expect(pluck({a = 1, b = 2, c = 3}, {'a', 'c'})).to_equal {a = 1, c = 3}
-  - it leaves out keys that are not in the table:
-      expect(pluck({a = 1}, {'a', 'z'})).to_equal {a = 1}
-  - it returns an empty table if there are none:
-      expect(pluck({a = 1}, {'z'})).to_equal {}
 
 - describe converge:
   - before:

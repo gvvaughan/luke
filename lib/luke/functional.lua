@@ -86,11 +86,6 @@ local function given(d, ...)
 end
 
 
-local function isnonnil(x)
-   return x ~= nil
-end
-
-
 -- Only a function is a predicate, anything else is a value to compare
 -- with, as `==`.  Not `choose`, which would call a function-valued *x*
 -- rather than return it.
@@ -476,14 +471,6 @@ return {
       return (dict or {})[key]
    end,
 
-   -- The entries of *dict* for the keys in *keylist*, merged, where the
-   -- first key with an entry for a name wins; or nil if there are none.
-   hoist = function(keylist, dict)
-      return either(foldl(reversed(keylist), {}, function(r, key)
-         return merged(r, dict[key])
-      end), nil)
-   end,
-
    id = id,
 
    indexof = indexof,
@@ -492,17 +479,9 @@ return {
 
    isfile = isfile,
 
-   isfunction = function(x)
-      return type(x) == 'function'
-   end,
-
    -- Whether *k* indexes a list entry of *t*, rather than naming a field.
    islistkey = function(t, k)
       return type(k) == 'number' and int(k) == k and k >= 1 and k <= len(t)
-   end,
-
-   isnil = function(x)
-      return x == nil
    end,
 
    isnonzero = function(x)
@@ -585,24 +564,6 @@ return {
       return reject(om or {}, function(pair)
          return not wanted[(destructure(pair))]
       end)
-   end,
-
-   partition = function(seq, predicate)
-      predicate = topredicate(predicate)
-      local r, s = list(), list()
-      walk(seq, function(...)
-         append(choose(predicate(...), r, s), (...))
-      end)
-      return r, s
-   end,
-
-   -- A table of just the entries of *t* for the keys in *keylist*.
-   pluck = function(t, keylist)
-      local r = {}
-      each(keylist, function(key)
-         r[key] = t[key]
-      end)
-      return r
    end,
 
    reject = reject,
