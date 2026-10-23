@@ -104,23 +104,21 @@ end
 
 
 local function c_sources(sources)
-   return dropuntil(sources, bind(match, {[2]='%.[ch]$'}))
+   return some(sources, bind(match, {[2]='%.[ch]$'}))
 end
 
 
 local function module_to_path(module, sources, objdir)
-   return dropuntil(sources, function(source)
-      return case(source, {
-         {'.*%.[ch]',       bind(c_source,   {module, objdir})},
-         {'(.*%.[ch])%.in', bind(c_source,   {module, objdir})},
-         {'.*%.lua',        bind(lua_source, {module})},
-         {'(.*%.lua)%.in',  bind(lua_source, {module})},
+   return case(sources[1], {
+      {'.*%.[ch]',       bind(c_source,   {module, objdir})},
+      {'(.*%.[ch])%.in', bind(c_source,   {module, objdir})},
+      {'.*%.lua',        bind(lua_source, {module})},
+      {'(.*%.lua)%.in',  bind(lua_source, {module})},
 
-         default = function(src)
-            fatal("unsupported source type '%s'", src)
-         end,
-      })
-   end)
+      default = function(src)
+         fatal("unsupported source type '%s'", src)
+      end,
+   })
 end
 
 
@@ -152,7 +150,7 @@ return {
 
    c_modules = function(modules)
       return filter(ordered_keys(modules), function(name)
-         return dropuntil(ordered_get(modules, name).sources, bind(match, {[2]='%.[ch]$'}))
+         return c_sources(ordered_get(modules, name).sources)
       end)
    end,
 
@@ -203,7 +201,7 @@ return {
          return run(L, env, flatten(exports, rules.command))
       end
 
-      if c_sources(sources) == nil then
+      if not c_sources(sources) then
          fatal("no command to build '%s' from %s", target, concat(sources, ' '))
       end
       return run(L, env, flatten(
@@ -221,7 +219,7 @@ return {
 
    -- Whether *rules* builds a program by compiling C sources.
    c_program = function(rules)
-      return istable(rules) and rules.command == nil and c_sources(rules.sources) ~= nil
+      return istable(rules) and rules.command == nil and c_sources(rules.sources)
    end,
 
    -- Copy each installable script or program in *names*, built as for

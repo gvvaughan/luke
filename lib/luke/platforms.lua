@@ -46,7 +46,7 @@ local function toplatforms(canon, uname)
       return sub(k, 1, 1) ~= '^'
    end)
    return (pluck(literalkeys, canon) or {})[uname]
-      or dropuntil(patternkeys, bind(match_uname, {canon, uname}))
+      or firstof(patternkeys, bind(match_uname, {canon, uname}))
       or list('unix')
 end
 

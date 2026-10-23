@@ -410,7 +410,7 @@ return {
       local version, main = L.release, git(env, 'symbolic-ref --short HEAD')
       local substitute = mkenv({version = version}, L.clidefs, L.luke.substitute, SHELLENV)
       local checks = preconditions(env, L.luke.release or {}, version, main, substitute)
-      local failed = dropuntil(checks, function(check)
+      local failed = firstof(checks, function(check)
          local description, predicate = unpack(check)
          L.verbose('checking whether ', description, '... ')
          local ok = predicate()
@@ -482,7 +482,7 @@ return {
          bind(run, {L, env, 'git checkout --quiet', main})
       )
 
-      local status = dropuntil(steps, isnonzero, call) or 0
+      local status = firstof(steps, isnonzero, call) or 0
 
       -- Remove any worktree that a failed step leaves behind, with
       -- whatever was copied into it.

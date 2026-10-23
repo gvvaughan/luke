@@ -77,7 +77,7 @@ local function build(L, env)
    if modules then
       L.luke = run_templates(L, substitute, L.luke)
 
-      status = dropuntil(c, isnonzero, function(name)
+      status = firstof(c, isnonzero, function(name)
          return build_c_module(L, env, L.luke, name)
       end) or 0
 
@@ -87,7 +87,7 @@ local function build(L, env)
    end
 
    if status == 0 then
-      status = dropuntil(L.scripts.build, isnonzero, function(entry)
+      status = firstof(L.scripts.build, isnonzero, function(entry)
          return build_script(L, env, substitute, entry)
       end) or 0
    end

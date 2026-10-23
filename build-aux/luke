@@ -107,11 +107,11 @@ return(gsub(rules,'%.in$',''))elseif installed then
 return format('%s/%s',objdir,name)end
 return name
 end
-local function c_sources(sources)return dropuntil(sources,bind(match,{[2]='%.[ch]$'}))end
-local function module_to_path(module,sources,objdir)return dropuntil(sources,function(source)return case(source,{{'.*%.[ch]',bind(c_source,{module,objdir})},{'(.*%.[ch])%.in',bind(c_source,{module,objdir})},{'.*%.lua',bind(lua_source,{module})},{'(.*%.lua)%.in',bind(lua_source,{module})},default=function(src)fatal("unsupported source type '%s'",src)end,})end)end
+local function c_sources(sources)return some(sources,bind(match,{[2]='%.[ch]$'}))end
+local function module_to_path(module,sources,objdir)return case(sources[1],{{'.*%.[ch]',bind(c_source,{module,objdir})},{'(.*%.[ch])%.in',bind(c_source,{module,objdir})},{'.*%.lua',bind(lua_source,{module})},{'(.*%.lua)%.in',bind(lua_source,{module})},default=function(src)fatal("unsupported source type '%s'",src)end,})end
 return{build_c_module=function(L,env,luke,name)local rules=ordered_get(luke.modules,name)local c_module=c_module_path(luke.variables.objdir,name)local command={'$MAKEDIRS',dirname(c_module)}local status,err,out=L.spawn(env,unpack(command))if status~=0 then
 stdout:write(concat(command,' ')..'\n')stderr:write(err..'\n')exit(status)end
-return run(L,env,flatten('$CC $CFLAGS $LIBFLAG $PKGFLAGS $CPPFLAGS',defines(luke.defines,rules.defines),incdirs(rules.incdirs,luke.incdirs),rules.sources,'-o',c_module,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries))end,c_modules=function(modules)return filter(ordered_keys(modules),function(name)return dropuntil(ordered_get(modules,name).sources,bind(match,{[2]='%.[ch]$'}))end)end,defines=defines,incdirs=incdirs,install_modules=function(L,env,luke,modules)return foldl(ordered_keys(modules),0,function(status,name)if status==0 then
+return run(L,env,flatten('$CC $CFLAGS $LIBFLAG $PKGFLAGS $CPPFLAGS',defines(luke.defines,rules.defines),incdirs(rules.incdirs,luke.incdirs),rules.sources,'-o',c_module,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries))end,c_modules=function(modules)return filter(ordered_keys(modules),function(name)return c_sources(ordered_get(modules,name).sources)end)end,defines=defines,incdirs=incdirs,install_modules=function(L,env,luke,modules)return foldl(ordered_keys(modules),0,function(status,name)if status==0 then
 local src,dir=module_to_path(name,ordered_get(modules,name).sources,luke.variables.objdir)if not exists(interpolate(env,dir))then
 status=run(L,env,{'$MAKEDIRS',dir})end
 if status==0 then
@@ -127,10 +127,9 @@ if rules.command~=nil then
 local names=sorted(keys(rules.env))env=mkenv({sources=concat(sources,' '),target=target},rules.env,env)local exports={}if not isempty(names)then
 exports=flatten('export',map(names,function(name)return format('%s=%s',name,shellword(interpolate(env,rules.env[name])))end),';')end
 return run(L,env,flatten(exports,rules.command))end
-if c_sources(sources)==nil then
+if not c_sources(sources)then
 fatal("no command to build '%s' from %s",target,concat(sources,' '))end
-return run(L,env,flatten('$CC $CFLAGS $CPPFLAGS',defines(luke.defines,rules.defines),incdirs(rules.incdirs,luke.incdirs),sources,'-o',target,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries))end,c_program=function(rules)return istable(rules)and rules.command==nil and c_sources(rules.sources)~=nil
-end,install_scripts=function(L,env,luke,names)if isempty(names)then
+return run(L,env,flatten('$CC $CFLAGS $CPPFLAGS',defines(luke.defines,rules.defines),incdirs(rules.incdirs,luke.incdirs),sources,'-o',target,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries))end,c_program=function(rules)return istable(rules)and rules.command==nil and c_sources(rules.sources)end,install_scripts=function(L,env,luke,names)if isempty(names)then
 return 0
 end
 local status=0
@@ -167,7 +166,7 @@ end
 local function bindirs(...)return map(flatten(...),function(v)return v..':'end)end
 local function compile_command(L,env,config,objfile,filename)local command=flatten('$CC','-c','$CFLAGS',defines(L.luke.defines),incdirs(config.incdir),'$CPPFLAGS','-o',objfile,filename)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
 local function link_command(L,env,config,a_out,source,lib)local command=flatten('$CC','$CFLAGS',defines(L.luke.defines),incdirs(config.incdir),'$CPPFLAGS','-o',a_out,source,libdirs(config.libdir),'$LDFLAGS',lib,'$libs',CONFIGENV.libs)L.log(interpolate(env,concat(command,' ')))return unpack(command)end
-local function check_executable_in_path(L,env,config,prog)local PATH=concat(bindirs(config.bindir))..getenv('PATH')local found=dropuntil(gmatch(PATH,'[^:]+'),function(path)local progpath=path..'/'..prog
+local function check_executable_in_path(L,env,config,prog)local PATH=concat(bindirs(config.bindir))..getenv('PATH')local found=firstof(gmatch(PATH,'[^:]+'),function(path)local progpath=path..'/'..prog
 return with(File(progpath,'r'),function(h)return h and isfile(h.context)and progpath or nil
 end)end)L.log(found and'found '..found or prog..' not found')return found~=nil
 end
@@ -255,7 +254,7 @@ end
 end
 end
 local function format_includes(includes)return map(includes or{},function(include)return format('#include "%s"',include)end)end
-local configure=setmetatable(OrderedDict({checkprog=function(L,env,config)return dropuntil(config.progs,function(prog)checking(L,'for',prog)if found_prog(L,check_executable_in_path(L,env,config,prog))then
+local configure=setmetatable(OrderedDict({checkprog=function(L,env,config)return firstof(config.progs,function(prog)checking(L,'for',prog)if found_prog(L,check_executable_in_path(L,env,config,prog))then
 return prog
 end
 end)or fatal('cannot find '..config.checkprog)end},{checkheader=function(L,env,config)checking(L,'for',config.checkheader)local extra_hdrs=concat(format_includes(config.includes),'\n')return found_result(L,check_header_compile(L,env,config,config.checkheader,extra_hdrs))end},{checkdecl=function(L,env,config)checking(L,'whether',config.checkdecl,'is declared')local extra_hdrs=concat(format_includes(config.includes),'\n')return found_result(L,check_func_decl(L,env,config,config.checkdecl,extra_hdrs))end},{checksymbol=function(L,env,config)checking(L,'for library containing',config.checksymbol)if config.ifdef~=nil then
@@ -263,7 +262,7 @@ local headers=concat(format_includes(config.includes),'\n')if try_compile(L,env,
 return found_library(L,{})end
 end
 local libraries,symbol=config.libraries,config.checksymbol
-local trylibs=foldl(libraries,{''},function(r,lib)append(r,'-l'..lib)end)return dropuntil(trylibs,function(lib)if try_link(L,env,config,lib,symbol)==0 then
+local trylibs=foldl(libraries,{''},function(r,lib)append(r,'-l'..lib)end)return firstof(trylibs,function(lib)if try_link(L,env,config,lib,symbol)==0 then
 if lib~=''then
 if CONFIGENV.libs~=''then
 CONFIGENV.libs=' '..CONFIGENV.libs
@@ -272,7 +271,7 @@ CONFIGENV.libs=lib..CONFIGENV.libs
 end
 return found_library(L,lib)end
 end)or call(function()L.verbose'\n'fatal("required symbol '%s' not found in any of libc, lib%s",symbol,concat(libraries,', lib'))end)end},{checkfunc=function(L,env,config)checking(L,'for',config.checkfunc)return found_result(L,check_func_link(L,env,config,config.checkfunc))end},{checkmember=function(L,env,config)checking(L,'for',config.checkmember)local extra_hdrs=concat(format_includes(config.includes),'\n')local i=find(config.checkmember,'%.')local structname=sub(config.checkmember,1,i-1)local member=sub(config.checkmember,i+1)return found_result(L,check_struct_member_compile(L,env,config,structname,member,extra_hdrs))end}),{__call=function(self,L,env,config,prefix)return case(type(config),{['number']=function()return str(config)end,['string']=function()return config
-end,['table']=function()return dropuntil(self,function(fname)if config[fname]~=nil then
+end,['table']=function()return firstof(self,function(fname)if config[fname]~=nil then
 add_external_deps(env,config,prefix)return apply(self[fname],list(L,env,config))end
 end)or fatal("unable to configure with keys '%s'",concat(keys(config),"', '"))end,default=function(type)fatal("unsupported configure type '%s'",type)end,})end,})return{config_compiler=function(L,env)local CC=env.CC
 if CC==nil then
@@ -289,7 +288,7 @@ return env
 end,configure=configure,}
 end
 package.preload['luke.environment']=function()
-local _ENV=require'luke.normalize'{'luke.platforms','luke.functional',LUAVERSION=string.gsub(_VERSION,'[^0-9%.]+',''),SHELLMETACHARS='[%s%$"\'&;|<>()*?`\\]',}local env_mt={__index=function(self,varname)return dropuntil(self,function(env)local value=env[varname]if value~=nil then
+local _ENV=require'luke.normalize'{'luke.platforms','luke.functional',LUAVERSION=string.gsub(_VERSION,'[^0-9%.]+',''),SHELLMETACHARS='[%s%$"\'&;|<>()*?`\\]',}local env_mt={__index=function(self,varname)return firstof(self,function(env)local value=env[varname]if value~=nil then
 self[varname]=value
 return value
 end
@@ -329,8 +328,6 @@ end
 end
 end
 local function id(...)return...end
-local function isnonnil(x)return x~=nil
-end
 local function topredicate(x)if type(x)=='function'then
 return x
 end
@@ -396,16 +393,15 @@ local expr,consequence=unpack(clauses[i],1,2)if expr then
 return call(consequence,expr)end
 end
 end,contains=function(seq,predicate)return walk(seq,topredicate(predicate))==true
-end,destructure=destructure,dropuntil=function(seq,predicate,fn)if fn==nil then
+end,destructure=destructure,firstof=function(seq,predicate,fn)if fn==nil then
 predicate,fn=nil,predicate
 end
-predicate=topredicate(predicate==nil and isnonnil or predicate)local found
+predicate=topredicate(predicate==nil and id or predicate)local found
 local function test(...)if predicate(...)then
-found=list(...)return true
+found=...return true
 end
 end
-walk(seq,function(...)return test(fn(...))end)if found then
-return unpack(found,1,found.n)end
+walk(seq,function(...)return test(fn(...))end)return found
 end,each=each,filter=filter,flatten=flatten,foldl=foldl,foldkeys=function(keymap,dict,combinator)local r={}for k,v in next,dict or{}do
 local key=keymap[k]if key then
 r[key]=combinator(v,dict[key])else
@@ -452,12 +448,12 @@ local c=c_modules(L.luke.modules or{})local cprograms=filter(L.scripts.build,fun
 conf=config_compiler(L,conf)env=mkenv(env,{CC=conf.CC})end
 L.luke=run_configs(L,conf,L.luke)env=mkenv(L.clidefs,L.luke.variables,env)local substitute=mkenv(L.clidefs,L.luke.substitute,SHELLENV)local status=0
 if modules then
-L.luke=run_templates(L,substitute,L.luke)status=dropuntil(c,isnonzero,function(name)return build_c_module(L,env,L.luke,name)end)or 0
+L.luke=run_templates(L,substitute,L.luke)status=firstof(c,isnonzero,function(name)return build_c_module(L,env,L.luke,name)end)or 0
 if status==0 and not isempty(L.luke.ldocs or{})then
 status=run_ldocs(L,env,L.luke.ldocs)end
 end
 if status==0 then
-status=dropuntil(L.scripts.build,isnonzero,function(entry)return build_script(L,env,substitute,entry)end)or 0
+status=firstof(L.scripts.build,isnonzero,function(entry)return build_script(L,env,substitute,entry)end)or 0
 end
 return status
 end
@@ -657,7 +653,7 @@ end
 package.preload['luke.platforms']=function()
 local _ENV=require'luke.normalize'{'luke.functional',}local CANON={['AIX']=list('aix','unix'),['FreeBSD']=list('freebsd','bsd','unix'),['OpenBSD']=list('openbsd','bsd','unix'),['NetBSD']=list('netbsd','bsd','unix'),['Darwin']=list('macosx','bsd','unix'),['Linux']=list('linux','unix'),['SunOS']=list('solaris','unix'),['^CYGWIN']=list('cygwin','unix'),['^MSYS']=list('msys','cygwin','unix'),['^Windows']=list('win32','windows'),['^MINGW']=list('mingw32','win32','windows'),['^procnto']=list('qnx'),['QNX']=list('qnx'),['Haiku']=list('haiku','unix'),}local ALLPLATFORMS=foldl(values(CANON),function(acc,platforms)each(platforms,function(v)acc[v]=true
 end)end)local function match_uname(canon,uname,x)return match(uname,x)and canon[x]end
-local function toplatforms(canon,uname)local literalkeys,patternkeys=partition(keys(canon),function(k)return sub(k,1,1)~='^'end)return(pluck(literalkeys,canon)or{})[uname]or dropuntil(patternkeys,bind(match_uname,{canon,uname}))or list('unix')end
+local function toplatforms(canon,uname)local literalkeys,patternkeys=partition(keys(canon),function(k)return sub(k,1,1)~='^'end)return(pluck(literalkeys,canon)or{})[uname]or firstof(patternkeys,bind(match_uname,{canon,uname}))or list('unix')end
 local supported=toplatforms(CANON,popen('uname -s'):read'*l')local function isplatform(x)return ALLPLATFORMS[x]~=nil
 end
 local function selected(platforms,supported,isplatform)local matches=map(filter(supported,bind(get,{platforms})),bind(get,{platforms}))return choose(isempty(matches),function()return{pluck(reject(keys(platforms),isplatform),platforms)}end,function()return matches
@@ -760,14 +756,14 @@ choose(not lines[source][n],bind(append,{kept,line}))end
 end
 return concat(kept)end)end)until L.dryrun or isempty(sources)return 0
 end
-return{copy_command=copy_command,release=function(L,env,build)local version,main=L.release,git(env,'symbolic-ref --short HEAD')local substitute=mkenv({version=version},L.clidefs,L.luke.substitute,SHELLENV)local checks=preconditions(env,L.luke.release or{},version,main,substitute)local failed=dropuntil(checks,function(check)local description,predicate=unpack(check)L.verbose('checking whether ',description,'... ')local ok=predicate()L.verbose(ok and'yes\n'or'no\n')if not ok then
+return{copy_command=copy_command,release=function(L,env,build)local version,main=L.release,git(env,'symbolic-ref --short HEAD')local substitute=mkenv({version=version},L.clidefs,L.luke.substitute,SHELLENV)local checks=preconditions(env,L.luke.release or{},version,main,substitute)local failed=firstof(checks,function(check)local description,predicate=unpack(check)L.verbose('checking whether ',description,'... ')local ok=predicate()L.verbose(ok and'yes\n'or'no\n')if not ok then
 return description
 end
 end)if failed~=nil then
 fatal('cannot release %s: check failed: %s',version,failed)return 1
 end
 local rules=L.luke.release or{}local news,rockspec=rules.news,rules.rockspec
-local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.add,generated(L.luke),released)local today=date'%Y-%m-%d'local package,notes=announcement((interpolate(env,L.luke.package)),version,news and release_news(add_release_header(slurp(File(news))or'',version,today),version),rockspec and slurp(File(rockspec)))local pages=branches(rules)local worktrees=foldl(pages,{},function(r,branch)r[branch]=tmpname()rm(r[branch])end)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=today})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),map(rules.replacements or{},function(entry)local path,pairs=destructure(entry)return bind(edit,{L,path,bind(replace,{[2]=substitute,[3]=pairs})})end),build,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and{bind(unignore,{L,env,added}),bind(run,{L,env,'git add -f',unpack(added)}),}or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(tag,{L,env,version,notes}),map(pages,function(branch)local worktree=worktrees[branch]return{git(env,'rev-parse refs/heads/'..branch)~=git(env,'rev-parse origin/'..branch)and bind(run,{L,env,'git branch --quiet --force',branch,'origin/'..branch})or{},bind(run,{L,env,'git worktree add --quiet',worktree,branch}),publish_steps(L,env,substitute,worktree,rules[branch]),bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m '%s: update to $package %s.'",branch,version)}),bind(run,{L,env,'git worktree remove',worktree}),}end),bind(run,{L,env,'git checkout --quiet',main}))local status=dropuntil(steps,isnonzero,call)or 0
+local released=rockspec and rockspec_name(rockspec,version)local added=flatten(rules.add,generated(L.luke),released)local today=date'%Y-%m-%d'local package,notes=announcement((interpolate(env,L.luke.package)),version,news and release_news(add_release_header(slurp(File(news))or'',version,today),version),rockspec and slurp(File(rockspec)))local pages=branches(rules)local worktrees=foldl(pages,{},function(r,branch)r[branch]=tmpname()rm(r[branch])end)local steps=flatten(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=today})}),bind(run,{L,env,'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}),},bind(run,{L,env,'git checkout -b','release-v'..version}),news and bind(edit,{L,news,remove_placeholder}),map(rules.replacements or{},function(entry)local path,pairs=destructure(entry)return bind(edit,{L,path,bind(replace,{[2]=substitute,[3]=pairs})})end),build,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),released}),bind(run,{L,env,'git rm --quiet',rockspec}),},not isempty(added)and{bind(unignore,{L,env,added}),bind(run,{L,env,'git add -f',unpack(added)}),}or nil,bind(run,{L,env,format("git commit -a -m 'Release v%s.'",version)}),bind(tag,{L,env,version,notes}),map(pages,function(branch)local worktree=worktrees[branch]return{git(env,'rev-parse refs/heads/'..branch)~=git(env,'rev-parse origin/'..branch)and bind(run,{L,env,'git branch --quiet --force',branch,'origin/'..branch})or{},bind(run,{L,env,'git worktree add --quiet',worktree,branch}),publish_steps(L,env,substitute,worktree,rules[branch]),bind(run,{L,env,'git -C',worktree,"add -A && git -C",worktree,format("commit -m '%s: update to $package %s.'",branch,version)}),bind(run,{L,env,'git worktree remove',worktree}),}end),bind(run,{L,env,'git checkout --quiet',main}))local status=firstof(steps,isnonzero,call)or 0
 choose(status~=0,function()each(filter(sorted(values(worktrees)),exists),function(worktree)run(L,env,'git worktree remove --force',worktree)end)end)if status==0 then
 local pushed=flatten(main,'release-v'..version,'v'..version,pages)L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',version,concat(pushed,' ')))local GH=env.GH or configure(L,env,{checkprog='GitHub CLI',progs={'gh','true'}})if GH~='true'then
 L.write(format("   %s release create v%s --verify-tag --latest --title '[ANN] %s v%s released' --notes-from-tag\n",GH,version,package,version))end
@@ -855,8 +851,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,luke_format=luke_format,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/4a4d382',versiontext=[[
-luke (Luke) gvv/4a4d382
+return{VERSION='gvv/d3ca42e',versiontext=[[
+luke (Luke) gvv/d3ca42e
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

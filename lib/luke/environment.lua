@@ -13,7 +13,7 @@ local _ENV = require 'luke.normalize' {
 
 local env_mt = {
    __index = function(self, varname)
-      return dropuntil(self, function(env)
+      return firstof(self, function(env)
          local value = env[varname]
          if value ~= nil then
             self[varname] = value

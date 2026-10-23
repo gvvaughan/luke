@@ -233,32 +233,30 @@ specify luke.functional:
   - it tests with a predicate function:
       expect(contains({1, 2}, function(e) return e > 1 end)).to_be(true)
 
-- describe dropuntil:
+- describe firstof:
   - before:
-      dropuntil = functional.dropuntil
+      firstof = functional.firstof
 
-  - it returns the first non-nil result of a function:
-      expect(dropuntil({1, 2, 3}, function(e) if e > 1 then return e * 10 end end)).to_be(20)
-  - it passes false by default:
-      expect(dropuntil({1, 2}, function() return false end)).to_be(false)
-  - it returns every result of the first call that passes:
+  - it returns the first truthy result of a function:
+      expect(firstof({1, 2, 3}, function(e) if e > 1 then return e * 10 end end)).to_be(20)
+  - it skips false and nil results by default:
+      expect(firstof({1, 2, 3}, function(e) return e == 3 and 'three' or e == 2 and false end)).
+         to_be 'three'
+  - it does not call the function for items after one that passes:
       calls = 0
-      local a, b = dropuntil({1, 2, 3}, function(e)
-         calls = calls + 1
-         if e == 2 then return 'two', e end
-      end)
-      expect({a, b}).to_equal {'two', 2}
-      expect(calls).to_be(2)
+      firstof({1, 2, 3}, function(e) calls = calls + 1; return e end)
+      expect(calls).to_be(1)
   - it takes a predicate before the function:
-      expect(dropuntil({1, 2, 3}, function(r) return r > 4 end, function(e) return e * 2 end)).to_be(6)
+      expect(firstof({1, 2, 3}, function(r) return r > 4 end, function(e) return e * 2 end)).to_be(6)
   - it compares results with anything that is not a function:
-      expect(dropuntil({1, 2, 3}, 4, function(e) return e * 2 end)).to_be(4)
-  - it tests the first of several results with all of them:
-      expect({dropuntil({1, 2}, function(r, x) return x == 'y' end, function(e)
+      expect(firstof({1, 2, 3}, 4, function(e) return e * 2 end)).to_be(4)
+  - it tests all the results of a call, and returns the first:
+      expect(firstof({1, 2}, function(r, x) return x == 'y' end, function(e)
          return e, e == 2 and 'y'
-      end)}).to_equal {2, 'y'}
-  - it returns nothing if no call passes:
-      expect(select('#', dropuntil({1, 2}, 3, function(e) return e end))).to_be(0)
+      end)).to_be(2)
+  - it returns nil if no call passes:
+      expect(firstof({1, 2}, 3, function(e) return e end)).to_be(nil)
+      expect(firstof({}, function(e) return e end)).to_be(nil)
 
 - describe each:
   - before:

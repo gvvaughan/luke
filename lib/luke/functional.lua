@@ -58,11 +58,6 @@ local function id(...)
 end
 
 
-local function isnonnil(x)
-   return x ~= nil
-end
-
-
 -- Only a function is a predicate, anything else is a value to compare
 -- with, as `==`.  Not `choose`, which would call a function-valued *x*
 -- rather than return it.
@@ -223,25 +218,23 @@ return {
 
    destructure = destructure,
 
-   -- All the results of the first call of *fn* with an item of *seq*
-   -- that passes *predicate*, without calling it for later items.  A
-   -- nil or omitted *predicate* passes any non-nil.
-   dropuntil = function(seq, predicate, fn)
+   -- The first result of calling *fn* with each item of *seq* that passes
+   -- *predicate*, which defaults to anything truthy, without calling it
+   -- for later items.  The predicate is called with all the results.
+   firstof = function(seq, predicate, fn)
       if fn == nil then
          predicate, fn = nil, predicate
       end
-      predicate = topredicate(predicate == nil and isnonnil or predicate)
+      predicate = topredicate(predicate == nil and id or predicate)
       local found
       local function test(...)
          if predicate(...) then
-            found = list(...)
+            found = ...
             return true
          end
       end
       walk(seq, function(...) return test(fn(...)) end)
-      if found then
-         return unpack(found, 1, found.n)
-      end
+      return found
    end,
 
    each = each,
