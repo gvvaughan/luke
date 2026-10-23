@@ -10,6 +10,11 @@
 
 ### Bug fixes:
 
+  - `luke release` says why it cannot release in words that read as
+    a reason, "expected that the dependencies of X are installed",
+    rather than "check failed: the dependencies of X are installed",
+    which read as if the check itself had failed.
+
   - A probe with both a singular and a plural key, such as `prog` and
     `progs`, merges them into the plural, rather than leaving the list
     with references to itself in place of the singular value.

@@ -269,7 +269,7 @@ specify luke.release:
       spawned['git status --porcelain'] = list(0, '', ' M lukefile\n')
       release, fatal = setup(spawned)
       expect(release(mkL(), env, build)).to_be(1)
-      expect(fatal[1]).to_be 'cannot release %s: check failed: %s'
+      expect(fatal[1]).to_be 'cannot release %s: expected that %s'
   - it stops at the first failing check: |
       spawned = passing()
       spawned['git status --porcelain'] = list(0, '', ' M lukefile\n')
@@ -286,7 +286,7 @@ specify luke.release:
          reported[#reported + 1] = table.concat {...}
       end
       expect(release(L, env, build)).to_be(1)
-      expect(fatal[1]).to_be 'cannot release %s: check failed: %s'
+      expect(fatal[1]).to_be 'cannot release %s: expected that %s'
       expect(reported).to_contain 'checking whether a branch is checked out... '
   - it diagnoses a failed fetch: |
       spawned = passing()
@@ -392,7 +392,7 @@ specify luke.release:
            reported[#reported + 1] = table.concat {...}
         end
         expect(release(L, env, build)).to_be(1)
-        expect(fatal[1]).to_be 'cannot release %s: check failed: %s'
+        expect(fatal[1]).to_be 'cannot release %s: expected that %s'
         expect(reported[#reported - 1]).to_be 'checking whether gh-pages can be checked out in a new worktree... '
     - it passes gh-pages detached in another worktree: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
@@ -406,7 +406,7 @@ specify luke.release:
         spawned['git cat-file -e origin/gh-pages:_config.yml.in'] = list(128, 'fatal: not a valid object', '')
         release, fatal = setup(spawned)
         expect(release(mkL {['gh-pages'] = GHPAGES}, env, build)).to_be(1)
-        expect(fatal[1]).to_be 'cannot release %s: check failed: %s'
+        expect(fatal[1]).to_be 'cannot release %s: expected that %s'
 
   - context with a rockspec:
     - after: |
@@ -463,7 +463,7 @@ specify luke.release:
           release, fatal = setup(spawned)
           L = verbosely(mkL {rockspec = ROCKSPEC, check_dependencies = true})
           expect(release(L, env, build)).to_be(1)
-          expect(fatal[1]).to_be 'cannot release %s: check failed: %s'
+          expect(fatal[1]).to_be 'cannot release %s: expected that %s'
           expect(L.reported).to_contain(CHECKING .. 'no\n')
           expect(written).to_equal {MISSING}
       - it runs LuaRocks as LUAROCKS when set: |

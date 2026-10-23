@@ -532,7 +532,7 @@ return {
       local checks = preconditions(env, L.luke.release or {}, version, main, substitute)
       local failed = failed_check(L, checks)
       if failed ~= nil then
-         fatal('cannot release %s: check failed: %s', version, failed)
+         fatal('cannot release %s: expected that %s', version, failed)
          return 1
       end
 

@@ -793,7 +793,7 @@ L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git check
 end
 local function failed_message(L,checks,version)local undo=undo_commands(checks)choose(not isempty(undo),function()L.write(format('\nRelease v%s failed.  To undo it before trying again:\n\n%s',version,concat(map(undo,function(command)return'   '..command..'\n'end))))end)end
 return{copy_command=copy_command,release=function(L,env,build)local version,main=L.release,git(env,'symbolic-ref --short HEAD')local substitute=mkenv({version=version},L.clidefs,L.luke.substitute,SHELLENV)local checks=preconditions(env,L.luke.release or{},version,main,substitute)local failed=failed_check(L,checks)if failed~=nil then
-fatal('cannot release %s: check failed: %s',version,failed)return 1
+fatal('cannot release %s: expected that %s',version,failed)return 1
 end
 local rules=L.luke.release or{}local news,rockspec=rules.news,rules.rockspec
 local released=rockspec and rockspec_name(rockspec,version)local today=date'%Y-%m-%d'local package,notes=announcement((interpolate(env,L.luke.package)),version,news and release_news(add_release_header(slurp(File(news))or'',version,today),version),rockspec and slurp(File(rockspec)))local pages=branches(rules)local worktrees=tabulate(pages,function(branch)local worktree=tmpname()rm(worktree)return branch,worktree
@@ -874,8 +874,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/a0e5e0b',versiontext=[[
-luke (Luke) gvv/a0e5e0b
+return{VERSION='gvv/1ea63ca',versiontext=[[
+luke (Luke) gvv/1ea63ca
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
