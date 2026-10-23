@@ -4,6 +4,7 @@
 ]]
 
 local _ENV = require 'luke.normalize' {
+   'luke._base',
    'luke.platforms',
    'luke.functional',
    LUAVERSION = string.gsub(_VERSION, '[^0-9%.]+', ''),
@@ -12,13 +13,15 @@ local _ENV = require 'luke.normalize' {
 
 
 -- *s* with each name that matches *pattern* replaced by its value in
--- *env*, or nothing, and then again, until that changes nothing.
+-- *env*, or nothing, and then again, until that changes nothing.  It is
+-- fatal if that never happens, as when names refer to each other.
 local function interpolate_with(pattern, env, s)
-   return fixpoint(s, function(text)
+   local ok, result = pcall(converge, s, function(text)
       return (gsub(text, pattern, function(varname)
          return env[varname] or ''
       end))
    end)
+   return diagnose(ok and result, "cannot expand '%s': its names refer to each other", s)
 end
 
 

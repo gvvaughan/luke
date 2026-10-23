@@ -14,6 +14,9 @@
     `progs`, merges them into the plural, rather than leaving the list
     with references to itself in place of the singular value.
 
+  - A variable that refers to itself, directly or through others, is
+    diagnosed when luke expands it, rather than expanding for ever.
+
 
 ## Noteworthy changes in release 0.6 (2026-10-20) [stable]
 

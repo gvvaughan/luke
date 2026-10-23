@@ -415,19 +415,29 @@ specify luke.functional:
   - it returns an empty table if there are none:
       expect(pluck({a = 1}, {'z'})).to_equal {}
 
-- describe fixpoint:
+- describe converge:
   - before:
-      fixpoint = functional.fixpoint
+      converge = functional.converge
 
   - it returns its argument if the function changes nothing:
-      expect(fixpoint('a', function(s) return s end)).to_be 'a'
+      expect(converge('a', function(s) return s end)).to_be 'a'
   - it calls the function again with each result, until one changes nothing:
-      expect(fixpoint(10, function(n) return n > 1 and math.floor(n / 2) or n end)).to_be(1)
-      expect(fixpoint('aaa', function(s) return (s:gsub('aa', 'a')) end)).to_be 'a'
+      expect(converge(10, function(n) return n > 1 and math.floor(n / 2) or n end)).to_be(1)
+      expect(converge('aaa', function(s) return (s:gsub('aa', 'a')) end)).to_be 'a'
   - it calls the function once more than it changes the argument:
       calls = 0
-      fixpoint(3, function(n) calls = calls + 1; return n > 1 and n - 1 or n end)
+      converge(3, function(n) calls = calls + 1; return n > 1 and n - 1 or n end)
       expect(calls).to_be(3)
+  - it gives up after 1000 calls by default:
+      calls = 0
+      expect(converge(0, function(n) calls = calls + 1; return n + 1 end)).
+         to_raise 'no convergence after 1000 calls'
+      expect(calls).to_be(1000)
+  - it gives up after the limit, if given one:
+      expect(converge(0, 5, function(n) return n + 1 end)).
+         to_raise 'no convergence after 5 calls'
+  - it converges within the limit, if given one:
+      expect(converge(3, 4, function(n) return n > 1 and n - 1 or n end)).to_be(1)
 
 - describe flatmap:
   - before:

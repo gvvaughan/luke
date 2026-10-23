@@ -5,6 +5,7 @@
 
 local _ENV = require 'luke.normalize' {
    destructure = next,
+   error = error,
    isfile = function(x) return io.type(x) == 'file' end,
    wrap = coroutine.wrap,
    yield = coroutine.yield,
@@ -185,13 +186,20 @@ end
 
 
 -- *x* after calling *fn* with it, and then with each result, until the
--- result is what it was called with.
-local function fixpoint(x, fn)
-   local r = fn(x)
-   while r ~= x do
-      x, r = r, fn(r)
+-- result is what it was called with.  It is an error if that has not
+-- happened after *limit* calls, which is 1000 if left out.
+local function converge(x, limit, fn)
+   if fn == nil then
+      limit, fn = 1000, limit
    end
-   return x
+   for _ = 1, limit do
+      local r = fn(x)
+      if r == x then
+         return x
+      end
+      x = r
+   end
+   error(format('no convergence after %d calls', limit), 2)
 end
 
 
@@ -317,20 +325,6 @@ return {
 
    call = call,
 
-   -- *consequent* if *test* is truthy, otherwise *alternative*, where
-   -- either may be falsy, unlike in `test and consequent or alternative`.
-   -- Like `cond`, a callable leg is called with *test* only when it is
-   -- chosen, so pass side effects as functions.
-   choose = function(test, consequent, alternative)
-      local leg = alternative
-      if test then
-         leg = consequent
-      end
-      if leg ~= nil then
-         return call(leg, test)
-      end
-   end,
-
    -- The branch for *s* as a key, or for the first `{pattern, branch}`
    -- pair in the array part of *branches* whose pattern matches the
    -- string *s*, anchored, or else `branches.default`.  A callable
@@ -355,6 +349,20 @@ return {
       return default
    end,
 
+   -- *consequent* if *test* is truthy, otherwise *alternative*, where
+   -- either may be falsy, unlike in `test and consequent or alternative`.
+   -- Like `cond`, a callable leg is called with *test* only when it is
+   -- chosen, so pass side effects as functions.
+   choose = function(test, consequent, alternative)
+      local leg = alternative
+      if test then
+         leg = consequent
+      end
+      if leg ~= nil then
+         return call(leg, test)
+      end
+   end,
+
    -- The branch of the first `{test, branch}` clause in *...* whose
    -- test is truthy, called with the test if it is callable.
    cond = function(...)
@@ -371,15 +379,13 @@ return {
       return walk(seq, topredicate(predicate)) == true
    end,
 
-   destructure = destructure,
+   converge = converge,
 
    default = default,
 
+   destructure = destructure,
+
    each = each,
-
-   flatmap = flatmap,
-
-   firstof = firstof,
 
    -- *x*, unless it is nil or an empty table, in which case *default*.
    -- Unlike `x or default`, an empty table counts as nothing, and false
@@ -406,9 +412,11 @@ return {
 
    filter = filter,
 
-   flatten = flatten,
+   firstof = firstof,
 
-   fixpoint = fixpoint,
+   flatmap = flatmap,
+
+   flatten = flatten,
 
    foldl = foldl,
 
@@ -445,16 +453,16 @@ return {
       return x == nil
    end,
 
+   isnonzero = function(x)
+      return x ~= 0
+   end,
+
    isstring = function(x)
       return type(x) == 'string'
    end,
 
    istable = function(x)
       return type(x) == 'table'
-   end,
-
-   isnonzero = function(x)
-      return x ~= 0
    end,
 
    keys = keys,
@@ -479,20 +487,6 @@ return {
 
    nop = function() end,
 
-   -- Merge the lists of one-pair tables *...*, skipping nils, into a new
-   -- list of pairs in the order each key first appears, each with the
-   -- value of the last pair for that key.
-   ordered_merge = function(...)
-      local at = {}
-      return foldl(reject(list(...), nil), {}, function(r, pairs)
-         foldl(pairs, r, function(r, pair)
-            local k, v = destructure(pair)
-            at[k] = at[k] or #r + 1
-            r[at[k]] = {[k] = v}
-         end)
-      end)
-   end,
-
    -- The value paired with *key* in the list of one-pair tables *om*.
    ordered_get = function(om, key)
       return foldl(om or {}, nil, function(_, pair)
@@ -513,6 +507,20 @@ return {
       return foldl(om or {}, {}, function(r, pair)
          local k, v = destructure(pair)
          r[#r + 1] = {[k] = fn(v)}
+      end)
+   end,
+
+   -- Merge the lists of one-pair tables *...*, skipping nils, into a new
+   -- list of pairs in the order each key first appears, each with the
+   -- value of the last pair for that key.
+   ordered_merge = function(...)
+      local at = {}
+      return foldl(reject(list(...), nil), {}, function(r, pairs)
+         foldl(pairs, r, function(r, pair)
+            local k, v = destructure(pair)
+            at[k] = at[k] or #r + 1
+            r[at[k]] = {[k] = v}
+         end)
       end)
    end,
 
@@ -552,6 +560,17 @@ return {
       end)
    end,
 
+   set = set,
+
+   -- Whether any item of *seq* passes *predicate*, which is anything
+   -- truthy if it is left out, and nil, if it is given, is compared with
+   -- the items.
+   some = function(seq, ...)
+      return walk(seq, topredicate(given(id, ...))) == true
+   end,
+
+   sorted = sorted,
+
    -- The keys of *iterable* in a deterministic order: numbers, such as
    -- the indices of list entries, in numeric order, then strings, then
    -- any others by their string form.
@@ -563,17 +582,6 @@ return {
          return ra < rb or ra == rb and (ra < 3 and a < b or ra == 3 and str(a) < str(b))
       end)
       return r
-   end,
-
-   set = set,
-
-   sorted = sorted,
-
-   -- Whether any item of *seq* passes *predicate*, which is anything
-   -- truthy if it is left out, and nil, if it is given, is compared with
-   -- the items.
-   some = function(seq, ...)
-      return walk(seq, topredicate(given(id, ...))) == true
    end,
 
    values = function(iterable)

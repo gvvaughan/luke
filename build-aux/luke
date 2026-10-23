@@ -287,7 +287,7 @@ return env
 end,configure=configure,isprobe=isprobe,}
 end
 package.preload['luke.environment']=function()
-local _ENV=require'luke.normalize'{'luke.platforms','luke.functional',LUAVERSION=string.gsub(_VERSION,'[^0-9%.]+',''),SHELLMETACHARS='[%s%$"\'&;|<>()*?`\\]',}local function interpolate_with(pattern,env,s)return fixpoint(s,function(text)return(gsub(text,pattern,function(varname)return env[varname]or''end))end)end
+local _ENV=require'luke.normalize'{'luke._base','luke.platforms','luke.functional',LUAVERSION=string.gsub(_VERSION,'[^0-9%.]+',''),SHELLMETACHARS='[%s%$"\'&;|<>()*?`\\]',}local function interpolate_with(pattern,env,s)local ok,result=pcall(converge,s,function(text)return(gsub(text,pattern,function(varname)return env[varname]or''end))end)return diagnose(ok and result,"cannot expand '%s': its names refer to each other",s)end
 local function quoted(s)return"'"..gsub(s,"'",[['\'']]).."'"end
 return{CONFIGENV={compile='$CC -c $CFLAGS $CPPFLAGS',libs='',link='$CC $CFLAGS $CPPFLAGS $LDFLAGS',},DEFAULTENV=filter_platforms{LUA='lua',LUAVERSION=LUAVERSION,PREFIX='/usr/local',INST_BINDIR='$PREFIX/bin',INST_LIBDIR='$PREFIX/lib/lua/$LUAVERSION',INST_LUADIR='$PREFIX/share/lua/$LUAVERSION',LIB_EXTENSION='so',OBJ_EXTENSION='o',CHMOD='chmod',INSTALL='cp',MAKEDIRS='mkdir -p',CFLAGS='-O2',platforms={macosx={LIBFLAG='-fPIC -bundle -undefined dynamic_lookup -all_load',},LIBFLAG='-shared -fPIC',},},SHELLENV=setmetatable({},{__index=function(_,v)return getenv(v)end,}),expand=bind(interpolate_with,{'@([%w_]+)@'}),interpolate=bind(interpolate_with,{'%$([%w_]+)'}),shellword=function(s)if match(s,SHELLMETACHARS)then
 return quoted(s)end
@@ -297,7 +297,7 @@ found[varname]=firstof(tables,function(t)return t[varname]end)end
 return found[varname]end,})end,}
 end
 package.preload['luke.functional']=function()
-local _ENV=require'luke.normalize'{destructure=next,isfile=function(x)return io.type(x)=='file'end,wrap=coroutine.wrap,yield=coroutine.yield,}local function apply(fn,argu)assert(fn~=nil,'cannot apply nil-valued function')if iscallable(fn)then
+local _ENV=require'luke.normalize'{destructure=next,error=error,isfile=function(x)return io.type(x)=='file'end,wrap=coroutine.wrap,yield=coroutine.yield,}local function apply(fn,argu)assert(fn~=nil,'cannot apply nil-valued function')if iscallable(fn)then
 return fn(unpack(argu))end
 return fn
 end
@@ -373,10 +373,16 @@ end
 end
 walk(seq,function(...)return test(fn(...))end)return found
 end
-local function fixpoint(x,fn)local r=fn(x)while r~=x do
-x,r=r,fn(r)end
+local function converge(x,limit,fn)if fn==nil then
+limit,fn=1000,limit
+end
+for _=1,limit do
+local r=fn(x)if r==x then
 return x
 end
+x=r
+end
+error(format('no convergence after %d calls',limit),2)end
 local function set(seq)local r={}each(seq,function(v)r[v]=true
 end)return r
 end
@@ -421,13 +427,7 @@ argu[i],i=unbound[j],i+1
 end
 bound.n=n>=i and n or i-1
 return apply(fn,argu)end
-end,call=call,choose=function(test,consequent,alternative)local leg=alternative
-if test then
-leg=consequent
-end
-if leg~=nil then
-return call(leg,test)end
-end,case=function(s,branches)if branches[s]~=nil then
+end,call=call,case=function(s,branches)if branches[s]~=nil then
 return call(branches[s],s)end
 if type(s)=='string'then
 for i=1,len(branches)do
@@ -439,12 +439,18 @@ local default=branches.default
 if iscallable(default)then
 return call(default,s)end
 return default
+end,choose=function(test,consequent,alternative)local leg=alternative
+if test then
+leg=consequent
+end
+if leg~=nil then
+return call(leg,test)end
 end,cond=function(...)local clauses=list(...)for i=1,clauses.n do
 local expr,consequence=unpack(clauses[i],1,2)if expr then
 return call(consequence,expr)end
 end
 end,contains=function(seq,predicate)return walk(seq,topredicate(predicate))==true
-end,destructure=destructure,default=default,each=each,flatmap=flatmap,firstof=firstof,either=function(x,d)if x==nil or isempty(x)then
+end,converge=converge,default=default,destructure=destructure,each=each,either=function(x,d)if x==nil or isempty(x)then
 return d
 end
 return x
@@ -454,19 +460,19 @@ r[k]=v
 end
 end
 return r
-end,filter=filter,flatten=flatten,fixpoint=fixpoint,foldl=foldl,get=function(dict,key)return(dict or{})[key]end,hoist=function(keylist,dict)local r={}each(keylist,function(key)merge(r,dict[key])end)return next(r)and r or nil
+end,filter=filter,firstof=firstof,flatmap=flatmap,flatten=flatten,foldl=foldl,get=function(dict,key)return(dict or{})[key]end,hoist=function(keylist,dict)local r={}each(keylist,function(key)merge(r,dict[key])end)return next(r)and r or nil
 end,id=id,indexof=indexof,isempty=isempty,isfile=isfile,isfunction=function(x)return type(x)=='function'end,islistkey=function(t,k)return type(k)=='number'and int(k)==k and k>=1 and k<=len(t)end,isnil=function(x)return x==nil
-end,isstring=function(x)return type(x)=='string'end,istable=function(x)return type(x)=='table'end,isnonzero=function(x)return x~=0
-end,keys=keys,map=function(seq,block)local r=list()walk(seq,function(...)append(r,(block(...)))end)return r
+end,isnonzero=function(x)return x~=0
+end,isstring=function(x)return type(x)=='string'end,istable=function(x)return type(x)=='table'end,keys=keys,map=function(seq,block)local r=list()walk(seq,function(...)append(r,(block(...)))end)return r
 end,mapvalues=function(iterable,block)local r={}for k,v in next,iterable or{}do
 r[k]=block(v)end
 return r
-end,nop=function()end,ordered_merge=function(...)local at={}return foldl(reject(list(...),nil),{},function(r,pairs)foldl(pairs,r,function(r,pair)local k,v=destructure(pair)at[k]=at[k]or#r+1
-r[at[k]]={[k]=v}end)end)end,ordered_get=function(om,key)return foldl(om or{},nil,function(_,pair)return pair[key]end)end,ordered_keys=function(om)return foldl(om or{},list(),function(r,pair)return append(r,(destructure(pair)))end)end,ordered_mapvalues=function(om,fn)return foldl(om or{},{},function(r,pair)local k,v=destructure(pair)r[#r+1]={[k]=fn(v)}end)end,ordered_pluck=function(om,keylist)local wanted=set(keylist)return reject(om or{},function(pair)return not wanted[(destructure(pair))]end)end,partition=function(seq,predicate)predicate=topredicate(predicate)local r,s=list(),list()walk(seq,function(...)append(predicate(...)and r or s,(...))end)return r,s
+end,nop=function()end,ordered_get=function(om,key)return foldl(om or{},nil,function(_,pair)return pair[key]end)end,ordered_keys=function(om)return foldl(om or{},list(),function(r,pair)return append(r,(destructure(pair)))end)end,ordered_mapvalues=function(om,fn)return foldl(om or{},{},function(r,pair)local k,v=destructure(pair)r[#r+1]={[k]=fn(v)}end)end,ordered_merge=function(...)local at={}return foldl(reject(list(...),nil),{},function(r,pairs)foldl(pairs,r,function(r,pair)local k,v=destructure(pair)at[k]=at[k]or#r+1
+r[at[k]]={[k]=v}end)end)end,ordered_pluck=function(om,keylist)local wanted=set(keylist)return reject(om or{},function(pair)return not wanted[(destructure(pair))]end)end,partition=function(seq,predicate)predicate=topredicate(predicate)local r,s=list(),list()walk(seq,function(...)append(predicate(...)and r or s,(...))end)return r,s
 end,pluck=function(t,keylist)local r={}each(keylist,function(key)r[key]=t[key]end)return r
-end,reject=reject,reversed=function(seq)return foldl(seq,{},function(r,v)return{v,unpack(r)}end)end,sorted_keys=function(iterable)local rank={number=1,string=2}local r=keys(iterable)sort(r,function(a,b)local ra,rb=rank[type(a)]or 3,rank[type(b)]or 3
+end,reject=reject,reversed=function(seq)return foldl(seq,{},function(r,v)return{v,unpack(r)}end)end,set=set,some=function(seq,...)return walk(seq,topredicate(given(id,...)))==true
+end,sorted=sorted,sorted_keys=function(iterable)local rank={number=1,string=2}local r=keys(iterable)sort(r,function(a,b)local ra,rb=rank[type(a)]or 3,rank[type(b)]or 3
 return ra<rb or ra==rb and(ra<3 and a<b or ra==3 and str(a)<str(b))end)return r
-end,set=set,sorted=sorted,some=function(seq,...)return walk(seq,topredicate(given(id,...)))==true
 end,values=function(iterable)local r=list()for _,v in next,iterable or{}do
 append(r,v)end
 return r
@@ -891,8 +897,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/9e59043',versiontext=[[
-luke (Luke) gvv/9e59043
+return{VERSION='gvv/c442547',versiontext=[[
+luke (Luke) gvv/c442547
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
