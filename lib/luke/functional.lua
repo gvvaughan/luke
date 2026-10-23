@@ -177,6 +177,17 @@ local function set(seq)
 end
 
 
+-- Whether *x* is a table with no elements, counting a `list` with
+-- only its `n = 0` field as empty.
+local function isempty(x)
+   if type(x) ~= 'table' then
+      return false
+   end
+   local k = next(x)
+   return k == nil or (k == 'n' and x.n == 0 and next(x, k) == nil)
+end
+
+
 return {
    -- A function that calls each of *...* with its arguments, lazily,
    -- until one returns something that is not nil, and returns that.
@@ -273,6 +284,16 @@ return {
 
    firstof = firstof,
 
+   -- *x*, unless it is nil or an empty table, in which case *default*.
+   -- Unlike `x or default`, an empty table counts as nothing, and false
+   -- is a value like any other.
+   either = function(x, default)
+      if x == nil or isempty(x) then
+         return default
+      end
+      return x
+   end,
+
    -- A copy of *t* without the keys that match *predicate*, a function
    -- to call with a key, or else a key to compare with.
    except = function(t, predicate)
@@ -319,15 +340,7 @@ return {
 
    id = id,
 
-   -- Whether *x* is a table with no elements, counting a `list` with
-   -- only its `n = 0` field as empty.
-   isempty = function(x)
-      if type(x) ~= 'table' then
-         return false
-      end
-      local k = next(x)
-      return k == nil or (k == 'n' and x.n == 0 and next(x, k) == nil)
-   end,
+   isempty = isempty,
 
    isfile = isfile,
 

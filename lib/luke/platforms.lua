@@ -78,7 +78,7 @@ end
 local function selected(platforms, supported, isplatform)
    local matches = reject(map(supported, bind(get, {platforms})), nil)
    local defaults = reject({except(platforms, isplatform)}, isempty)
-   return choose(isempty(matches), defaults, matches)
+   return either(matches, defaults)
 end
 
 

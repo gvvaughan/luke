@@ -360,3 +360,22 @@ specify luke.functional:
          to_be(2)
   - it returns nil if none do:
       expect(any(function() end, function() end)()).to_be(nil)
+
+- describe either:
+  - before:
+      either = functional.either
+
+  - it returns its first argument:
+      expect(either('a', 'b')).to_be 'a'
+      expect(either({1}, {2})).to_equal {1}
+  - it returns the default for nil or an empty table:
+      expect(either(nil, 'b')).to_be 'b'
+      expect(either({}, 'b')).to_be 'b'
+      expect(either(list(), 'b')).to_be 'b'
+  - it keeps false, which is a value:
+      expect(either(false, 'b')).to_be(false)
+  - it keeps an empty string and zero:
+      expect(either('', 'b')).to_be ''
+      expect(either(0, 'b')).to_be(0)
+  - it returns nil if the default is nil:
+      expect(either({})).to_be(nil)

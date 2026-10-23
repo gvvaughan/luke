@@ -379,6 +379,10 @@ end
 local function set(seq)local r={}each(seq,function(v)r[v]=true
 end)return r
 end
+local function isempty(x)if type(x)~='table'then
+return false
+end
+local k=next(x)return k==nil or(k=='n'and x.n==0 and next(x,k)==nil)end
 return{any=function(...)local fns=list(...)return function(...)local argu=list(...)return firstof(fns,isnonnil,function(fn)return fn(unpack(argu,1,argu.n))end)end
 end,apply=apply,bind=function(fn,bound)local n=bound.n or maxn(bound)return function(...)local argu,unbound=copy(bound),list(...)local i=1
 for j=1,unbound.n do
@@ -412,7 +416,11 @@ local expr,consequence=unpack(clauses[i],1,2)if expr then
 return call(consequence,expr)end
 end
 end,contains=function(seq,predicate)return walk(seq,topredicate(predicate))==true
-end,destructure=destructure,each=each,firstof=firstof,except=function(t,predicate)predicate=topredicate(predicate)local r={}for k,v in next,t do
+end,destructure=destructure,each=each,firstof=firstof,either=function(x,default)if x==nil or isempty(x)then
+return default
+end
+return x
+end,except=function(t,predicate)predicate=topredicate(predicate)local r={}for k,v in next,t do
 if not predicate(k)then
 r[k]=v
 end
@@ -426,10 +434,7 @@ end
 end
 return r
 end,get=function(dict,key)return(dict or{})[key]end,hoist=function(keylist,dict)local r={}each(keylist,function(key)merge(r,dict[key])end)return next(r)and r or nil
-end,id=id,isempty=function(x)if type(x)~='table'then
-return false
-end
-local k=next(x)return k==nil or(k=='n'and x.n==0 and next(x,k)==nil)end,isfile=isfile,isfunction=function(x)return type(x)=='function'end,islistkey=function(t,k)return type(k)=='number'and int(k)==k and k>=1 and k<=len(t)end,isnil=function(x)return x==nil
+end,id=id,isempty=isempty,isfile=isfile,isfunction=function(x)return type(x)=='function'end,islistkey=function(t,k)return type(k)=='number'and int(k)==k and k>=1 and k<=len(t)end,isnil=function(x)return x==nil
 end,isstring=function(x)return type(x)=='string'end,istable=function(x)return type(x)=='table'end,isnonzero=function(x)return x~=0
 end,keys=keys,map=function(seq,block)local r=list()walk(seq,function(...)append(r,(block(...)))end)return r
 end,mapvalues=function(iterable,block)local r={}for k,v in next,iterable or{}do
@@ -675,7 +680,7 @@ local function by_pattern(canon,uname)return firstof(filter(keys(canon),ispatter
 local function by_default()return list('unix')end
 local toplatforms=any(by_name,by_pattern,by_default)local supported=toplatforms(CANON,popen('uname -s'):read'*l')local function isplatform(x)return ALLPLATFORMS[x]~=nil
 end
-local function selected(platforms,supported,isplatform)local matches=reject(map(supported,bind(get,{platforms})),nil)local defaults=reject({except(platforms,isplatform)},isempty)return choose(isempty(matches),defaults,matches)end
+local function selected(platforms,supported,isplatform)local matches=reject(map(supported,bind(get,{platforms})),nil)local defaults=reject({except(platforms,isplatform)},isempty)return either(matches,defaults)end
 local function layers(t,using,predicate)local supported,isplatform=using or supported,predicate or isplatform
 local own=except(t,'platforms')return{own,unpack(reversed(selected(t.platforms or{},supported,isplatform)))}end
 local function append_entries(r,layer,narrow)each(layer,function(v)r[len(r)+1]=narrow(v)end)end
@@ -874,8 +879,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,luke_format=luke_format,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/ebd94a9',versiontext=[[
-luke (Luke) gvv/ebd94a9
+return{VERSION='gvv/c4f0cf5',versiontext=[[
+luke (Luke) gvv/c4f0cf5
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
