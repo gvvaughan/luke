@@ -669,20 +669,25 @@ setfenv(level+1,userenv)return userenv
 end,})
 end
 package.preload['luke.platforms']=function()
-local _ENV=require'luke.normalize'{'luke.functional',}local CANON={['AIX']=list('aix','unix'),['FreeBSD']=list('freebsd','bsd','unix'),['OpenBSD']=list('openbsd','bsd','unix'),['NetBSD']=list('netbsd','bsd','unix'),['Darwin']=list('macosx','bsd','unix'),['Linux']=list('linux','unix'),['SunOS']=list('solaris','unix'),['^CYGWIN']=list('cygwin','unix'),['^MSYS']=list('msys','cygwin','unix'),['^Windows']=list('win32','windows'),['^MINGW']=list('mingw32','win32','windows'),['^procnto']=list('qnx'),['QNX']=list('qnx'),['Haiku']=list('haiku','unix'),}local ALLPLATFORMS=foldl(values(CANON),function(acc,platforms)each(platforms,function(v)acc[v]=true
-end)end)local function match_uname(canon,uname,x)return match(uname,x)and canon[x]end
-local function toplatforms(canon,uname)local literalkeys,patternkeys=partition(keys(canon),function(k)return sub(k,1,1)~='^'end)return(pluck(literalkeys,canon)or{})[uname]or firstof(patternkeys,bind(match_uname,{canon,uname}))or list('unix')end
-local supported=toplatforms(CANON,popen('uname -s'):read'*l')local function isplatform(x)return ALLPLATFORMS[x]~=nil
+local _ENV=require'luke.normalize'{'luke.functional',}local CANON={['AIX']=list('aix','unix'),['FreeBSD']=list('freebsd','bsd','unix'),['OpenBSD']=list('openbsd','bsd','unix'),['NetBSD']=list('netbsd','bsd','unix'),['Darwin']=list('macosx','bsd','unix'),['Linux']=list('linux','unix'),['SunOS']=list('solaris','unix'),['^CYGWIN']=list('cygwin','unix'),['^MSYS']=list('msys','cygwin','unix'),['^Windows']=list('win32','windows'),['^MINGW']=list('mingw32','win32','windows'),['^procnto']=list('qnx'),['QNX']=list('qnx'),['Haiku']=list('haiku','unix'),}local ALLPLATFORMS=set(flatten(unpack(values(CANON))))local function by_name(canon,uname)return canon[uname]end
+local function ispatternkey(k)return sub(k,1,1)=='^'end
+local function by_pattern(canon,uname)return firstof(filter(keys(canon),ispatternkey),function(k)return match(uname,k)and canon[k]end)end
+local function by_default()return list('unix')end
+local toplatforms=any(by_name,by_pattern,by_default)local supported=toplatforms(CANON,popen('uname -s'):read'*l')local function isplatform(x)return ALLPLATFORMS[x]~=nil
 end
-local function selected(platforms,supported,isplatform)local matches=map(filter(supported,bind(get,{platforms})),bind(get,{platforms}))return choose(isempty(matches),function()return{pluck(reject(keys(platforms),isplatform),platforms)}end,function()return matches
-end)end
+local function selected(platforms,supported,isplatform)local matches=reject(map(supported,bind(get,{platforms})),nil)local defaults=reject({except(platforms,isplatform)},isempty)return choose(isempty(matches),defaults,matches)end
 local function layers(t,using,predicate)local supported,isplatform=using or supported,predicate or isplatform
-local own=pluck(reject(keys(t),'platforms'),t)or{}return{own,unpack(reversed(selected(t.platforms or{},supported,isplatform)))}end
-local function filter_platforms(t,using,predicate,opaque)local supported,isplatform,opaque=using or supported,predicate or isplatform,opaque or{}local function narrow(v,k)return choose(opaque[k]or not istable(v),function()return v
-end,function()return filter_platforms(v,supported,isplatform,opaque)end)end
-local tables=map(layers(t,supported,isplatform),function(layer)return layer.platforms and narrow(layer)or layer
-end)local r=foldl(tables,{},function(r,layer)each(layer,function(v)r[len(r)+1]=narrow(v)end)end)return foldl(reversed(tables),r,function(r,layer)each(filter(keys(layer),function(k)return not islistkey(layer,k)and r[k]==nil
-end),function(k)r[k]=narrow(layer[k],k)end)end)end
+local own=except(t,'platforms')return{own,unpack(reversed(selected(t.platforms or{},supported,isplatform)))}end
+local function append_entries(r,layer,narrow)each(layer,function(v)r[len(r)+1]=narrow(v)end)end
+local function overlay_fields(r,layer,narrow)each(reject(keys(layer),bind(islistkey,{layer})),function(k)r[k]=narrow(layer[k],k)end)end
+local function filter_platforms(t,using,predicate,opaque)local supported,isplatform,opaque=using or supported,predicate or isplatform,opaque or{}local function narrow(v,k)if opaque[k]or not istable(v)then
+return v
+end
+return filter_platforms(v,supported,isplatform,opaque)end
+local tables=map(layers(t,supported,isplatform),function(layer)if layer.platforms then
+return narrow(layer)end
+return layer
+end)return foldl(tables,{},function(r,layer)append_entries(r,layer,narrow)overlay_fields(r,layer,narrow)end)end
 return{filter_platforms=filter_platforms,isplatform=isplatform,layers=layers,platforms=supported,toplatforms=toplatforms,}
 end
 package.preload['luke.release']=function()
@@ -869,8 +874,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,luke_format=luke_format,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/845e9a8',versiontext=[[
-luke (Luke) gvv/845e9a8
+return{VERSION='gvv/ebd94a9',versiontext=[[
+luke (Luke) gvv/ebd94a9
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

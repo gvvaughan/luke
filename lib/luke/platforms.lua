@@ -29,26 +29,36 @@ local CANON = {
 
 
 -- The set of all available generic platform names.
-local ALLPLATFORMS = foldl(values(CANON), function(acc, platforms)
-   each(platforms, function(v)
-      acc[v] = true
-   end)
-end)
+local ALLPLATFORMS = set(flatten(unpack(values(CANON))))
 
 
-local function match_uname(canon, uname, x)
-   return match(uname, x) and canon[x]
+-- The platforms of *uname* in *canon*, by its exact name.
+local function by_name(canon, uname)
+   return canon[uname]
 end
 
 
-local function toplatforms(canon, uname)
-   local literalkeys, patternkeys = partition(keys(canon), function(k)
-      return sub(k, 1, 1) ~= '^'
-   end)
-   return (pluck(literalkeys, canon) or {})[uname]
-      or firstof(patternkeys, bind(match_uname, {canon, uname}))
-      or list('unix')
+local function ispatternkey(k)
+   return sub(k, 1, 1) == '^'
 end
+
+
+-- The platforms of *uname* in *canon*, by the first '^pattern' key that
+-- it matches.
+local function by_pattern(canon, uname)
+   return firstof(filter(keys(canon), ispatternkey), function(k)
+      return match(uname, k) and canon[k]
+   end)
+end
+
+
+-- Anything else is a Unix.
+local function by_default()
+   return list('unix')
+end
+
+
+local toplatforms = any(by_name, by_pattern, by_default)
 
 
 -- The generic platform names associated with the host's uname.
@@ -63,14 +73,12 @@ end
 
 
 -- The tables in *platforms* for each of the *supported* platforms, most
--- specific first, or else a table of its other elements as defaults.
+-- specific first, or else a table of its other elements as defaults, if
+-- it has any.
 local function selected(platforms, supported, isplatform)
-   local matches = map(filter(supported, bind(get, {platforms})), bind(get, {platforms}))
-   return choose(isempty(matches), function()
-      return {pluck(reject(keys(platforms), isplatform), platforms)}
-   end, function()
-      return matches
-   end)
+   local matches = reject(map(supported, bind(get, {platforms})), nil)
+   local defaults = reject({except(platforms, isplatform)}, isempty)
+   return choose(isempty(matches), defaults, matches)
 end
 
 
@@ -79,8 +87,25 @@ end
 -- there for each supported platform, or else its defaults.
 local function layers(t, using, predicate)
    local supported, isplatform = using or supported, predicate or isplatform
-   local own = pluck(reject(keys(t), 'platforms'), t) or {}
+   local own = except(t, 'platforms')
    return {own, unpack(reversed(selected(t.platforms or {}, supported, isplatform)))}
+end
+
+
+-- Add the list entries of *layer* to the end of *r*, narrowed.
+local function append_entries(r, layer, narrow)
+   each(layer, function(v)
+      r[len(r) + 1] = narrow(v)
+   end)
+end
+
+
+-- Set the other elements of *layer* in *r*, narrowed, in place of the
+-- same elements of any earlier layer.
+local function overlay_fields(r, layer, narrow)
+   each(reject(keys(layer), bind(islistkey, {layer})), function(k)
+      r[k] = narrow(layer[k], k)
+   end)
 end
 
 
@@ -95,28 +120,23 @@ end
 local function filter_platforms(t, using, predicate, opaque)
    local supported, isplatform, opaque = using or supported, predicate or isplatform, opaque or {}
    local function narrow(v, k)
-      return choose(opaque[k] or not istable(v), function()
+      if opaque[k] or not istable(v) then
          return v
-      end, function()
-         return filter_platforms(v, supported, isplatform, opaque)
-      end)
+      end
+      return filter_platforms(v, supported, isplatform, opaque)
    end
 
    -- A platform table may have platforms of its own.
    local tables = map(layers(t, supported, isplatform), function(layer)
-      return layer.platforms and narrow(layer) or layer
+      if layer.platforms then
+         return narrow(layer)
+      end
+      return layer
    end)
-   local r = foldl(tables, {}, function(r, layer)
-      each(layer, function(v)
-         r[len(r) + 1] = narrow(v)
-      end)
-   end)
-   return foldl(reversed(tables), r, function(r, layer)
-      each(filter(keys(layer), function(k)
-         return not islistkey(layer, k) and r[k] == nil
-      end), function(k)
-         r[k] = narrow(layer[k], k)
-      end)
+
+   return foldl(tables, {}, function(r, layer)
+      append_entries(r, layer, narrow)
+      overlay_fields(r, layer, narrow)
    end)
 end
 
