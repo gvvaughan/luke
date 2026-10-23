@@ -323,6 +323,15 @@ end
 end
 end
 local function id(...)return...end
+local function default(x,d)if x==nil then
+return d
+end
+return x
+end
+local function given(d,...)if select('#',...)==0 then
+return d
+end
+return(...)end
 local function isnonnil(x)return x~=nil
 end
 local function topredicate(x)if type(x)=='function'then
@@ -358,10 +367,7 @@ end
 end)return acc
 end
 local function firstof(seq,predicate,fn)if fn==nil then
-predicate,fn=nil,predicate
-end
-if predicate==nil then
-predicate=id
+predicate,fn=id,predicate
 end
 predicate=topredicate(predicate)local found
 local function test(...)if predicate(...)then
@@ -381,10 +387,7 @@ local function isempty(x)if type(x)~='table'then
 return false
 end
 local k=next(x)return k==nil or(k=='n'and x.n==0 and next(x,k)==nil)end
-local function indexof(seq,predicate)if predicate==nil then
-predicate=id
-end
-predicate=topredicate(predicate)local i,found=0,nil
+local function indexof(seq,...)local predicate=topredicate(given(id,...))local i,found=0,nil
 walk(seq,function(...)i=i+1
 if predicate(...)then
 found=i
@@ -396,9 +399,8 @@ local function flatmap(seq,fn)local r=list()walk(seq,function(...)local items=fn
 each(items,function(item)append(r,item)end)end
 end)return r
 end
-local function sorted(seq,cmp)cmp=cmp or function(a,b)return a<b
-end
-local decorated={}walk(seq,function(v)decorated[#decorated+1]={v,#decorated+1}end)sort(decorated,function(a,b)if cmp(a[1],b[1])then
+local function sorted(seq,cmp)cmp=default(cmp,function(a,b)return a<b
+end)local decorated={}walk(seq,function(v)decorated[#decorated+1]={v,#decorated+1}end)sort(decorated,function(a,b)if cmp(a[1],b[1])then
 return true
 elseif cmp(b[1],a[1])then
 return false
@@ -445,8 +447,8 @@ local expr,consequence=unpack(clauses[i],1,2)if expr then
 return call(consequence,expr)end
 end
 end,contains=function(seq,predicate)return walk(seq,topredicate(predicate))==true
-end,destructure=destructure,each=each,flatmap=flatmap,firstof=firstof,either=function(x,default)if x==nil or isempty(x)then
-return default
+end,destructure=destructure,default=default,each=each,flatmap=flatmap,firstof=firstof,either=function(x,d)if x==nil or isempty(x)then
+return d
 end
 return x
 end,except=function(t,predicate)predicate=topredicate(predicate)local r={}for k,v in next,t do
@@ -467,10 +469,7 @@ r[at[k]]={[k]=v}end)end)end,ordered_get=function(om,key)return foldl(om or{},nil
 end,pluck=function(t,keylist)local r={}each(keylist,function(key)r[key]=t[key]end)return r
 end,reject=reject,reversed=function(seq)return foldl(seq,{},function(r,v)return{v,unpack(r)}end)end,sorted_keys=function(iterable)local rank={number=1,string=2}local r=keys(iterable)sort(r,function(a,b)local ra,rb=rank[type(a)]or 3,rank[type(b)]or 3
 return ra<rb or ra==rb and(ra<3 and a<b or ra==3 and str(a)<str(b))end)return r
-end,set=set,sorted=sorted,some=function(seq,predicate)if predicate==nil then
-predicate=id
-end
-return walk(seq,topredicate(predicate))==true
+end,set=set,sorted=sorted,some=function(seq,...)return walk(seq,topredicate(given(id,...)))==true
 end,values=function(iterable)local r=list()for _,v in next,iterable or{}do
 append(r,v)end
 return r
@@ -899,8 +898,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,luke_format=luke_format,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/c217807',versiontext=[[
-luke (Luke) gvv/c217807
+return{VERSION='gvv/3ef6e62',versiontext=[[
+luke (Luke) gvv/3ef6e62
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

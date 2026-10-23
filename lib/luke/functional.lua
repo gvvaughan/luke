@@ -58,6 +58,25 @@ local function id(...)
 end
 
 
+-- *x*, unless it is nil, then *d*.  Only nil is missing, so false is a
+-- value, and so is an empty table.
+local function default(x, d)
+   if x == nil then
+      return d
+   end
+   return x
+end
+
+
+-- The first of *...*, even if it is nil, or else *d* if there is none.
+local function given(d, ...)
+   if select('#', ...) == 0 then
+      return d
+   end
+   return (...)
+end
+
+
 local function isnonnil(x)
    return x ~= nil
 end
@@ -144,14 +163,13 @@ end
 
 
 -- The first result of calling *fn* with each item of *seq* that passes
--- *predicate*, which defaults to anything truthy, without calling it
--- for later items.  The predicate is called with all the results.
+-- *predicate*, without calling it for later items.  The predicate is
+-- called with all the results.  If it is left out, *fn* is passed in its
+-- place, and anything truthy passes; but nil is a value, which is
+-- compared with the results.
 local function firstof(seq, predicate, fn)
    if fn == nil then
-      predicate, fn = nil, predicate
-   end
-   if predicate == nil then
-      predicate = id
+      predicate, fn = id, predicate
    end
    predicate = topredicate(predicate)
    local found
@@ -200,12 +218,10 @@ end
 
 
 -- The position of the first item of *seq* that passes *predicate*,
--- which defaults to anything truthy.
-local function indexof(seq, predicate)
-   if predicate == nil then
-      predicate = id
-   end
-   predicate = topredicate(predicate)
+-- which is anything truthy if it is left out, and nil, if it is given,
+-- is compared with the items.
+local function indexof(seq, ...)
+   local predicate = topredicate(given(id, ...))
    local i, found = 0, nil
    walk(seq, function(...)
       i = i + 1
@@ -237,9 +253,9 @@ end
 -- A sorted copy of *seq*, as a list, that keeps the order of items that
 -- *cmp*, by default `<`, orders neither before the other.
 local function sorted(seq, cmp)
-   cmp = cmp or function(a, b)
+   cmp = default(cmp, function(a, b)
       return a < b
-   end
+   end)
    local decorated = {}
    walk(seq, function(v)
       decorated[#decorated + 1] = {v, #decorated + 1}
@@ -357,6 +373,8 @@ return {
 
    destructure = destructure,
 
+   default = default,
+
    each = each,
 
    flatmap = flatmap,
@@ -366,9 +384,9 @@ return {
    -- *x*, unless it is nil or an empty table, in which case *default*.
    -- Unlike `x or default`, an empty table counts as nothing, and false
    -- is a value like any other.
-   either = function(x, default)
+   either = function(x, d)
       if x == nil or isempty(x) then
-         return default
+         return d
       end
       return x
    end,
@@ -551,13 +569,11 @@ return {
 
    sorted = sorted,
 
-   -- Whether any item of *seq* passes *predicate*, by default if it is
-   -- truthy.
-   some = function(seq, predicate)
-      if predicate == nil then
-         predicate = id
-      end
-      return walk(seq, topredicate(predicate)) == true
+   -- Whether any item of *seq* passes *predicate*, which is anything
+   -- truthy if it is left out, and nil, if it is given, is compared with
+   -- the items.
+   some = function(seq, ...)
+      return walk(seq, topredicate(given(id, ...))) == true
    end,
 
    values = function(iterable)

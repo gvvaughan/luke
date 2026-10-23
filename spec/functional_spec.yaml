@@ -226,6 +226,10 @@ specify luke.functional:
   - before:
       some = functional.some
 
+  - it compares items with an explicit nil:
+      expect(some({false, 0}, nil)).to_be(false)
+      expect(some(list('a', nil), nil)).to_be(true)
+
   - it is true if any item is truthy:
       expect(some {false, 1}).to_be(true)
   - it is false otherwise:
@@ -266,6 +270,11 @@ specify luke.functional:
       expect(firstof({1, 2}, function(r, x) return x == 'y' end, function(e)
          return e, e == 2 and 'y'
       end)).to_be(2)
+  - it compares results with an explicit nil:
+      calls = 0
+      expect(firstof({1, 2}, nil, function(e) calls = calls + 1; if e == 2 then return e end end)).
+         to_be(nil)
+      expect(calls).to_be(1)
   - it returns nil if no call passes:
       expect(firstof({1, 2}, 3, function(e) return e end)).to_be(nil)
       expect(firstof({}, function(e) return e end)).to_be(nil)
@@ -439,6 +448,9 @@ specify luke.functional:
   - before:
       indexof = functional.indexof
 
+  - it finds the position of the first nil with an explicit nil:
+      expect(indexof(list('a', nil, 'x'), nil)).to_be(2)
+
   - it finds the position of an item equal to anything that is not a function:
       expect(indexof({'a', 'b', 'c'}, 'b')).to_be(2)
   - it finds the position of the first item that passes a predicate:
@@ -447,3 +459,17 @@ specify luke.functional:
       expect(indexof(list(false, nil, 'x'))).to_be(3)
   - it returns nil if there is none:
       expect(indexof({1, 2}, 3)).to_be(nil)
+
+- describe default:
+  - before:
+      default = functional.default
+
+  - it returns its first argument unless it is nil:
+      expect(default('a', 'b')).to_be 'a'
+      expect(default(nil, 'b')).to_be 'b'
+  - it keeps false, an empty table and a callable table:
+      expect(default(false, 'b')).to_be(false)
+      empty = {}
+      expect(default(empty, 'b')).to_be(empty)
+      callable = setmetatable({}, {__call = function() end})
+      expect(default(callable, 'b')).to_be(callable)
