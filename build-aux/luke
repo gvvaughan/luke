@@ -280,21 +280,16 @@ found[varname]=firstof(tables,function(t)return t[varname]end)end
 return found[varname]end,})end,}
 end
 package.preload['luke.functional']=function()
-local _ENV=require'luke.normalize'{destructure=next,error=error,isfile=function(x)return io.type(x)=='file'end,wrap=coroutine.wrap,yield=coroutine.yield,}local function apply(fn,argu)assert(fn~=nil,'cannot apply nil-valued function')if iscallable(fn)then
-return fn(unpack(argu))end
-return fn
+local _ENV=require'luke.normalize'{destructure=next,error=error,isfile=function(x)return io.type(x)=='file'end,wrap=coroutine.wrap,yield=coroutine.yield,}local function call(branch,...)if iscallable(branch)then
+return branch(...)end
+return branch
 end
-local function call(fn,...)assert(fn~=nil,'cannot call nil-valued function')if iscallable(fn)then
-return fn(...)end
-return fn
-end
+local function apply(branch,argu)return call(branch,unpack(argu))end
 local function choose(test,consequent,alternative)local leg=alternative
 if test then
 leg=consequent
 end
-if leg~=nil then
 return call(leg,test)end
-end
 local function walk(seq,visit)if type(seq)=='function'then
 local function loop(...)if...~=nil then
 if visit(...)then
@@ -425,14 +420,10 @@ return call(branches[s],s)end
 if type(s)=='string'then
 for i=1,len(branches)do
 local pattern,branch=unpack(branches[i],1,2)local captures=list(match(s,'^'..pattern..'$'))if captures[1]~=nil then
-return apply(branch,captures)end
+return call(branch,unpack(captures,1,captures.n))end
 end
 end
-local default=branches.default
-if iscallable(default)then
-return call(default,s)end
-return default
-end,choose=choose,cond=function(...)local clauses=list(...)for i=1,clauses.n do
+return call(branches.default,s)end,choose=choose,cond=function(...)local clauses=list(...)for i=1,clauses.n do
 local expr,consequence=unpack(clauses[i],1,2)if expr then
 return call(consequence,expr)end
 end
@@ -885,8 +876,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/09e63ad',versiontext=[[
-luke (Luke) gvv/09e63ad
+return{VERSION='gvv/ca6b052',versiontext=[[
+luke (Luke) gvv/ca6b052
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

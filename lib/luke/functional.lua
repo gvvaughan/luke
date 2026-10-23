@@ -12,21 +12,18 @@ local _ENV = require 'luke.normalize' {
 }
 
 
-local function apply(fn, argu)
-   assert(fn ~= nil, 'cannot apply nil-valued function')
-   if iscallable(fn) then
-      return fn(unpack(argu))
+-- Call a branch if it is callable, otherwise return it as it is.
+local function call(branch, ...)
+   if iscallable(branch) then
+      return branch(...)
    end
-   return fn
+   return branch
 end
 
 
-local function call(fn, ...)
-   assert(fn ~= nil, 'cannot call nil-valued function')
-   if iscallable(fn) then
-      return fn(...)
-   end
-   return fn
+-- As `call`, with the arguments in the list *argu*.
+local function apply(branch, argu)
+   return call(branch, unpack(argu))
 end
 
 
@@ -39,9 +36,7 @@ local function choose(test, consequent, alternative)
    if test then
       leg = consequent
    end
-   if leg ~= nil then
-      return call(leg, test)
-   end
+   return call(leg, test)
 end
 
 
@@ -370,15 +365,11 @@ return {
             local pattern, branch = unpack(branches[i], 1, 2)
             local captures = list(match(s, '^' .. pattern .. '$'))
             if captures[1] ~= nil then
-               return apply(branch, captures)
+               return call(branch, unpack(captures, 1, captures.n))
             end
          end
       end
-      local default = branches.default
-      if iscallable(default) then
-         return call(default, s)
-      end
-      return default
+      return call(branches.default, s)
    end,
 
    choose = choose,

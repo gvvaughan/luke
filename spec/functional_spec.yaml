@@ -27,6 +27,31 @@ specify luke.functional:
       f('b', 'c')
       expect(bound).to_equal {'a'}
 
+- describe call:
+  - before:
+      call = functional.call
+
+  - it calls a function with the arguments:
+      expect(call(function(a, b) return a + b end, 1, 2)).to_be(3)
+  - it calls a functable:
+      expect(call(setmetatable({}, {__call = function(_, x) return x end}), 'a')).to_be 'a'
+  - it returns anything else as it is:
+      expect(call('a', 1, 2)).to_be 'a'
+      expect(call(false, 1, 2)).to_be(false)
+      expect(call(nil, 1, 2)).to_be(nil)
+
+- describe apply:
+  - before:
+      apply = functional.apply
+
+  - it calls a function with the list of arguments:
+      expect(apply(function(a, b) return a + b end, {1, 2})).to_be(3)
+  - it passes trailing nils of a list with its length in `n`:
+      expect(apply(function(...) return select('#', ...) end, list(1, nil, nil))).to_be(3)
+  - it returns anything else as it is:
+      expect(apply('a', {1, 2})).to_be 'a'
+      expect(apply(nil, {1, 2})).to_be(nil)
+
 - describe choose:
   - before:
       choose = functional.choose
