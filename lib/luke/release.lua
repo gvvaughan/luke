@@ -116,19 +116,6 @@ local function remove_placeholder(text)
 end
 
 
--- Write *...* as a shell command, and run it with `L.spawn`, which only
--- pretends to with --dry-run; return its exit status.
-local function run(L, env, ...)
-   local command = concat({...}, ' ')
-   L.write(interpolate(env, command), '\n')
-   local status, err = L.spawn(env, command)
-   if status ~= 0 then
-      stderr:write(err, '\n')
-   end
-   return status
-end
-
-
 -- Tag release *version* with the annotated message *notes*, written to
 -- a temporary file for git to read as it is, keeping the '#' of each
 -- Markdown header; return the exit status.
@@ -137,7 +124,7 @@ local function tag(L, env, version, notes)
    with(File(filename, 'w'), function(h)
       h:write(notes)
    end)
-   local status = run(L, env, 'git tag -a --cleanup=verbatim', 'v' .. version, '-F', filename)
+   local status = run(L, env, {'git tag -a --cleanup=verbatim', 'v' .. version, '-F', filename})
    rm(filename)
    return status
 end
@@ -204,28 +191,27 @@ local function publish_steps(L, env, substitute, worktree, copies)
       local source, optional = copy.source, copy.optional
       local dest = worktree .. '/' .. path
       local template = match(source, '%.in$') ~= nil
-      return reject(list(
+      return flatten(
          choose(optional or not template, function()
-            return bind(run, {L, env, copy_command(source, worktree, path, optional)})
+            return bind(run, {L, env, {copy_command(source, worktree, path, optional)}})
          end),
          choose(template, function()
             return bind(edit, {L, choose(optional, dest, source), bind(expand, {substitute}),
                (gsub(dest, '%.in$', ''))})
          end)
-      ), nil)
-   end), copies.command and bind(run, {L, env, 'cd', worktree, '&&', copies.command}))
+      )
+   end), copies.command and bind(run, {L, env, {'cd', worktree, '&&', copies.command}}))
 end
 
 
--- Each check that must pass before cutting a release of *version* from
--- *main*, the branch checked out, as a description, a predicate, and
--- the command that undoes what a failed release did to make it fail,
--- if any.  Replacements are filled from *substitute*.
-local function preconditions(env, release, version, main, substitute)
+-- The checks of the repository that must pass to release *version* from
+-- *main*, the branch checked out, as a description, a predicate, and the
+-- command that undoes what a failed release did to make it fail, if any.
+local function repository_checks(env, version, main)
    local branch, tag = 'release-v' .. version, 'v' .. version
    local name = choose(main ~= nil, main, 'a branch')
    local checkout = format('git checkout --force %s', name)
-   local checks = {
+   return {
       {'the working tree is clean', function()
          return git(env, 'status --porcelain') == ''
       end, checkout},
@@ -246,78 +232,118 @@ local function preconditions(env, release, version, main, substitute)
          return git(env, 'rev-parse --verify --quiet refs/tags/' .. tag) == nil
       end, 'git tag -d ' .. tag},
    }
+end
 
-   if release.news ~= nil then
+
+-- The checks that the news file of *release* has a placeholder header
+-- to release *version* under, and no release of it yet.
+local function news_checks(release, version)
+   return choose(release.news ~= nil, function()
       local news = slurp(File(release.news))
-      append(checks, {format('%s has news under a placeholder header', release.news), function()
-         return news ~= nil and has_placeholder(news)
-      end})
-      append(checks, {format('%s has no %s release yet', release.news, version), function()
-         return news ~= nil and find(news, 'release ' .. version .. ' (', 1, true) == nil
-      end})
-   end
+      return {
+         {format('%s has news under a placeholder header', release.news), function()
+            return news ~= nil and has_placeholder(news)
+         end},
+         {format('%s has no %s release yet', release.news, version), function()
+            return news ~= nil and find(news, 'release ' .. version .. ' (', 1, true) == nil
+         end},
+      }
+   end, {})
+end
 
-   each(release.replacements or {}, function(entry)
+
+-- The checks that each file that *release* replaces text in exists, and
+-- has each text to replace, filled from *substitute*.
+local function replacement_checks(release, substitute)
+   return flatmap(release.replacements or {}, function(entry)
       local path, pairs = destructure(entry)
-      append(checks, {format('%s exists', path), function()
-         return exists(path)
-      end})
+      local checks = {
+         {format('%s exists', path), function()
+            return exists(path)
+         end},
+      }
       -- Each find string is looked for in the text that the
       -- replacements before it leave.
-      foldl(pairs, {}, function(before, pair)
-         local text, earlier = destructure(pair), copy(before)
+      for i = 1, len(pairs) do
+         local text, earlier = destructure(pairs[i]), list(unpack(pairs, 1, i - 1))
          append(checks, {format("%s contains '%s'", path, text), function()
             local content = slurp(File(path))
             return content ~= nil and find(replace(content, substitute, earlier), text, 1, true) ~= nil
          end})
-         append(before, pair)
-      end)
+      end
+      return checks
    end)
+end
 
-   each(branches(release), function(pages)
+
+-- The checks that each branch that *release* publishes to can be updated.
+local function branch_checks(env, release)
+   return flatmap(branches(release), function(pages)
       local copies = release[pages]
-      -- A branch that is only on origin, as in a fresh clone, or that
-      -- is behind it, is set to origin's before the release adds its
-      -- worktree; one with commits that origin lacks is diagnosed.
-      append(checks, {format('%s is not ahead of origin', pages), function()
-         local ref, origin = git(env, 'rev-parse refs/heads/' .. pages), git(env, 'rev-parse origin/' .. pages)
-         return origin ~= nil and (ref == nil or ref == origin
-            or git(env, 'merge-base --is-ancestor', ref, origin) ~= nil)
-      end, format('git branch -f %s origin/%s', pages, pages)})
-      -- git checks out a branch in only one worktree at a time.
-      append(checks, {format('%s can be checked out in a new worktree', pages), function()
-         local worktrees = git(env, 'worktree list --porcelain')
-         return worktrees ~= nil
-            and find('\n' .. worktrees .. '\n', '\nbranch refs/heads/' .. pages .. '\n', 1, true) == nil
-      end})
       -- TODO: the source of a copy under another name is not checked,
       -- as the build may make it, so a missing one fails only after the
       -- release is tagged.
-      each(filter(ordered_keys(copies), function(path)
+      local templates = map(filter(ordered_keys(copies), function(path)
          return ordered_get(copies, path).optional and match(path, '%.in$') ~= nil
       end), function(template)
-         append(checks, {format('%s or the release has %s', pages, template), function()
+         return {format('%s or the release has %s', pages, template), function()
             return exists(template) or git(env, format('cat-file -e origin/%s:%s', pages, template)) ~= nil
-         end})
+         end}
       end)
+      return {
+         -- A branch that is only on origin, as in a fresh clone, or that
+         -- is behind it, is set to origin's before the release adds its
+         -- worktree; one with commits that origin lacks is diagnosed.
+         {format('%s is not ahead of origin', pages), function()
+            local ref, origin = git(env, 'rev-parse refs/heads/' .. pages), git(env, 'rev-parse origin/' .. pages)
+            return origin ~= nil and (ref == nil or ref == origin
+               or git(env, 'merge-base --is-ancestor', ref, origin) ~= nil)
+         end, format('git branch -f %s origin/%s', pages, pages)},
+         -- git checks out a branch in only one worktree at a time.
+         {format('%s can be checked out in a new worktree', pages), function()
+            local worktrees = git(env, 'worktree list --porcelain')
+            return worktrees ~= nil
+               and find('\n' .. worktrees .. '\n', '\nbranch refs/heads/' .. pages .. '\n', 1, true) == nil
+         end},
+         unpack(templates),
+      }
    end)
+end
 
-   if release.rockspec ~= nil then
+
+-- The checks that the rockspec of *release* is a development one that
+-- can be set to a version, and that its dependencies are installed, if
+-- the release asks.
+local function rockspec_checks(env, release)
+   return choose(release.rockspec ~= nil, function()
       local rockspec = slurp(File(release.rockspec))
-      append(checks, {format('%s is a development rockspec', release.rockspec), function()
-         return match(release.rockspec, DEVROCKSPEC) ~= nil
-      end})
-      append(checks, {format('%s sets _MODREV on its first line', release.rockspec), function()
-         return rockspec ~= nil and match(rockspec, MODREV) ~= nil
-      end})
-      if release.check_dependencies then
-         append(checks, {format('the dependencies of %s are installed', release.rockspec), function()
+      return reject(list(
+         {format('%s is a development rockspec', release.rockspec), function()
+            return match(release.rockspec, DEVROCKSPEC) ~= nil
+         end},
+         {format('%s sets _MODREV on its first line', release.rockspec), function()
+            return rockspec ~= nil and match(rockspec, MODREV) ~= nil
+         end},
+         choose(release.check_dependencies, {format('the dependencies of %s are installed', release.rockspec), function()
             return dependencies_installed(env, release.rockspec)
          end})
-      end
-   end
+      ), nil)
+   end, {})
+end
 
-   return checks
+
+-- Each check that must pass before cutting a release of *version* from
+-- *main*, the branch checked out, as a description, a predicate, and
+-- the command that undoes what a failed release did to make it fail,
+-- if any.  Replacements are filled from *substitute*.
+local function preconditions(env, release, version, main, substitute)
+   return flatmap(list(
+      repository_checks(env, version, main),
+      news_checks(release, version),
+      replacement_checks(release, substitute),
+      branch_checks(env, release),
+      rockspec_checks(env, release)
+   ), id)
 end
 
 
@@ -386,18 +412,112 @@ local function unignore(L, env, paths)
       local sources = sorted(keys(lines))
       each(sources, function(source)
          edit(L, source, function(text)
-            local kept, n = {}, 0
-            for line in gmatch(text, '[^\n]*\n?') do
-               if line ~= '' then
-                  n = n + 1
-                  choose(not lines[source][n], bind(append, {kept, line}))
-               end
-            end
-            return concat(kept)
+            local n = 0
+            return concat(filter(gmatch(text, '[^\n]*\n?'), function(line)
+               n = n + 1
+               return line ~= '' and not lines[source][n]
+            end))
          end)
       end)
    until L.dryrun or isempty(sources)
    return 0
+end
+
+
+-- The description of the first of *checks* that fails, if any, saying
+-- how each is going on `L.verbose`.
+local function failed_check(L, checks)
+   return firstof(checks, function(check)
+      local description, predicate = unpack(check)
+      L.verbose('checking whether ', description, '... ')
+      local ok = predicate()
+      L.verbose(ok and 'yes\n' or 'no\n')
+      if not ok then
+         return description
+      end
+   end)
+end
+
+
+-- The steps that cut a release, to run in order and stop at the first
+-- to fail.  *plan* says what to release: its `version` and `main`
+-- branch, the `rules` of the lukefile `release` table, the date `today`,
+-- what to `add` and the `released` rockspec, the `pages` branches and
+-- the `worktrees` for them, and the `substitute` environment.
+local function release_steps(L, env, build, plan)
+   local version, rules = plan.version, plan.rules
+   local news, rockspec, pages, worktrees = rules.news, rules.rockspec, plan.pages, plan.worktrees
+   -- TODO: before branching, rename any PACKAGE-git-1.rockspec to
+   -- PACKAGE-dev-1.rockspec, setting its _MODREV from 'git' to 'dev'.
+   return flatten(
+      news and {
+         bind(edit, {L, news, bind(add_release_header, {[2]=version, [3]=plan.today})}),
+         bind(run, {L, env, {'git commit', format("-m 'maint: update NEWS.md for %s.'", version), news}}),
+      },
+      bind(run, {L, env, {'git checkout -b', 'release-v' .. version}}),
+      news and bind(edit, {L, news, remove_placeholder}),
+      map(rules.replacements or {}, function(entry)
+         local path, pairs = destructure(entry)
+         return bind(edit, {L, path, bind(replace, {[2]=plan.substitute, [3]=pairs})})
+      end),
+      build,
+      rockspec and {
+         bind(edit, {L, rockspec, bind(set_modrev, {[2]=version}), plan.released}),
+         bind(run, {L, env, {'git rm --quiet', rockspec}}),
+      },
+      not isempty(plan.added) and {
+         bind(unignore, {L, env, plan.added}),
+         bind(run, {L, env, {'git add -f', unpack(plan.added)}}),
+      } or nil,
+      bind(run, {L, env, {format("git commit -a -m 'Release v%s.'", version)}}),
+      bind(tag, {L, env, version, plan.notes}),
+      map(pages, function(branch)
+         local worktree = worktrees[branch]
+         return {
+            git(env, 'rev-parse refs/heads/' .. branch) ~= git(env, 'rev-parse origin/' .. branch)
+               and bind(run, {L, env, {'git branch --quiet --force', branch, 'origin/' .. branch}}) or {},
+            bind(run, {L, env, {'git worktree add --quiet', worktree, branch}}),
+            publish_steps(L, env, plan.substitute, worktree, rules[branch]),
+            bind(run, {L, env, {'git -C', worktree, "add -A && git -C", worktree,
+               format("commit -m '%s: update to $package %s.'", branch, version)}}),
+            bind(run, {L, env, {'git worktree remove', worktree}}),
+         }
+      end),
+      bind(run, {L, env, {'git checkout --quiet', plan.main}})
+   )
+end
+
+
+-- Say how to publish the release in *plan*, which is ready, by
+-- announcing it as *package*.
+local function ready_message(L, env, plan, package)
+   local version, main, released = plan.version, plan.main, plan.released
+   local pushed = flatten(main, 'release-v' .. version, 'v' .. version, plan.pages)
+   L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',
+      version, concat(pushed, ' ')))
+   -- GH=true skips announcing the release on GitHub.
+   local GH = env.GH or configure(L, env, {checkprog='GitHub CLI', progs={'gh', 'true'}})
+   if GH ~= 'true' then
+      L.write(format("   %s release create v%s --verify-tag --latest --title '[ANN] %s v%s released' --notes-from-tag\n",
+         GH, version, package, version))
+   end
+   if released ~= nil then
+      L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout %s\n',
+         version, released, main))
+   end
+end
+
+
+-- Say how to undo release *version*, which failed, as far as the
+-- *checks* that it passed before and fails now say.
+local function failed_message(L, checks, version)
+   local undo = undo_commands(checks)
+   choose(not isempty(undo), function()
+      L.write(format('\nRelease v%s failed.  To undo it before trying again:\n\n%s', version,
+         concat(map(undo, function(command)
+            return '   ' .. command .. '\n'
+         end))))
+   end)
 end
 
 
@@ -410,15 +530,7 @@ return {
       local version, main = L.release, git(env, 'symbolic-ref --short HEAD')
       local substitute = mkenv({version = version}, L.clidefs, L.luke.substitute, SHELLENV)
       local checks = preconditions(env, L.luke.release or {}, version, main, substitute)
-      local failed = firstof(checks, function(check)
-         local description, predicate = unpack(check)
-         L.verbose('checking whether ', description, '... ')
-         local ok = predicate()
-         L.verbose(ok and 'yes\n' or 'no\n')
-         if not ok then
-            return description
-         end
-      end)
+      local failed = failed_check(L, checks)
       if failed ~= nil then
          fatal('cannot release %s: check failed: %s', version, failed)
          return 1
@@ -427,7 +539,6 @@ return {
       local rules = L.luke.release or {}
       local news, rockspec = rules.news, rules.rockspec
       local released = rockspec and rockspec_name(rockspec, version)
-      local added = flatten(rules.add, generated(L.luke), released)
       local today = date '%Y-%m-%d'
 
       -- Compose the announcement before any step changes NEWS, so that
@@ -439,82 +550,32 @@ return {
       -- A temporary worktree for updating each branch that the release
       -- copies files to.
       local pages = branches(rules)
-      local worktrees = foldl(pages, {}, function(r, branch)
-         r[branch] = tmpname()
-         rm(r[branch])
+      local worktrees = tabulate(pages, function(branch)
+         local worktree = tmpname()
+         rm(worktree)
+         return branch, worktree
       end)
-      -- TODO: before branching, rename any PACKAGE-git-1.rockspec to
-      -- PACKAGE-dev-1.rockspec, setting its _MODREV from 'git' to 'dev'.
-      local steps = flatten(
-         news and {
-            bind(edit, {L, news, bind(add_release_header, {[2]=version, [3]=today})}),
-            bind(run, {L, env, 'git commit', format("-m 'maint: update NEWS.md for %s.'", version), news}),
-         },
-         bind(run, {L, env, 'git checkout -b', 'release-v' .. version}),
-         news and bind(edit, {L, news, remove_placeholder}),
-         map(rules.replacements or {}, function(entry)
-            local path, pairs = destructure(entry)
-            return bind(edit, {L, path, bind(replace, {[2]=substitute, [3]=pairs})})
-         end),
-         build,
-         rockspec and {
-            bind(edit, {L, rockspec, bind(set_modrev, {[2]=version}), released}),
-            bind(run, {L, env, 'git rm --quiet', rockspec}),
-         },
-         not isempty(added) and {
-            bind(unignore, {L, env, added}),
-            bind(run, {L, env, 'git add -f', unpack(added)}),
-         } or nil,
-         bind(run, {L, env, format("git commit -a -m 'Release v%s.'", version)}),
-         bind(tag, {L, env, version, notes}),
-         map(pages, function(branch)
-            local worktree = worktrees[branch]
-            return {
-               git(env, 'rev-parse refs/heads/' .. branch) ~= git(env, 'rev-parse origin/' .. branch)
-                  and bind(run, {L, env, 'git branch --quiet --force', branch, 'origin/' .. branch}) or {},
-               bind(run, {L, env, 'git worktree add --quiet', worktree, branch}),
-               publish_steps(L, env, substitute, worktree, rules[branch]),
-               bind(run, {L, env, 'git -C', worktree, "add -A && git -C", worktree,
-                  format("commit -m '%s: update to $package %s.'", branch, version)}),
-               bind(run, {L, env, 'git worktree remove', worktree}),
-            }
-         end),
-         bind(run, {L, env, 'git checkout --quiet', main})
-      )
+      local plan = {
+         version = version, main = main, rules = rules, today = today, notes = notes,
+         added = flatten(rules.add, generated(L.luke), released), released = released,
+         pages = pages, worktrees = worktrees, substitute = substitute,
+      }
 
-      local status = firstof(steps, isnonzero, call) or 0
+      local status = firstof(release_steps(L, env, build, plan), isnonzero, call) or 0
 
       -- Remove any worktree that a failed step leaves behind, with
       -- whatever was copied into it.
       choose(status ~= 0, function()
          each(filter(sorted(values(worktrees)), exists), function(worktree)
-            run(L, env, 'git worktree remove --force', worktree)
+            run(L, env, {'git worktree remove --force', worktree})
          end)
       end)
       if status == 0 then
-         local pushed = flatten(main, 'release-v' .. version, 'v' .. version, pages)
-         L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',
-            version, concat(pushed, ' ')))
-         -- GH=true skips announcing the release on GitHub.
-         local GH = env.GH or configure(L, env, {checkprog='GitHub CLI', progs={'gh', 'true'}})
-         if GH ~= 'true' then
-            L.write(format("   %s release create v%s --verify-tag --latest --title '[ANN] %s v%s released' --notes-from-tag\n",
-               GH, version, package, version))
-         end
-         if released ~= nil then
-            L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout %s\n',
-               version, released, main))
-         end
+         ready_message(L, env, plan, package)
       else
          -- Whatever the failed release left behind now fails the checks
          -- it passed before.
-         local undo = undo_commands(checks)
-         choose(not isempty(undo), function()
-            L.write(format('\nRelease v%s failed.  To undo it before trying again:\n\n%s', version,
-               concat(map(undo, function(command)
-                  return '   ' .. command .. '\n'
-               end))))
-         end)
+         failed_message(L, checks, version)
       end
       return status
    end,
