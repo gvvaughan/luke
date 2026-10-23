@@ -104,9 +104,9 @@ end
 
 
 local function flatten(...)
-   local r = {}
+   local r = list()
    for v in wrap(visit), reject(list(...), nil) do
-      r[#r + 1] = v
+      append(r, v)
    end
    return r
 end
@@ -196,6 +196,67 @@ local function isempty(x)
    end
    local k = next(x)
    return k == nil or (k == 'n' and x.n == 0 and next(x, k) == nil)
+end
+
+
+-- The position of the first item of *seq* that passes *predicate*,
+-- which defaults to anything truthy.
+local function indexof(seq, predicate)
+   if predicate == nil then
+      predicate = id
+   end
+   predicate = topredicate(predicate)
+   local i, found = 0, nil
+   walk(seq, function(...)
+      i = i + 1
+      if predicate(...) then
+         found = i
+         return true
+      end
+   end)
+   return found
+end
+
+
+-- The items of the lists that *fn* returns for each item of *seq*, or
+-- nil for none, in a list.
+local function flatmap(seq, fn)
+   local r = list()
+   walk(seq, function(...)
+      local items = fn(...)
+      if items ~= nil then
+         each(items, function(item)
+            append(r, item)
+         end)
+      end
+   end)
+   return r
+end
+
+
+-- A sorted copy of *seq*, as a list, that keeps the order of items that
+-- *cmp*, by default `<`, orders neither before the other.
+local function sorted(seq, cmp)
+   cmp = cmp or function(a, b)
+      return a < b
+   end
+   local decorated = {}
+   walk(seq, function(v)
+      decorated[#decorated + 1] = {v, #decorated + 1}
+   end)
+   sort(decorated, function(a, b)
+      if cmp(a[1], b[1]) then
+         return true
+      elseif cmp(b[1], a[1]) then
+         return false
+      end
+      return a[2] < b[2]
+   end)
+   local r = list()
+   for i = 1, #decorated do
+      append(r, decorated[i][1])
+   end
+   return r
 end
 
 
@@ -298,6 +359,8 @@ return {
 
    each = each,
 
+   flatmap = flatmap,
+
    firstof = firstof,
 
    -- *x*, unless it is nil or an empty table, in which case *default*.
@@ -357,6 +420,8 @@ return {
    end,
 
    id = id,
+
+   indexof = indexof,
 
    isempty = isempty,
 
@@ -495,14 +560,9 @@ return {
       return r
    end,
 
-   -- A copy of *seq* sorted by *cmp*, leaving *seq* itself unchanged.
-   sorted = function(seq, cmp)
-      local r = copy(seq)
-      sort(r, cmp)
-      return r
-   end,
-
    set = set,
+
+   sorted = sorted,
 
    -- Whether any item of *seq* passes *predicate*, by default if it is
    -- truthy.

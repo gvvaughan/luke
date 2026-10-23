@@ -77,7 +77,7 @@ specify luke.schema:
       expect(schema.keypaths(schema.fields {
          b = string,
          a = schema.fields {y = string, ['x-z'] = string},
-      })).to_equal {'a', 'a.y', "a['x-z']", 'b'}
+      })).to_equal(list('a', 'a.y', "a['x-z']", 'b'))
 
 - describe pathname:
   - it accepts a path that is already normal: |
