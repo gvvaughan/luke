@@ -5,6 +5,28 @@ before:
   functional = require 'luke.functional'
 
 specify luke.functional:
+- describe bind:
+  - before:
+      bind = functional.bind
+      join = function(...) return table.concat({...}, ',') end
+
+  - it calls the function with the bound arguments, and then the others:
+      expect(bind(join, {'a', 'b'})('c', 'd')).to_be 'a,b,c,d'
+  - it fills the holes in the bound arguments first:
+      expect(bind(join, {[2] = 'b', n = 3})('a', 'c')).to_be 'a,b,c'
+  - it passes trailing nils that it was bound with:
+      count = function(...) return select('#', ...) end
+      expect(bind(count, {'a', n = 3})()).to_be(3)
+  - it can be called more than once:
+      f = bind(join, {'a', n = 2})
+      expect(f('b')).to_be 'a,b'
+      expect(f('c', 'd')).to_be 'a,c,d'
+  - it leaves the table of bound arguments as it was:
+      bound = {'a'}
+      f = bind(join, bound)
+      f('b', 'c')
+      expect(bound).to_equal {'a'}
+
 - describe choose:
   - before:
       choose = functional.choose

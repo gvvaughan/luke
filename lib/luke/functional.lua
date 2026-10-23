@@ -30,6 +30,21 @@ local function call(fn, ...)
 end
 
 
+-- *consequent* if *test* is truthy, otherwise *alternative*, where
+-- either may be falsy, unlike in `test and consequent or alternative`.
+-- Like `cond`, a callable leg is called with *test* only when it is
+-- chosen, so pass side effects as functions.
+local function choose(test, consequent, alternative)
+   local leg = alternative
+   if test then
+      leg = consequent
+   end
+   if leg ~= nil then
+      return call(leg, test)
+   end
+end
+
+
 -- Call *visit* with all the results of each item of *seq*, until it
 -- returns something truthy, and then return true.  The items of a table
 -- are its values from 1 to its `n` field or length, so holes are
@@ -103,7 +118,7 @@ local function keeper(passes)
       predicate = topredicate(predicate)
       local r = list()
       walk(seq, function(...)
-         if not predicate(...) == not passes then
+         if choose(predicate(...), passes, not passes) then
             append(r, (...))
          end
       end)
@@ -114,29 +129,35 @@ end
 local filter, reject = keeper(true), keeper(false)
 
 
-local function visit(x)
-   if type(x) == 'table' then
-      walk(x, visit)
-   else
-      yield(x)
-   end
-end
-
-
-local function flatten(...)
-   local r = list()
-   for v in wrap(visit), reject(list(...), nil) do
-      append(r, v)
-   end
-   return r
-end
-
-
 -- Call *fn* with every result of each item of *seq*, for its effects.
 local function each(seq, fn)
    walk(seq, function(...)
       fn(...)
    end)
+end
+
+
+-- An iterator function over the flat sequence of what *t* holds, in
+-- order: it goes into the tables among its elements, and gives what
+-- they hold instead.
+local function flatiter(t)
+   local function visit(x)
+      if type(x) == 'table' then
+         walk(x, visit)
+      else
+         yield(x)
+      end
+   end
+   return wrap(function() visit(t) end)
+end
+
+
+local function flatten(...)
+   local r = list()
+   each(flatiter(reject(list(...), nil)), function(v)
+      append(r, v)
+   end)
+   return r
 end
 
 
@@ -222,6 +243,17 @@ local function isempty(x)
    end
    local k = next(x)
    return k == nil or (k == 'n' and x.n == 0 and next(x, k) == nil)
+end
+
+
+-- *x*, unless it is nil or an empty table, in which case *default*.
+-- Unlike `x or default`, an empty table counts as nothing, and false
+-- is a value like any other.
+local function either(x, d)
+   if x == nil or isempty(x) then
+      return d
+   end
+   return x
 end
 
 
@@ -317,7 +349,7 @@ return {
             end
             argu[i], i = unbound[j], i + 1
          end
-         bound.n = n >= i and n or i - 1
+         argu.n = max(n, i - 1)
 
          return apply(fn, argu)
       end
@@ -349,19 +381,7 @@ return {
       return default
    end,
 
-   -- *consequent* if *test* is truthy, otherwise *alternative*, where
-   -- either may be falsy, unlike in `test and consequent or alternative`.
-   -- Like `cond`, a callable leg is called with *test* only when it is
-   -- chosen, so pass side effects as functions.
-   choose = function(test, consequent, alternative)
-      local leg = alternative
-      if test then
-         leg = consequent
-      end
-      if leg ~= nil then
-         return call(leg, test)
-      end
-   end,
+   choose = choose,
 
    -- The branch of the first `{test, branch}` clause in *...* whose
    -- test is truthy, called with the test if it is callable.
@@ -387,15 +407,7 @@ return {
 
    each = each,
 
-   -- *x*, unless it is nil or an empty table, in which case *default*.
-   -- Unlike `x or default`, an empty table counts as nothing, and false
-   -- is a value like any other.
-   either = function(x, d)
-      if x == nil or isempty(x) then
-         return d
-      end
-      return x
-   end,
+   either = either,
 
    -- A copy of *t* without the keys that match *predicate*, a function
    -- to call with a key, or else a key to compare with.
@@ -429,7 +441,7 @@ return {
       each(keylist, function(key)
          merge(r, dict[key])
       end)
-      return next(r) and r or nil
+      return either(r, nil)
    end,
 
    id = id,
@@ -537,7 +549,7 @@ return {
       predicate = topredicate(predicate)
       local r, s = list(), list()
       walk(seq, function(...)
-         append(predicate(...) and r or s, (...))
+         append(choose(predicate(...), r, s), (...))
       end)
       return r, s
    end,
@@ -555,9 +567,16 @@ return {
 
    -- A copy of *seq* in reverse order.
    reversed = function(seq)
-      return foldl(seq, {}, function(r, v)
-         return {v, unpack(r)}
+      local items, n = {}, 0
+      walk(seq, function(v)
+         n = n + 1
+         items[n] = v
       end)
+      local r = {}
+      for i = 1, n do
+         r[n - i + 1] = items[i]
+      end
+      return r
    end,
 
    set = set,
