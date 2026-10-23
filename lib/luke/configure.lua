@@ -405,6 +405,14 @@ local configure = setmetatable(OrderedDict({
 })
 
 
+-- Whether *x* is a probe, which luke runs at build time for a value.
+local function isprobe(x)
+   return istable(x) and some(configure, function(name)
+      return x[name] ~= nil
+   end)
+end
+
+
 return {
    config_compiler = function(L, env)
       local CC = env.CC
@@ -442,4 +450,5 @@ return {
    end,
 
    configure = configure,
+   isprobe = isprobe,
 }

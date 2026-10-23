@@ -273,7 +273,9 @@ return found_library(L,lib)end
 end)or call(function()L.verbose'\n'fatal("required symbol '%s' not found in any of libc, lib%s",symbol,concat(libraries,', lib'))end)end},{checkfunc=function(L,env,config)checking(L,'for',config.checkfunc)return found_result(L,check_func_link(L,env,config,config.checkfunc))end},{checkmember=function(L,env,config)checking(L,'for',config.checkmember)local extra_hdrs=concat(format_includes(config.includes),'\n')local i=find(config.checkmember,'%.')local structname=sub(config.checkmember,1,i-1)local member=sub(config.checkmember,i+1)return found_result(L,check_struct_member_compile(L,env,config,structname,member,extra_hdrs))end}),{__call=function(self,L,env,config,prefix)return case(type(config),{['number']=function()return str(config)end,['string']=function()return config
 end,['table']=function()return firstof(self,function(fname)if config[fname]~=nil then
 add_external_deps(env,config,prefix)return apply(self[fname],list(L,env,config))end
-end)or fatal("unable to configure with keys '%s'",concat(keys(config),"', '"))end,default=function(type)fatal("unsupported configure type '%s'",type)end,})end,})return{config_compiler=function(L,env)local CC=env.CC
+end)or fatal("unable to configure with keys '%s'",concat(keys(config),"', '"))end,default=function(type)fatal("unsupported configure type '%s'",type)end,})end,})local function isprobe(x)return istable(x)and some(configure,function(name)return x[name]~=nil
+end)end
+return{config_compiler=function(L,env)local CC=env.CC
 if CC==nil then
 CC=configure(L,env,{checkprog='C compiler',progs=CCPROGS})env=mkenv(env,{CC=CC})end
 checking(L,interpolate(env,'whether $CC works'))local cm=Conftest(L)local works,err=with(cm,function(conftest)conftest:write('typedef int x;\n')conftest:flush()return spawn(env,'$compile','-o',conftest.objfile,conftest.filename)end)if works~=0 then
@@ -285,7 +287,7 @@ end,config_ldoc=function(L,env)local LDOC=env.LDOC
 if LDOC==nil then
 LDOC=configure(L,env,{checkprog='LDocs generator',progs={'ldoc','true'}})env=mkenv(env,{LDOC=LDOC})end
 return env
-end,configure=configure,}
+end,configure=configure,isprobe=isprobe,}
 end
 package.preload['luke.environment']=function()
 local _ENV=require'luke.normalize'{'luke.platforms','luke.functional',LUAVERSION=string.gsub(_VERSION,'[^0-9%.]+',''),SHELLMETACHARS='[%s%$"\'&;|<>()*?`\\]',}local function interpolate_with(pattern,env,s)return fixpoint(s,function(text)return(gsub(text,pattern,function(varname)return env[varname]or''end))end)end
@@ -453,14 +455,7 @@ r[k]=v
 end
 end
 return r
-end,filter=filter,flatten=flatten,fixpoint=fixpoint,foldl=foldl,foldkeys=function(keymap,dict,combinator)local r={}for k,v in next,dict or{}do
-local key=keymap[k]if key then
-r[key]=combinator(v,dict[key])else
-r[k]=r[k]or v
-end
-end
-return r
-end,get=function(dict,key)return(dict or{})[key]end,hoist=function(keylist,dict)local r={}each(keylist,function(key)merge(r,dict[key])end)return next(r)and r or nil
+end,filter=filter,flatten=flatten,fixpoint=fixpoint,foldl=foldl,get=function(dict,key)return(dict or{})[key]end,hoist=function(keylist,dict)local r={}each(keylist,function(key)merge(r,dict[key])end)return next(r)and r or nil
 end,id=id,indexof=indexof,isempty=isempty,isfile=isfile,isfunction=function(x)return type(x)=='function'end,islistkey=function(t,k)return type(k)=='number'and int(k)==k and k>=1 and k<=len(t)end,isnil=function(x)return x==nil
 end,isstring=function(x)return type(x)=='string'end,istable=function(x)return type(x)=='table'end,isnonzero=function(x)return x~=0
 end,keys=keys,map=function(seq,block)local r=list()walk(seq,function(...)append(r,(block(...)))end)return r
@@ -521,22 +516,15 @@ return status
 end,}
 end
 package.preload['luke.lukefile']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local string,table=mkcheck'string',mkcheck'table'local RELEASE=fields({add=list_of(pathname),check_dependencies=mkcheck'boolean',news=pathname,replacements=ordered_map(pair_of(ordered_map(pair_of(string)),pathname)),rockspec=pathname,},copies)local LUKEFILE=fields({luke_format=luke_format,package=string,version=string,defines=defines,external_dependencies=dependencies,incdirs=list_of(pathname),ldocs=rules,libdirs=list_of(pathname),libraries=list_of(id),modules=ordered_map(pair_of(rules)),substitute=table,variables=table,bin=scripts,files=files,install=fields{bin=scripts,},release=RELEASE,},true)local function has_anykey(t,keylist)return some(map(keylist,function(k)return t[k]~=nil
-end))end
-local function isconfig(x)return istable(x)and has_anykey(x,configure)end
-local function collect_configs(luke,modulename,configs,sectionname)configs=configs or{}each(sorted_keys(luke),function(k)local v=luke[k]cond({isconfig(v),function()append(configs,{t=luke,k=k,module=modulename,section=sectionname,order=len(configs)+1})end},{istable(v)and(k=='modules'or k=='external_dependencies'),function()each(v,function(pair)local name,rules=destructure(pair)collect_configs(rules,name,configs,k)end)end},{istable(v),function()collect_configs(v,modulename,configs,sectionname)end})end)return configs
-end
-local function deepcopy(t)return mapvalues(t,function(v)return case(type(v),{table=function()return deepcopy(v)end,default=v,})end)end
-local weighting=setmetatable(copy(configure),{__call=function(self,config)local t=config.t[config.k]for i=1,len(self)do
-if t[self[i]]~=nil then
-return i
-end
-end
-end})local function config_cmp(a,b)local wa,wb=weighting(a),weighting(b)return wa<wb or wa==wb and a.order<b.order
-end
-local function fill_templates(env,src,dest)with(File(dest,'w'),function(cm)for line in lines(src)do
-cm:write(expand(env,line)..'\n')end
+local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local str,t=mkcheck'string',mkcheck'table'local RELEASE=fields({add=list_of(pathname),check_dependencies=mkcheck'boolean',news=pathname,replacements=ordered_map(pair_of(ordered_map(pair_of(str)),pathname)),rockspec=pathname,},copies)local LUKEFILE=fields({luke_format=luke_format,package=str,version=str,defines=defines,external_dependencies=dependencies,incdirs=list_of(pathname),ldocs=rules,libdirs=list_of(pathname),libraries=list_of(id),modules=ordered_map(pair_of(rules)),substitute=t,variables=t,bin=scripts,files=files,install=fields{bin=scripts,},release=RELEASE,},true)local function collect_configs(luke,modulename,sectionname)return flatmap(sorted_keys(luke),function(k)local v=luke[k]return cond({isprobe(v),{{t=luke,k=k,module=modulename,section=sectionname}}},{istable(v)and(k=='modules'or k=='external_dependencies'),function()return flatmap(v,function(pair)local name,rules=destructure(pair)return collect_configs(rules,name,k)end)end},{istable(v),function()return collect_configs(v,modulename,sectionname)end})end)end
+local function deepcopy(tree)return mapvalues(tree,function(v)if istable(v)then
+return deepcopy(v)end
+return v
 end)end
+local function weight(config)local probe=config.t[config.k]return indexof(configure,function(kind)return probe[kind]~=nil
+end)end
+local function config_cmp(a,b)return weight(a)<weight(b)end
+local function fill_templates(env,src,dest)with(File(dest,'w'),function(cm)each(lines(src),function(line)cm:write(expand(env,line)..'\n')end)end)end
 local function rewrite_template_files(L,env,source)return case(source,{{'(.+)%.in',function(r)if not L.filled[r]then
 L.filled[r]=true
 L.write('creating '..r..'\n')if not L.dryrun then
@@ -544,18 +532,26 @@ fill_templates(env,r..'.in',r)end
 end
 return r
 end},default=source,})end
+local function dependency_variables(name)local rootdir='$'..name..'_DIR'return{[name..'_DIR']='/usr',[name..'_BINDIR']=rootdir..'/bin',[name..'_INCDIR']=rootdir..'/include',[name..'_LIBDIR']=rootdir..'/lib',}end
 local function collect_variables(luke,variables)for k,v in next,luke do
 if k=='external_dependencies'then
-each(ordered_keys(v),function(name)local rootdir=concat{'$',name,'_DIR'}variables[name..'_DIR']='/usr'variables[name..'_BINDIR']=rootdir..'/bin'variables[name..'_INCDIR']=rootdir..'/include'variables[name..'_LIBDIR']=rootdir..'/lib'end)elseif istable(v)then
+each(ordered_keys(v),function(name)merge(variables,dependency_variables(name))end)elseif istable(v)then
 collect_variables(v,variables)end
 end
 return variables
 end
-local function normalize_configs(config)return cond({not istable(config),config,},{not isconfig(config),function()return mapvalues(config,normalize_configs)end,},{true,function()local keymap={include='includes',prog='progs',library='libraries',}return foldkeys(keymap,config,function(a,b)local r=istable(a)and copy(a)or{a}b=istable(b)and b or{b}return foldl(b,r,function(r,v)return append(r,v)end)end)end,})end
+local PLURALS={include='includes',prog='progs',library='libraries'}local function pluralize(config)local r=except(config,function(k)return PLURALS[k]~=nil
+end)each(keys(PLURALS),function(singular)if config[singular]~=nil then
+local plural=PLURALS[singular]r[plural]=flatten(config[singular],config[plural])end
+end)return r
+end
+local function normalize_configs(config)return cond({not istable(config),function()return config
+end},{not isprobe(config),function()return mapvalues(config,normalize_configs)end},{true,function()return pluralize(config)end})end
+local function needs_library(config)return istable(config)and not isempty(config)and config.library~=''end
+local function extend(existing,items)return either(flatten(existing,items),nil)end
 local function unwrap_external_dependencies(luke)if istable(luke.external_dependencies)then
-each(luke.external_dependencies,function(pair)local prefix,config=destructure(pair)if istable(config)and next(config)and config.library~=''then
-luke.incdirs=append(luke.incdirs or{},format('$%s_INCDIR',prefix))luke.libdirs=append(luke.libdirs or{},format('$%s_LIBDIR',prefix))luke.libraries=append(luke.libraries or{},config.library)end
-end)luke.external_dependencies=nil
+local needed=filter(luke.external_dependencies,function(pair)local _,config=destructure(pair)return needs_library(config)end)local prefixes=ordered_keys(needed)luke.incdirs=extend(luke.incdirs,map(prefixes,bind(format,{'$%s_INCDIR'})))luke.libdirs=extend(luke.libdirs,map(prefixes,bind(format,{'$%s_LIBDIR'})))luke.libraries=extend(luke.libraries,map(prefixes,function(prefix)return ordered_get(needed,prefix).library
+end))luke.external_dependencies=nil
 end
 return luke
 end
@@ -569,9 +565,9 @@ local ok,err=pcall(chunk)if not ok then
 return nil,"Error running file: "..err
 end
 luke_format(r.luke_format,'luke_format')return LUKEFILE(normalize_configs(filter_platforms(r,nil,nil,ORDERED)),'')end,collect_variables=function(luke)return collect_variables(luke,{})end,branches=function(release)return filter(sorted(keys(release or{})),function(k)return RELEASE.schema[k]==nil
-end)end,keypaths=function()return keypaths(LUKEFILE)end,SCRIPT_SECTIONS={'bin','install','files'},script_sections=function(luke)return{bin=luke.bin or{},files=luke.files or{},install=(luke.install or{}).bin or{},}end,fill_template=function(L,env,source)return rewrite_template_files(L,env,source)end,run_configs=function(L,env,luke)local r=deepcopy(luke)each(sorted(collect_configs(r),config_cmp),function(config)local prefix=case(config.section,{external_dependencies=function()return config.module end,})config.t[config.k]=configure(L,env,config.t[config.k],prefix)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local r=copy(luke)local rewrite=bind(rewrite_template_files,{L,env})r.modules=ordered_mapvalues(r.modules,function(rules)rules.sources=map(rules.sources,rewrite)return rules
-end)if r.ldocs then
-r.ldocs.sources=map(r.ldocs.sources,rewrite)end
+end)end,keypaths=function()return keypaths(LUKEFILE)end,SCRIPT_SECTIONS={'bin','install','files'},script_sections=function(luke)return{bin=luke.bin or{},files=luke.files or{},install=(luke.install or{}).bin or{},}end,fill_template=rewrite_template_files,run_configs=function(L,env,luke)local r=deepcopy(luke)each(sorted(collect_configs(r),config_cmp),function(config)local prefix=case(config.section,{external_dependencies=function()return config.module end,})config.t[config.k]=configure(L,env,config.t[config.k],prefix)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local rewrite=bind(rewrite_template_files,{L,env})local function rewritten(rules)return merge({sources=map(rules.sources,rewrite)},rules)end
+local r=copy(luke)r.modules=ordered_mapvalues(r.modules,rewritten)if r.ldocs then
+r.ldocs=rewritten(r.ldocs)end
 return r
 end,}
 end
@@ -865,8 +861,6 @@ local function keypaths(normalize,path)return sorted(flatten(map(keys(normalize.
 local function pathname(x,path)choose(mkcheck'string'(x,path)=='',bind(bad,{path,'empty path'}))local r=x and match(x,'^/?')..concat(reject(gmatch(x,'[^/]+'),'.'),'/')return choose(r=='','.',r)end
 local function luke_format(x,path)choose(x==nil,bind(bad,{path,'missing; this luke reads format %d, which replaces the lukefiles of luke 0.4 and earlier',FORMAT}))choose(int(mkcheck'number'(x,path))==nil or x<0,bind(bad,{path,'non-negative integer expected, got %s',str(x)}))choose(x~=FORMAT,function()bad(path,'lukefile format %d needs %s luke; this one reads format %d',x,choose(x>FORMAT,'a newer','an older'),FORMAT)end)return x
 end
-local function isprobe(x)return istable(x)and contains(configure,function(name)return x[name]~=nil
-end)end
 local function definition(x,path)return case(type(x),{['string']=function()local name,eq,value=match(x,'^([%a_][%w_]*)(=?)(.*)$')choose(name==nil or eq==''and value~='',bind(bad,{path,"bad macro definition '%s'",x}))return{[name]=choose(eq=='',1,value)}end,['table']=function()local names=keys(x)choose(names.n~=1,bind(bad,{path,'one definition expected, got %d',names.n}))local name=names[1]choose(isstring(name)and configure[name]~=nil,bind(bad,{path,'probe needs a macro name, such as {HAVE_X = {%s = ...}}',str(name)}))choose(not isstring(name)or match(name,MACRO)==nil,bind(bad,{path,"bad macro name '%s'",str(name)}))local value=x[name]choose(not(isstring(value)or type(value)=='number'or isprobe(value)),bind(bad,{index(path,name),'string, number or probe expected, got %s',type(value)}))return{[name]=value}end,default=function(kind)bad(path,'string or table expected, got %s',kind)end,})end
 local function pair_of(normalize,rename)return function(x,path)local names=keys(mkcheck'table'(x,path))choose(names.n~=1,bind(bad,{path,'one entry expected, got %d',names.n}))local name=names[1]choose(not isstring(name),bind(bad,{path,'name expected, got %s',type(name)}))return{[(rename or id)(name,path)]=normalize(x[name],index(path,name))}end
 end
@@ -905,8 +899,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,luke_format=luke_format,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/356ddef',versiontext=[[
-luke (Luke) gvv/356ddef
+return{VERSION='gvv/c217807',versiontext=[[
+luke (Luke) gvv/c217807
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

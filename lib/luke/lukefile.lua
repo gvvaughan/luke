@@ -22,7 +22,7 @@ local _ENV = require 'luke.normalize' {
  Normalizers diagnose malformed values, and come from `luke.schema`.
 ]]
 
-local string, table = mkcheck 'string', mkcheck 'table'
+local str, t = mkcheck 'string', mkcheck 'table'
 
 -- How `luke release` updates NEWS, writes the release rockspec, edits
 -- files for the release branch, commits generated files, and whether
@@ -33,7 +33,7 @@ local RELEASE = fields({
    add                = list_of(pathname),
    check_dependencies = mkcheck 'boolean',
    news               = pathname,
-   replacements       = ordered_map(pair_of(ordered_map(pair_of(string)), pathname)),
+   replacements       = ordered_map(pair_of(ordered_map(pair_of(str)), pathname)),
    rockspec           = pathname,
 }, copies)
 
@@ -42,8 +42,8 @@ local RELEASE = fields({
 -- misspellings of the keys below.
 local LUKEFILE = fields({
    luke_format           = luke_format,
-   package               = string,
-   version               = string,
+   package               = str,
+   version               = str,
 
    defines               = defines,
    external_dependencies = dependencies,
@@ -52,8 +52,8 @@ local LUKEFILE = fields({
    libdirs               = list_of(pathname),
    libraries             = list_of(id),
    modules               = ordered_map(pair_of(rules)),
-   substitute            = table,
-   variables             = table,
+   substitute            = t,
+   variables             = t,
 
    bin                   = scripts,
    files                 = files,
@@ -65,76 +65,59 @@ local LUKEFILE = fields({
 }, true)
 
 
-local function has_anykey(t, keylist)
-   return some(map(keylist, function(k)
-      return t[k] ~= nil
-   end))
-end
-
-
-local function isconfig(x)
-   return istable(x) and has_anykey(x, configure)
-end
-
-
 -- Every probe in *luke*, in the order it is written: list entries in
 -- order, and the elements of any other table in `sorted_keys` order, so
 -- that probes of the same kind run in the same order on every run.
-local function collect_configs(luke, modulename, configs, sectionname)
-   configs = configs or {}
-   each(sorted_keys(luke), function(k)
+local function collect_configs(luke, modulename, sectionname)
+   return flatmap(sorted_keys(luke), function(k)
       local v = luke[k]
-      cond({isconfig(v), function()
-         append(configs, {t=luke, k=k, module=modulename, section=sectionname, order=len(configs) + 1})
-      end}, {istable(v) and (k == 'modules' or k == 'external_dependencies'), function()
-         each(v, function(pair)
-            local name, rules = destructure(pair)
-            collect_configs(rules, name, configs, k)
-         end)
-      end}, {istable(v), function()
-         collect_configs(v, modulename, configs, sectionname)
-      end})
-   end)
-   return configs
-end
-
-
-local function deepcopy(t)
-   return mapvalues(t, function(v)
-      return case(type(v), {
-         table = function() return deepcopy(v) end,
-         default = v,
-      })
+      return cond({isprobe(v), {{t=luke, k=k, module=modulename, section=sectionname}}},
+         {istable(v) and (k == 'modules' or k == 'external_dependencies'), function()
+            return flatmap(v, function(pair)
+               local name, rules = destructure(pair)
+               return collect_configs(rules, name, k)
+            end)
+         end},
+         {istable(v), function()
+            return collect_configs(v, modulename, sectionname)
+         end})
    end)
 end
 
 
-local weighting = setmetatable(copy(configure), {
-   __call = function(self, config)
-      local t = config.t[config.k]
-      for i = 1, len(self) do
-         if t[self[i]] ~= nil then
-            return i
-         end
+local function deepcopy(tree)
+   return mapvalues(tree, function(v)
+      if istable(v) then
+         return deepcopy(v)
       end
-   end
-})
+      return v
+   end)
+end
 
 
--- Probes run by kind, in the order of `configure`, so that headers are
--- settled before linking against functions, for example, and then in the
--- order they are written.
+-- The position of the kind of probe that *config* is in the order of
+-- `configure`, so that headers are settled before linking against
+-- functions, for example.
+local function weight(config)
+   local probe = config.t[config.k]
+   return indexof(configure, function(kind)
+      return probe[kind] ~= nil
+   end)
+end
+
+
+-- Probes run by kind, in the order of `configure`, and then in the order
+-- they are written, as `sorted` keeps the order of probes of one kind.
 local function config_cmp(a, b)
-   local wa, wb = weighting(a), weighting(b)
-   return wa < wb or wa == wb and a.order < b.order
+   return weight(a) < weight(b)
 end
 
 
 local function fill_templates(env, src, dest)
    with(File(dest, 'w'), function(cm)
-      for line in lines(src) do
+      each(lines(src), function(line)
          cm:write(expand(env, line) .. '\n')
-      end
+      end)
    end)
 end
 
@@ -159,15 +142,24 @@ local function rewrite_template_files(L, env, source)
 end
 
 
+-- The variables that say where the external dependency *name* is, and
+-- where its executables, headers and libraries are beneath that.
+local function dependency_variables(name)
+   local rootdir = '$' .. name .. '_DIR'
+   return {
+      [name .. '_DIR']    = '/usr',
+      [name .. '_BINDIR'] = rootdir .. '/bin',
+      [name .. '_INCDIR'] = rootdir .. '/include',
+      [name .. '_LIBDIR'] = rootdir .. '/lib',
+   }
+end
+
+
 local function collect_variables(luke, variables)
    for k, v in next, luke do
       if k == 'external_dependencies' then
          each(ordered_keys(v), function(name)
-            local rootdir = concat{'$', name, '_DIR'}
-            variables[name .. '_DIR'] = '/usr'
-            variables[name .. '_BINDIR'] = rootdir .. '/bin'
-            variables[name .. '_INCDIR'] = rootdir .. '/include'
-            variables[name .. '_LIBDIR'] = rootdir .. '/lib'
+            merge(variables, dependency_variables(name))
          end)
       elseif istable(v) then
          collect_variables(v, variables)
@@ -177,43 +169,62 @@ local function collect_variables(luke, variables)
 end
 
 
+-- The singular probe keys, each with the plural that it joins.
+local PLURALS = {include = 'includes', prog = 'progs', library = 'libraries'}
+
+
+-- *config* with the value of each singular key merged, ahead of those
+-- of its plural.
+local function pluralize(config)
+   local r = except(config, function(k)
+      return PLURALS[k] ~= nil
+   end)
+   each(keys(PLURALS), function(singular)
+      if config[singular] ~= nil then
+         local plural = PLURALS[singular]
+         r[plural] = flatten(config[singular], config[plural])
+      end
+   end)
+   return r
+end
+
+
 local function normalize_configs(config)
-   return cond({
-      not istable(config), config,
-   }, {
-      not isconfig(config), function()
-         return mapvalues(config, normalize_configs)
-      end,
-   }, {
-      true, function()
-         local keymap = {
-            include = 'includes',
-            prog = 'progs',
-            library = 'libraries',
-         }
-         return foldkeys(keymap, config, function(a, b)
-            local r = istable(a) and copy(a) or {a}
-            b = istable(b) and b or {b}
-            return foldl(b, r, function(r, v)
-               return append(r, v)
-            end)
-         end)
-      end,
-   })
+   return cond({not istable(config), function()
+      return config
+   end}, {not isprobe(config), function()
+      return mapvalues(config, normalize_configs)
+   end}, {true, function()
+      return pluralize(config)
+   end})
+end
+
+
+-- Whether the external dependency *config* needs a library: `{}` is
+-- unsupported, and `{library = ''}` needs none.
+local function needs_library(config)
+   return istable(config) and not isempty(config) and config.library ~= ''
+end
+
+
+-- The list *existing* followed by *items*, or nil if there are none.
+local function extend(existing, items)
+   return either(flatten(existing, items), nil)
 end
 
 
 local function unwrap_external_dependencies(luke)
    if istable(luke.external_dependencies) then
-      each(luke.external_dependencies, function(pair)
-         local prefix, config = destructure(pair)
-         -- `config={}` for unsupported, `config={library=''}` for no library required
-         if istable(config) and next(config) and config.library ~= '' then
-            luke.incdirs = append(luke.incdirs or {}, format('$%s_INCDIR', prefix))
-            luke.libdirs = append(luke.libdirs or {}, format('$%s_LIBDIR', prefix))
-            luke.libraries = append(luke.libraries or {}, config.library)
-         end
+      local needed = filter(luke.external_dependencies, function(pair)
+         local _, config = destructure(pair)
+         return needs_library(config)
       end)
+      local prefixes = ordered_keys(needed)
+      luke.incdirs = extend(luke.incdirs, map(prefixes, bind(format, {'$%s_INCDIR'})))
+      luke.libdirs = extend(luke.libdirs, map(prefixes, bind(format, {'$%s_LIBDIR'})))
+      luke.libraries = extend(luke.libraries, map(prefixes, function(prefix)
+         return ordered_get(needed, prefix).library
+      end))
       luke.external_dependencies = nil
    end
    return luke
@@ -281,9 +292,7 @@ return {
 
    -- If *source* ends with '.in', copy it to a file without the suffix,
    -- expanding all '@varname@' templates; return the resulting path.
-   fill_template = function(L, env, source)
-      return rewrite_template_files(L, env, source)
-   end,
+   fill_template = rewrite_template_files,
 
    -- Recursively collect every config table from normalized lukefile
    -- table, and execute each in topological order.
@@ -302,14 +311,15 @@ return {
    -- expanding all '@varname@' templates, writing the result back to a
    -- source with the '.in' suffix removed.
    run_templates = function(L, env, luke)
-      local r = copy(luke)
       local rewrite = bind(rewrite_template_files, {L, env})
-      r.modules = ordered_mapvalues(r.modules, function(rules)
-         rules.sources = map(rules.sources, rewrite)
-         return rules
-      end)
+      local function rewritten(rules)
+         return merge({sources = map(rules.sources, rewrite)}, rules)
+      end
+
+      local r = copy(luke)
+      r.modules = ordered_mapvalues(r.modules, rewritten)
       if r.ldocs then
-         r.ldocs.sources = map(r.ldocs.sources, rewrite)
+         r.ldocs = rewritten(r.ldocs)
       end
       return r
    end,

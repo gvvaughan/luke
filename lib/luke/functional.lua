@@ -394,19 +394,6 @@ return {
 
    foldl = foldl,
 
-   foldkeys = function(keymap, dict, combinator)
-      local r = {}
-      for k, v in next, dict or {} do
-         local key = keymap[k]
-         if key then
-            r[key] = combinator(v, dict[key])
-         else
-            r[k] = r[k] or v
-         end
-      end
-      return r
-   end,
-
    get = function(dict, key)
       return (dict or {})[key]
    end,

@@ -165,14 +165,6 @@ local function luke_format(x, path)
 end
 
 
--- Whether *x* is a probe, which luke runs at build time for a value.
-local function isprobe(x)
-   return istable(x) and contains(configure, function(name)
-      return x[name] ~= nil
-   end)
-end
-
-
 -- A macro definition, as a table pairing the macro name with its value
 -- or probe, from such a table or a rockspec style 'NAME' or 'NAME=value'
 -- string, where 'NAME' defines NAME to 1.

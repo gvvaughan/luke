@@ -1,0 +1,106 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before: |
+  E = require 'luke.environment'
+  env = E.mkenv({CC='cc'}, E.DEFAULTENV, E.SHELLENV)
+
+  -- A fresh luke.lukefile, with luke.configure's `configure` put back
+  -- as it was loaded, and a logger that records what it is told.
+  function setup()
+     replace(require 'luke._base', 'fatal', Stub())
+     replace(require 'luke.environment'.CONFIGENV, 'libs', '')
+     local lukefile = reload 'luke.lukefile'
+     local said = {}
+     local L = {
+        filled = {},
+        dryrun = true,
+        luke = {},
+        log = Stub(),
+        write = Stub(),
+        verbose = function(...)
+           said[#said + 1] = table.concat({...})
+        end,
+     }
+     return lukefile, L, said
+  end
+
+specify luke.lukefile:
+- after:
+    restore()
+
+- describe run_templates:
+  - it leaves the table it is given as it was:
+      lukefile, L = setup()
+      rules = {sources = {'a.lua.in', 'b.lua'}, optional = false}
+      luke = {modules = {{mod = rules}}, ldocs = {sources = {'c.ld.in'}}}
+      r = lukefile.run_templates(L, env, luke)
+      expect(r.modules[1].mod.sources).to_equal(list('a.lua', 'b.lua'))
+      expect(r.ldocs.sources).to_equal(list('c.ld'))
+      expect(rules.sources).to_equal {'a.lua.in', 'b.lua'}
+      expect(luke.ldocs.sources).to_equal {'c.ld.in'}
+  - it keeps the other settings of each rule, whatever they are:
+      lukefile, L = setup()
+      luke = {modules = {{mod = {sources = {'a.lua'}, optional = false, defines = {'X'}}}}}
+      r = lukefile.run_templates(L, env, luke)
+      expect(r.modules[1].mod.optional).to_be(false)
+      expect(r.modules[1].mod.defines).to_equal {'X'}
+  - it needs no ldocs or modules:
+      lukefile, L = setup()
+      expect(lukefile.run_templates(L, env, {})).to_equal {modules = {}}
+
+- describe fill_template:
+  - it returns a source without its '.in' suffix:
+      lukefile, L = setup()
+      expect(lukefile.fill_template(L, env, 'a.lua.in')).to_be 'a.lua'
+  - it returns any other source as it is:
+      lukefile, L = setup()
+      expect(lukefile.fill_template(L, env, 'a.lua')).to_be 'a.lua'
+
+- describe collect_variables:
+  - it names where each external dependency is, and its directories:
+      lukefile = setup()
+      expect(lukefile.collect_variables {external_dependencies = {{yaml = {}}, {pcre = {}}}}).
+         to_equal {
+            yaml_DIR = '/usr', yaml_BINDIR = '$yaml_DIR/bin',
+            yaml_INCDIR = '$yaml_DIR/include', yaml_LIBDIR = '$yaml_DIR/lib',
+            pcre_DIR = '/usr', pcre_BINDIR = '$pcre_DIR/bin',
+            pcre_INCDIR = '$pcre_DIR/include', pcre_LIBDIR = '$pcre_DIR/lib',
+         }
+  - it finds external dependencies in any table:
+      lukefile = setup()
+      r = lukefile.collect_variables {a = {b = {external_dependencies = {{x = {}}}}}}
+      expect(r.x_DIR).to_be '/usr'
+  - it returns nothing for a lukefile without any:
+      lukefile = setup()
+      expect(lukefile.collect_variables {modules = {}}).to_equal {}
+
+- describe run_configs:
+  - it leaves function values in the lukefile as they are, uncalled:
+      lukefile, L = setup()
+      f = function() return 'called' end
+      r = lukefile.run_configs(L, env, {custom = f, nested = {g = f}})
+      expect(r.custom).to_be(f)
+      expect(r.nested.g).to_be(f)
+  - it returns a copy, leaving the lukefile as it was:
+      lukefile, L = setup()
+      luke = {nested = {a = 1}}
+      r = lukefile.run_configs(L, env, luke)
+      expect(r).not_to_be(luke)
+      expect(r.nested).not_to_be(luke.nested)
+  - it runs probes by kind, and then in the order written: |
+      lukefile, L, said = setup()
+      lukefile.run_configs(L, env, {
+         defines = {
+            {A = {checkprog = 'A', progs = {'sh'}}},
+            {B = {checkheader = 'stdio.h'}},
+            {C = {checkprog = 'C', progs = {'cat'}}},
+            {D = {checkprog = 'D', progs = {'ls'}}},
+         },
+      })
+      probed = {}
+      for i = 1, #said do
+         what = said[i]:match '^checking for (%S-)%.%.%.%s*$'
+         if what ~= nil then probed[#probed + 1] = what end
+      end
+      expect(probed).to_equal {'sh', 'cat', 'ls', 'stdio.h'}
