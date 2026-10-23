@@ -30,10 +30,10 @@ local str, t = mkcheck 'string', mkcheck 'table'
 -- other key names a branch, such as `gh-pages`, mapped to the release
 -- files to copy there.
 local RELEASE = fields({
-   add                = list_of(pathname),
+   add                = listof(pathname),
    check_dependencies = mkcheck 'boolean',
    news               = pathname,
-   replacements       = ordered_map(pair_of(ordered_map(pair_of(str)), pathname)),
+   replacements       = ordered_map(pairof(ordered_map(pairof(str)), pathname)),
    rockspec           = pathname,
 }, copies)
 
@@ -47,11 +47,11 @@ local LUKEFILE = fields({
 
    defines               = defines,
    external_dependencies = dependencies,
-   incdirs               = list_of(pathname),
+   incdirs               = listof(pathname),
    ldocs                 = rules,
-   libdirs               = list_of(pathname),
-   libraries             = list_of(id),
-   modules               = ordered_map(pair_of(rules)),
+   libdirs               = listof(pathname),
+   libraries             = listof(id),
+   modules               = ordered_map(pairof(rules)),
    substitute            = t,
    variables             = t,
 

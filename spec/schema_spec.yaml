@@ -27,36 +27,36 @@ specify luke.schema:
       expect(schema.mkcheck 'string'(1, 'p')).
          to_raise 'bad p: string expected, got number'
 
-- describe list_of:
+- describe listof:
   - it treats a string as a list of one: |
       schema = setup()
-      expect(schema.list_of(schema.mkcheck 'string')('x', 'p')).to_equal {'x'}
+      expect(schema.listof(schema.mkcheck 'string')('x', 'p')).to_equal {'x'}
   - it normalizes every element: |
       schema = setup()
-      expect(schema.list_of(schema.mkcheck 'string') {'x', 'y'}).to_equal {'x', 'y'}
+      expect(schema.listof(schema.mkcheck 'string') {'x', 'y'}).to_equal {'x', 'y'}
   - it diagnoses an element at its index: |
       schema = setup()
-      expect(schema.list_of(schema.mkcheck 'string')({'x', 2}, 'p')).
+      expect(schema.listof(schema.mkcheck 'string')({'x', 2}, 'p')).
          to_raise 'bad p[2]: string expected, got number'
 
-- describe map_of:
+- describe mapof:
   - it normalizes every value: |
       schema = setup()
-      expect(schema.map_of(schema.list_of(schema.mkcheck 'string'))({a = 'x'}, 'p')).
+      expect(schema.mapof(schema.listof(schema.mkcheck 'string'))({a = 'x'}, 'p')).
          to_equal {a = {'x'}}
   - it diagnoses a value at its key: |
       schema = setup()
-      expect(schema.map_of(schema.mkcheck 'string')({['a.b'] = 1}, 'p')).
+      expect(schema.mapof(schema.mkcheck 'string')({['a.b'] = 1}, 'p')).
          to_raise "bad p['a.b']: string expected, got number"
   - it diagnoses names that fail the names normalizer: |
       schema = setup()
-      expect(schema.map_of(schema.mkcheck 'string', schema.mkcheck 'string')({'x'}, 'p')).
+      expect(schema.mapof(schema.mkcheck 'string', schema.mkcheck 'string')({'x'}, 'p')).
          to_raise 'bad p[1]: string expected, got number'
 
 - describe fields:
   - it normalizes each known key: |
       schema = setup()
-      expect(schema.fields {a = schema.list_of(schema.mkcheck 'string')}({a = 'x'}, '')).
+      expect(schema.fields {a = schema.listof(schema.mkcheck 'string')}({a = 'x'}, '')).
          to_equal {a = {'x'}}
   - it diagnoses unknown keys: |
       schema = setup()
@@ -126,24 +126,24 @@ specify luke.schema:
       expect(schema.luke_format(0.5, 'p')).to_raise 'bad p: non-negative integer expected, got 0.5'
       expect(schema.luke_format('0', 'p')).to_raise 'bad p: number expected, got string'
 
-- describe pair_of:
+- describe pairof:
   - it pairs a name with its normalized value: |
       schema = setup()
-      expect(schema.pair_of(schema.rules)({['a.b'] = 'a.lua'}, 'p')).
+      expect(schema.pairof(schema.rules)({['a.b'] = 'a.lua'}, 'p')).
          to_equal {['a.b'] = {sources = {'a.lua'}}}
   - it diagnoses an entry with more than one name: |
       schema = setup()
-      expect(schema.pair_of(schema.rules)({a = 'a.lua', b = 'b.lua'}, 'p')).
+      expect(schema.pairof(schema.rules)({a = 'a.lua', b = 'b.lua'}, 'p')).
          to_raise 'bad p: one entry expected, got 2'
   - it diagnoses a name that is not a string: |
       schema = setup()
-      expect(schema.pair_of(schema.rules)({'a.lua'}, 'p')).to_raise 'bad p: name expected, got number'
+      expect(schema.pairof(schema.rules)({'a.lua'}, 'p')).to_raise 'bad p: name expected, got number'
   - it diagnoses an entry that is not a table: |
       schema = setup()
-      expect(schema.pair_of(schema.rules)('a.lua', 'p')).to_raise 'bad p: table expected, got string'
+      expect(schema.pairof(schema.rules)('a.lua', 'p')).to_raise 'bad p: table expected, got string'
   - it diagnoses a value at its path: |
       schema = setup()
-      expect(schema.pair_of(schema.rules)({a = 42}, 'p')).
+      expect(schema.pairof(schema.rules)({a = 42}, 'p')).
          to_raise 'bad p.a: string or table expected, got number'
 
 - describe ordered_map:

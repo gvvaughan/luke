@@ -81,7 +81,7 @@ end
 
 -- A list of values that pass *normalize*, or a single string to be
 -- treated as a list of one.
-local function list_of(normalize)
+local function listof(normalize)
    return function(x, path)
       x = listed(x)
       checktable(x, path)
@@ -98,7 +98,7 @@ end
 
 -- A table mapping names to values that pass *normalize*, and with
 -- *names*, names that pass that too.
-local function map_of(normalize, names)
+local function mapof(normalize, names)
    return function(x, path)
       checktable(x, path)
       if x ~= nil then
@@ -213,7 +213,7 @@ end
 
 -- An entry of an ordered map: a table pairing one name, normalized by
 -- *rename* if given, with a value that passes *normalize*.
-local function pair_of(normalize, rename)
+local function pairof(normalize, rename)
    return function(x, path)
       local names = keys(checktable(x, path))
       choose(names.n ~= 1, bind(bad, {path, 'one entry expected, got %d', names.n}))
@@ -250,7 +250,7 @@ local function ordered_map(entry)
       end), function(k)
          bad(index(path, k), 'list entry expected, such as {%s = ...}', index('', k))
       end)
-      local r = list_of(narrowed)(layer, path)
+      local r = listof(narrowed)(layer, path)
       local seen = {}
       each(r, function(pair)
          claim(seen, (destructure(pair)), true, path)
@@ -306,7 +306,7 @@ end
 -- Like the rockspec `external_dependencies` table, each dependency name
 -- mapped to a table with its `library`, but as an ordered map, so that
 -- their compiler and linker flags are added in the order written.
-local dependencies = ordered_map(pair_of(checktable, dependency_name))
+local dependencies = ordered_map(pairof(checktable, dependency_name))
 
 
 -- The rules for building a module: a source path, a list of source
@@ -328,9 +328,9 @@ local function rules(x, path)
    })
    return r and merge({
       defines = defines(r.defines, index(path, 'defines')),
-      sources = list_of(pathname)(r.sources, index(path, 'sources')),
-      incdirs = list_of(pathname)(r.incdirs, index(path, 'incdirs')),
-      libdirs = list_of(pathname)(r.libdirs, index(path, 'libdirs')),
+      sources = listof(pathname)(r.sources, index(path, 'sources')),
+      incdirs = listof(pathname)(r.incdirs, index(path, 'incdirs')),
+      libdirs = listof(pathname)(r.libdirs, index(path, 'libdirs')),
    }, r)
 end
 
@@ -343,7 +343,7 @@ local function program(x, path)
       bad(path, 'no sources')
    end
    checkstring(r.command, index(path, 'command'))
-   map_of(checkstring, checkstring)(r.env, index(path, 'env'))
+   mapof(checkstring, checkstring)(r.env, index(path, 'env'))
    return r
 end
 
@@ -368,7 +368,7 @@ end
 -- else a bare source path, named by *mkname* from it.  Names are paths
 -- too, of the target built or installed.
 local function mkscripts(mkname)
-   local pair = pair_of(script, pathname)
+   local pair = pairof(script, pathname)
    return ordered_map(function(x, path)
       return string_or_table(x, path, {
          ['string'] = function()
@@ -418,7 +418,7 @@ end
 -- path with its source in the release, or else a bare path that is the
 -- same in both, which is optional, being copied only when the release
 -- has it.
-local copy_pair = pair_of(function(x, path)
+local copy_pair = pairof(function(x, path)
    return {optional = false, source = pathname(x, path)}
 end, pathname)
 
@@ -474,12 +474,12 @@ return {
    fields       = fields,
    files        = files,
    keypaths     = keypaths,
-   list_of      = list_of,
+   listof      = listof,
    luke_format  = luke_format,
-   map_of       = map_of,
+   mapof       = mapof,
    mkcheck      = mkcheck,
    ordered_map  = ordered_map,
-   pair_of      = pair_of,
+   pairof      = pairof,
    pathname     = pathname,
    rules        = rules,
    scripts      = scripts,

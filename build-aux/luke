@@ -515,7 +515,7 @@ return status
 end,}
 end
 package.preload['luke.lukefile']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local str,t=mkcheck'string',mkcheck'table'local RELEASE=fields({add=list_of(pathname),check_dependencies=mkcheck'boolean',news=pathname,replacements=ordered_map(pair_of(ordered_map(pair_of(str)),pathname)),rockspec=pathname,},copies)local LUKEFILE=fields({luke_format=luke_format,package=str,version=str,defines=defines,external_dependencies=dependencies,incdirs=list_of(pathname),ldocs=rules,libdirs=list_of(pathname),libraries=list_of(id),modules=ordered_map(pair_of(rules)),substitute=t,variables=t,bin=scripts,files=files,install=fields{bin=scripts,},release=RELEASE,},true)local function collect_configs(luke,modulename,sectionname)return flatmap(sorted_keys(luke),function(k)local v=luke[k]return cond({isprobe(v),{{t=luke,k=k,module=modulename,section=sectionname}}},{istable(v)and(k=='modules'or k=='external_dependencies'),function()return flatmap(v,function(pair)local name,rules=destructure(pair)return collect_configs(rules,name,k)end)end},{istable(v),function()return collect_configs(v,modulename,sectionname)end})end)end
+local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local str,t=mkcheck'string',mkcheck'table'local RELEASE=fields({add=listof(pathname),check_dependencies=mkcheck'boolean',news=pathname,replacements=ordered_map(pairof(ordered_map(pairof(str)),pathname)),rockspec=pathname,},copies)local LUKEFILE=fields({luke_format=luke_format,package=str,version=str,defines=defines,external_dependencies=dependencies,incdirs=listof(pathname),ldocs=rules,libdirs=listof(pathname),libraries=listof(id),modules=ordered_map(pairof(rules)),substitute=t,variables=t,bin=scripts,files=files,install=fields{bin=scripts,},release=RELEASE,},true)local function collect_configs(luke,modulename,sectionname)return flatmap(sorted_keys(luke),function(k)local v=luke[k]return cond({isprobe(v),{{t=luke,k=k,module=modulename,section=sectionname}}},{istable(v)and(k=='modules'or k=='external_dependencies'),function()return flatmap(v,function(pair)local name,rules=destructure(pair)return collect_configs(rules,name,k)end)end},{istable(v),function()return collect_configs(v,modulename,sectionname)end})end)end
 local function deepcopy(tree)return mapvalues(tree,function(v)if istable(v)then
 return deepcopy(v)end
 return v
@@ -840,14 +840,14 @@ end
 end
 local checkstring,checktable=mkcheck'string',mkcheck'table'local function listed(x)return choose(isstring(x),function()return{x}end,function()return x
 end)end
-local function list_of(normalize)return function(x,path)x=listed(x)checktable(x,path)if x~=nil then
+local function listof(normalize)return function(x,path)x=listed(x)checktable(x,path)if x~=nil then
 local r={}for i=1,len(x)do
 r[i]=normalize(x[i],index(path,i))end
 return r
 end
 end
 end
-local function map_of(normalize,names)return function(x,path)checktable(x,path)if x~=nil then
+local function mapof(normalize,names)return function(x,path)checktable(x,path)if x~=nil then
 local r={}for k,v in next,x do
 if names~=nil then
 names(k,index(path,k))end
@@ -863,11 +863,11 @@ local function luke_format(x,path)choose(x==nil,bind(bad,{path,'missing; this lu
 end
 local function string_or_table(x,path,branches)return case(type(x),merge({default=function(kind)bad(path,'string or table expected, got %s',kind)end,},branches))end
 local function definition(x,path)return string_or_table(x,path,{['string']=function()local name,eq,value=match(x,'^([%a_][%w_]*)(=?)(.*)$')choose(name==nil or eq==''and value~='',bind(bad,{path,"bad macro definition '%s'",x}))return{[name]=choose(eq=='',1,value)}end,['table']=function()local names=keys(x)choose(names.n~=1,bind(bad,{path,'one definition expected, got %d',names.n}))local name=names[1]choose(isstring(name)and configure[name]~=nil,bind(bad,{path,'probe needs a macro name, such as {HAVE_X = {%s = ...}}',str(name)}))choose(not isstring(name)or match(name,MACRO)==nil,bind(bad,{path,"bad macro name '%s'",str(name)}))local value=x[name]choose(not(isstring(value)or type(value)=='number'or isprobe(value)),bind(bad,{index(path,name),'string, number or probe expected, got %s',type(value)}))return{[name]=value}end,})end
-local function pair_of(normalize,rename)return function(x,path)local names=keys(checktable(x,path))choose(names.n~=1,bind(bad,{path,'one entry expected, got %d',names.n}))local name=names[1]choose(not isstring(name),bind(bad,{path,'name expected, got %s',type(name)}))return{[(rename or id)(name,path)]=normalize(x[name],index(path,name))}end
+local function pairof(normalize,rename)return function(x,path)local names=keys(checktable(x,path))choose(names.n~=1,bind(bad,{path,'one entry expected, got %d',names.n}))local name=names[1]choose(not isstring(name),bind(bad,{path,'name expected, got %s',type(name)}))return{[(rename or id)(name,path)]=normalize(x[name],index(path,name))}end
 end
 local function ordered_map(entry)local function narrowed(x,path)return entry(choose(istable(x),function()return narrow_platforms(x,ORDERED)end,function()return x
 end),path)end
-local function layer_entries(layer,path)each(filter(sorted_keys(layer),function(k)return k~='platforms'and not islistkey(layer,k)end),function(k)bad(index(path,k),'list entry expected, such as {%s = ...}',index('',k))end)local r=list_of(narrowed)(layer,path)local seen={}each(r,function(pair)claim(seen,(destructure(pair)),true,path)end)return r
+local function layer_entries(layer,path)each(filter(sorted_keys(layer),function(k)return k~='platforms'and not islistkey(layer,k)end),function(k)bad(index(path,k),'list entry expected, such as {%s = ...}',index('',k))end)local r=listof(narrowed)(layer,path)local seen={}each(r,function(pair)claim(seen,(destructure(pair)),true,path)end)return r
 end
 local function check_layers(x,path)layer_entries(checktable(x,path),path)local at=index(path,'platforms')local platforms=checktable(x.platforms,at)choose(platforms~=nil,function()each(filter(sorted_keys(platforms),isplatform),function(name)check_layers(platforms[name],index(at,name))end)check_layers(except(platforms,isplatform),at)end)end
 local function resolve(x,path)return ordered_merge(unpack(map(layers(x),function(layer)return choose(layer.platforms~=nil,function()return resolve(layer,path)end,function()return layer_entries(layer,path)end)end)))end
@@ -875,27 +875,27 @@ return function(x,path)local t=listed(x)choose(t~=nil,bind(check_layers,{t,path}
 end
 local defines=ordered_map(definition)local function dependency_name(name,path)choose(match(name,MACRO)==nil,bind(bad,{path,"bad dependency name '%s'",name}))return name
 end
-local dependencies=ordered_map(pair_of(checktable,dependency_name))local function rules(x,path)local r=string_or_table(x,path,{['nil']=nop,['string']=function()return{sources={x}}end,['table']=function()return cond({len(x)>0,{sources=x}},{isstring(x.sources),function()return merge({sources={x.sources}},x)end},{true,x})end,})return r and merge({defines=defines(r.defines,index(path,'defines')),sources=list_of(pathname)(r.sources,index(path,'sources')),incdirs=list_of(pathname)(r.incdirs,index(path,'incdirs')),libdirs=list_of(pathname)(r.libdirs,index(path,'libdirs')),},r)end
+local dependencies=ordered_map(pairof(checktable,dependency_name))local function rules(x,path)local r=string_or_table(x,path,{['nil']=nop,['string']=function()return{sources={x}}end,['table']=function()return cond({len(x)>0,{sources=x}},{isstring(x.sources),function()return merge({sources={x.sources}},x)end},{true,x})end,})return r and merge({defines=defines(r.defines,index(path,'defines')),sources=listof(pathname)(r.sources,index(path,'sources')),incdirs=listof(pathname)(r.incdirs,index(path,'incdirs')),libdirs=listof(pathname)(r.libdirs,index(path,'libdirs')),},r)end
 local function program(x,path)local r=rules(x,path)if isempty(r.sources or{})then
 bad(path,'no sources')end
-checkstring(r.command,index(path,'command'))map_of(checkstring,checkstring)(r.env,index(path,'env'))return r
+checkstring(r.command,index(path,'command'))mapof(checkstring,checkstring)(r.env,index(path,'env'))return r
 end
 local function script(x,path)return string_or_table(x,path,{['string']=function()return pathname(x,path)end,['table']=function()return program(x,path)end,})end
-local function mkscripts(mkname)local pair=pair_of(script,pathname)return ordered_map(function(x,path)return string_or_table(x,path,{['string']=function()local source=pathname(x,path)return{[mkname(source)]=source}end,['table']=function()choose(x.sources~=nil,bind(bad,{path,'programs need a name, such as {prog = {sources = ...}}'}))return pair(x,path)end,})end)end
+local function mkscripts(mkname)local pair=pairof(script,pathname)return ordered_map(function(x,path)return string_or_table(x,path,{['string']=function()local source=pathname(x,path)return{[mkname(source)]=source}end,['table']=function()choose(x.sources~=nil,bind(bad,{path,'programs need a name, such as {prog = {sources = ...}}'}))return pair(x,path)end,})end)end
 local function filled(path)return(gsub(path,'%.in$',''))end
 local scripts=mkscripts(function(source)return filled(basename(source))end)local files=mkscripts(filled)local function fills_too(dest,source)return match(dest,'%.in$')~=nil and match(source,'%.in$')~=nil
 end
-local copy_pair=pair_of(function(x,path)return{optional=false,source=pathname(x,path)}end,pathname)local function copy_entry(x,path)return string_or_table(x,path,{['string']=function()local source=pathname(x,path)return{[source]={optional=true,source=source}}end,['table']=function()return copy_pair(x,path)end,})end
+local copy_pair=pairof(function(x,path)return{optional=false,source=pathname(x,path)}end,pathname)local function copy_entry(x,path)return string_or_table(x,path,{['string']=function()local source=pathname(x,path)return{[source]={optional=true,source=source}}end,['table']=function()return copy_pair(x,path)end,})end
 local function copies(x,path)if checktable(x,path)==nil then
 return nil
 end
 local r=ordered_map(copy_entry)(except(x,'command'),path)r.command=checkstring(x.command,index(path,'command'))local written=set(ordered_keys(r))each(r or{},function(pair)local dest,entry=destructure(pair)choose(fills_too(dest,entry.source),function()claim(written,filled(dest),true,path)end)end)return r
 end
-return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,luke_format=luke_format,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
+return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/ebadbe5',versiontext=[[
-luke (Luke) gvv/ebadbe5
+return{VERSION='gvv/e84945d',versiontext=[[
+luke (Luke) gvv/e84945d
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
