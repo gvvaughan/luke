@@ -71,7 +71,7 @@ end
 
 
 local function bindirs(...)
-   return map(flatten(...), function(v)
+   return map(compact(flatten(list(...))), function(v)
       return v .. ':'
    end)
 end
@@ -81,21 +81,21 @@ end
 -- cannot see the results of earlier probes, and a probe among them is
 -- passed to `defines` unresolved.
 local function compile_command(L, env, config, objfile, filename)
-   local command = flatten(
+   local command = compact(flatten(list(
       '$CC', '-c', '$CFLAGS',
       defines(L.luke.defines),
       incdirs(config.incdir),
       '$CPPFLAGS',
       '-o', objfile,
       filename
-   )
+   )))
    L.log(interpolate(env, concat(command, ' ')))
    return unpack(command)
 end
 
 
 local function link_command(L, env, config, a_out, source, lib)
-   local command = flatten(
+   local command = compact(flatten(list(
       '$CC', '$CFLAGS',
       defines(L.luke.defines),
       incdirs(config.incdir),
@@ -106,7 +106,7 @@ local function link_command(L, env, config, a_out, source, lib)
       '$LDFLAGS',
       lib,
       '$libs', CONFIGENV.libs
-   )
+   )))
    L.log(interpolate(env, concat(command, ' ')))
    return unpack(command)
 end
@@ -334,9 +334,9 @@ local configure = setmetatable(OrderedDict({
 
       -- Look for required symbol in libc, and then each of `libraries`.
       local libraries, symbol = config.libraries, config.checksymbol
-      local trylibs = flatten('', map(libraries, function(lib)
+      local trylibs = flatten(list('', map(libraries, function(lib)
          return '-l' .. lib
-      end))
+      end)))
       return firstof(trylibs, function(lib)
          if try_link(L, env, config, lib, symbol) == 0 then
             choose(lib ~= '', bind(add_library, {lib}))

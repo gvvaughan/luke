@@ -550,6 +550,40 @@ specify luke.functional:
   - it converges within the limit, if given one:
       expect(converge(3, 4, function(n) return n > 1 and n - 1 or n end)).to_be(1)
 
+- describe compact:
+  - before:
+      compact = functional.compact
+
+  - it works for an empty table:
+      expect(compact {}).to_equal(list())
+  - it returns a new list:
+      t = {1, 2}
+      expect(compact(t)).not_to_be(t)
+  - it leaves out nil items, wherever the holes are:
+      expect(compact(list(nil, 1, nil, 2, nil))).to_equal(list(1, 2))
+      expect(compact(list(nil, nil))).to_equal(list())
+  - it keeps false:
+      expect(compact(list(false, nil, false))).to_equal(list(false, false))
+  - it compacts an iterator function's items:
+      expect(compact(('a b'):gmatch '%a')).to_equal(list('a', 'b'))
+  - it drops the nils that flatten keeps:
+      expect(compact(functional.flatten(list(1, nil, list(2, nil, 3))))).to_equal(list(1, 2, 3))
+
+- describe flatten:
+  - before:
+      flatten = functional.flatten
+      t = {{{'one'}}, 'two', {{'three'}, 'four'}}
+
+  - it works for an empty table:
+      expect(flatten {}).to_equal(list())
+  - it flattens a nested table:
+      expect(flatten(t)).to_equal(list('one', 'two', 'three', 'four'))
+  - it keeps holes, as an element that is nil:
+      expect(flatten(list(1, nil, 3))).to_equal(list(1, nil, 3))
+      expect(flatten {1, list(2, nil, 4), 5}).to_equal(list(1, 2, nil, 4, 5))
+  - it keeps holes at the end:
+      expect(flatten(list(1, nil, nil))).to_equal(list(1, nil, nil))
+
 - describe flatmap:
   - before:
       flatmap = functional.flatmap

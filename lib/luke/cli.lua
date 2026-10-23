@@ -134,7 +134,7 @@ end
 -- none, or `all` is one.
 local function selected_targets(targets, rulesets)
    if isempty(targets) or contains(targets, 'all') then
-      return reject(flatten(targets, map(rulesets, ordered_keys)), 'all')
+      return reject(flatten(list(targets, map(rulesets, ordered_keys))), 'all')
    end
    local unknown = reject(targets, function(target)
       return target == 'install' or some(rulesets, function(rules)

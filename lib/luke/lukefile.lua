@@ -183,7 +183,7 @@ local function pluralize(config)
    each(keys(PLURALS), function(singular)
       if config[singular] ~= nil then
          local plural = PLURALS[singular]
-         r[plural] = flatten(config[singular], config[plural])
+         r[plural] = compact(flatten(list(config[singular], config[plural])))
       end
    end)
    return r
@@ -210,7 +210,7 @@ end
 
 -- The list *existing* followed by *items*, or nil if there are none.
 local function extend(existing, items)
-   return either(flatten(existing, items), nil)
+   return either(compact(flatten(list(existing, items))), nil)
 end
 
 

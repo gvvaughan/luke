@@ -15,7 +15,7 @@ local _ENV = require 'luke.normalize' {
 
 
 local function run_ldocs(L, env, ldocs)
-   return run(L, env, flatten{'$LDOC -c', ldocs.sources, '.'})
+   return run(L, env, compact(flatten(list('$LDOC -c', ldocs.sources, '.'))))
 end
 
 
@@ -87,14 +87,14 @@ local function build_modules(L, env, substitute, c_names)
       return 0
    end
    L.luke = run_templates(L, substitute, L.luke)
-   return sequence(flatten(
+   return sequence(compact(flatten(list(
       map(c_names, function(name)
          return bind(build_c_module, {L, env, L.luke, name})
       end),
       choose(not isempty(L.luke.ldocs or {}), function()
          return bind(run_ldocs, {L, env, L.luke.ldocs})
       end)
-   ))
+   ))))
 end
 
 

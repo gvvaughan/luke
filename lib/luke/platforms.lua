@@ -29,7 +29,7 @@ local CANON = {
 
 
 -- The set of all available generic platform names.
-local ALLPLATFORMS = set(flatten(unpack(values(CANON))))
+local ALLPLATFORMS = set(flatten(values(CANON)))
 
 
 -- The platforms of *uname* in *canon*, by its exact name.

@@ -58,7 +58,7 @@ end
 -- items of any lists among them.
 local function flagged(flag)
    return function(...)
-      return map(flatten(...), function(v)
+      return map(compact(flatten(list(...))), function(v)
          return flag .. v
       end)
    end
@@ -154,7 +154,7 @@ end
 -- with *head*, with the defines, include and library directories, and
 -- libraries that the rules of *luke* and *rules* give.
 local function c_command(luke, rules, head, sources, output)
-   return flatten(
+   return compact(flatten(list(
       head,
       defines(luke.defines, rules.defines),
       incdirs(rules.incdirs, luke.incdirs),
@@ -164,7 +164,7 @@ local function c_command(luke, rules, head, sources, output)
       libdirs(rules.libdirs, luke.libdirs),
       '$LIBS',
       rules.libraries, luke.libraries
-   )
+   )))
 end
 
 
@@ -175,9 +175,9 @@ end
 local function exports_for(env, rules)
    local names = sorted(keys(rules.env))
    return choose(isempty(names), {}, function()
-      return flatten('export', map(names, function(name)
+      return compact(flatten(list('export', map(names, function(name)
          return format('%s=%s', name, shellword(interpolate(env, rules.env[name])))
-      end), ';')
+      end), ';')))
    end)
 end
 
@@ -236,7 +236,7 @@ return {
          -- Export env for the whole command, and let `$NAME` in the
          -- command itself expand to the same value.
          env = mkenv({sources = concat(sources, ' '), target = target}, rules.env, env)
-         return run(L, env, flatten(exports_for(env, rules), rules.command))
+         return run(L, env, compact(flatten(list(exports_for(env, rules), rules.command))))
       end
 
       if not c_sources(sources) then
@@ -272,12 +272,12 @@ return {
       if isempty(names) then
          return 0
       end
-      return sequence(flatten(
+      return sequence(compact(flatten(list(
          bind(install_dir, {L, env, '$INST_BINDIR'}),
          map(names, function(name)
             return bind(install_script, {L, env, luke, name})
          end)
-      ))
+      ))))
    end,
 
    libdirs = libdirs,

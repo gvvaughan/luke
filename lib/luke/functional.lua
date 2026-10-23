@@ -7,8 +7,6 @@ local _ENV = require 'luke.normalize' {
    destructure = next,
    error = error,
    isfile = function(x) return io.type(x) == 'file' end,
-   wrap = coroutine.wrap,
-   yield = coroutine.yield,
 }
 
 
@@ -132,26 +130,31 @@ local function each(seq, fn)
 end
 
 
--- An iterator function over the flat sequence of what *t* holds, in
--- order: it goes into the tables among its elements, and gives what
--- they hold instead.
-local function flatiter(t)
+local function flatten(t)
+   local r, n = {}, 0
    local function visit(x)
       if type(x) == 'table' then
          walk(x, visit)
       else
-         yield(x)
+         n = n + 1
+         r[n] = x
       end
    end
-   return wrap(function() visit(t) end)
+   walk(t, visit)
+   r.n = n
+   return r
 end
 
 
-local function flatten(...)
-   local r = list()
-   each(flatiter(reject(list(...), nil)), function(v)
-      append(r, v)
+local function compact(seq)
+   local r, n = {}, 0
+   walk(seq, function(item)
+      if item ~= nil then
+         n = n + 1
+         r[n] = item
+      end
    end)
+   r.n = n
    return r
 end
 
@@ -420,6 +423,8 @@ return {
 
    -- The branch of the first `{test, branch}` clause in *...* whose
    -- test is truthy, called with the test if it is callable.
+   compact = compact,
+
    cond = function(...)
       local clauses = list(...)
       for i = 1, clauses.n do
@@ -564,7 +569,7 @@ return {
    -- value of the last pair for that key.
    ordered_merge = function(...)
       local at = {}
-      return foldl(reject(list(...), nil), {}, function(r, pairs)
+      return foldl(compact(list(...)), {}, function(r, pairs)
          foldl(pairs, r, function(r, pair)
             local k, v = destructure(pair)
             at[k] = at[k] or #r + 1

@@ -99,13 +99,13 @@ local function announcement(package, version, news, rockspec)
    local fields = rockspec_fields(rockspec)
    local description = istable(fields.description) and fields.description or {}
    package = isstring(fields.package) and fields.package or package
-   local lines = flatten(
+   local lines = compact(flatten(list(
       isstring(description.summary) and {description.summary, ''} or {},
       format('I am happy to announce release %s of %s.', version, package), '',
       isstring(description.homepage) and {format("%s's home page is at %s", package, description.homepage), ''} or {},
       news and {news, ''} or {},
       rockspec and {'Install it with LuaRocks, using:', '', format('    luarocks install %s %s', package, version)} or {}
-   )
+   )))
    return package, match(concat(lines, '\n'), '^(.-)%s*$') .. '\n'
 end
 
@@ -186,12 +186,12 @@ end
 -- that branch: copy its source there. A template is filled in place
 -- without its '.in' suffix.  Then run its `command`, if any, there.
 local function publish_steps(L, env, substitute, worktree, copies)
-   return flatten(map(copies, function(pair)
+   return compact(flatten(list(map(copies, function(pair)
       local path, copy = destructure(pair)
       local source, optional = copy.source, copy.optional
       local dest = worktree .. '/' .. path
       local template = match(source, '%.in$') ~= nil
-      return flatten(
+      return compact(flatten(list(
          choose(optional or not template, function()
             return bind(run, {L, env, {copy_command(source, worktree, path, optional)}})
          end),
@@ -199,8 +199,8 @@ local function publish_steps(L, env, substitute, worktree, copies)
             return bind(edit, {L, choose(optional, dest, source), bind(expand, {substitute}),
                (gsub(dest, '%.in$', ''))})
          end)
-      )
-   end), copies.command and bind(run, {L, env, {'cd', worktree, '&&', copies.command}}))
+      )))
+   end), copies.command and bind(run, {L, env, {'cd', worktree, '&&', copies.command}}))))
 end
 
 
@@ -372,9 +372,9 @@ local function generated(luke)
          return (gsub(source, '%.in$', ''))
       end)
    end)
-   return flatten(templates, map(ordered_keys(luke.files), function(name)
+   return flatten(list(templates, map(ordered_keys(luke.files), function(name)
       return script_target(name, ordered_get(luke.files, name))
-   end))
+   end)))
 end
 
 
@@ -449,7 +449,7 @@ local function release_steps(L, env, build, plan)
    local news, rockspec, pages, worktrees = rules.news, rules.rockspec, plan.pages, plan.worktrees
    -- TODO: before branching, rename any PACKAGE-git-1.rockspec to
    -- PACKAGE-dev-1.rockspec, setting its _MODREV from 'git' to 'dev'.
-   return flatten(
+   return compact(flatten(list(
       news and {
          bind(edit, {L, news, bind(add_release_header, {[2]=version, [3]=plan.today})}),
          bind(run, {L, env, {'git commit', format("-m 'maint: update NEWS.md for %s.'", version), news}}),
@@ -484,7 +484,7 @@ local function release_steps(L, env, build, plan)
          }
       end),
       bind(run, {L, env, {'git checkout --quiet', plan.main}})
-   )
+   )))
 end
 
 
@@ -492,7 +492,7 @@ end
 -- announcing it as *package*.
 local function ready_message(L, env, plan, package)
    local version, main, released = plan.version, plan.main, plan.released
-   local pushed = flatten(main, 'release-v' .. version, 'v' .. version, plan.pages)
+   local pushed = compact(flatten(list(main, 'release-v' .. version, 'v' .. version, plan.pages)))
    L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',
       version, concat(pushed, ' ')))
    -- GH=true skips announcing the release on GitHub.
@@ -557,7 +557,7 @@ return {
       end)
       local plan = {
          version = version, main = main, rules = rules, today = today, notes = notes,
-         added = flatten(rules.add, generated(L.luke), released), released = released,
+         added = compact(flatten(list(rules.add, generated(L.luke), released))), released = released,
          pages = pages, worktrees = worktrees, substitute = substitute,
       }
 
