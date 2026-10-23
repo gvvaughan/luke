@@ -149,6 +149,46 @@ specify luke.functional:
   - it reverses the items of an iterator function:
       expect(reversed(('abc'):gmatch '.')).to_equal(list('c', 'b', 'a'))
 
+- describe merged:
+  - before:
+      merged = functional.merged
+
+  - it returns an empty table for no arguments:
+      expect(merged()).to_equal {}
+  - it returns a new table:
+      t = {a = 1}
+      expect(merged(t)).to_equal {a = 1}
+      expect(merged(t)).not_to_be(t)
+  - it lets a later table replace an earlier one:
+      expect(merged({a = 1, b = 2}, {b = 3}, {b = 4, c = 5})).to_equal {a = 1, b = 4, c = 5}
+  - it lets a later false replace an earlier value:
+      expect(merged({a = 1}, {a = false})).to_equal {a = false}
+  - it keeps an earlier false:
+      expect(merged({a = false}, {b = 1})).to_equal {a = false, b = 1}
+  - it skips nil arguments:
+      expect(merged(nil, {a = 1}, nil, {b = 2}, nil)).to_equal {a = 1, b = 2}
+  - it leaves its arguments as they were:
+      a, b = {x = 1}, {x = 2}
+      merged(a, b)
+      expect(a).to_equal {x = 1}
+      expect(b).to_equal {x = 2}
+
+- describe hoist:
+  - before:
+      hoist = functional.hoist
+
+  - it merges the entries for the keys, the first key winning:
+      expect(hoist({'a', 'b'}, {a = {x = 1}, b = {x = 2, y = 3}})).to_equal {x = 1, y = 3}
+  - it skips keys without entries:
+      expect(hoist({'a', 'z', 'b'}, {a = {x = 1}, b = {y = 2}})).to_equal {x = 1, y = 2}
+  - it returns nil for nothing:
+      expect(hoist({'z'}, {a = {x = 1}})).to_be(nil)
+      expect(hoist({}, {a = {x = 1}})).to_be(nil)
+  - it leaves the entries as they were:
+      dict = {a = {x = 1}, b = {x = 2}}
+      hoist({'a', 'b'}, dict)
+      expect(dict).to_equal {a = {x = 1}, b = {x = 2}}
+
 - describe tabulate:
   - before:
       tabulate = functional.tabulate

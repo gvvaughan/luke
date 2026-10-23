@@ -234,6 +234,35 @@ local function tabulate(seq, fn)
 end
 
 
+-- A copy of *seq* in reverse order.
+local function reversed(seq)
+   local items, n = {}, 0
+   walk(seq, function(v)
+      n = n + 1
+      items[n] = v
+   end)
+   local r = {n = n}
+   for i = 1, n do
+      r[n - i + 1] = items[i]
+   end
+   return r
+end
+
+
+-- A new table with the entries of each of the tables *...*, skipping
+-- nils, where the last table with a key wins, even if its value is
+-- false.  Only the entries are copied, not any metatable.
+local function merged(...)
+   local r, argu = {}, pack(...)
+   for i = 1, argu.n do
+      for k, v in next, argu[i] or {} do
+         r[k] = v
+      end
+   end
+   return r
+end
+
+
 -- The set of the items of *seq*, as a table with each of them a key
 -- for `true`.
 local function set(seq)
@@ -442,12 +471,12 @@ return {
       return (dict or {})[key]
    end,
 
+   -- The entries of *dict* for the keys in *keylist*, merged, where the
+   -- first key with an entry for a name wins; or nil if there are none.
    hoist = function(keylist, dict)
-      local r = {}
-      each(keylist, function(key)
-         merge(r, dict[key])
-      end)
-      return either(r, nil)
+      return either(foldl(reversed(keylist), {}, function(r, key)
+         return merged(r, dict[key])
+      end), nil)
    end,
 
    id = id,
@@ -502,6 +531,8 @@ return {
       end
       return r
    end,
+
+   merged = merged,
 
    nop = function() end,
 
@@ -571,19 +602,7 @@ return {
 
    reject = reject,
 
-   -- A copy of *seq* in reverse order.
-   reversed = function(seq)
-      local items, n = {}, 0
-      walk(seq, function(v)
-         n = n + 1
-         items[n] = v
-      end)
-      local r = {n = n}
-      for i = 1, n do
-         r[n - i + 1] = items[i]
-      end
-      return r
-   end,
+   reversed = reversed,
 
    set = set,
 
