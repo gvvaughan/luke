@@ -185,7 +185,7 @@ return {
          )
 
          -- Filter out all comment and whitespace tokens.
-         local tokens = except(tokenize(fname), function(token)
+         local tokens = reject(tokenize(fname), function(token)
             return token[1] == 'COMMENT' or token[1] == 'WHITESPACE'
          end)
 

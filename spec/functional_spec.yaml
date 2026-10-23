@@ -137,9 +137,9 @@ specify luke.functional:
       ordered_pluck = functional.ordered_pluck
 
   - it keeps the pairs for the given keys, in their own order: |
-      expect(ordered_pluck({'c', 'b'}, {{b = 1}, {a = 2}, {c = 3}})).to_equal {{b = 1}, {c = 3}}
+      expect(ordered_pluck({'c', 'b'}, {{b = 1}, {a = 2}, {c = 3}})).to_equal(list({b = 1}, {c = 3}))
   - it keeps nothing from nil: |
-      expect(ordered_pluck({'a'}, nil)).to_equal {}
+      expect(ordered_pluck({'a'}, nil)).to_equal(list())
 
 - describe ordered_mapvalues:
   - before:
@@ -164,3 +164,131 @@ specify luke.functional:
   - it separates a list according to a predicate:
       expect(square).to_equal(list(1, 4, 9))
       expect(nonsquare).to_equal(list(2, 3, 5, 6, 7, 8))
+
+- describe foldl:
+  - before:
+      foldl = functional.foldl
+
+  - it folds from the left, passing the accumulator first:
+      expect(foldl({'b', 'c'}, 'a', function(acc, e) return acc .. e end)).to_be 'abc'
+  - it defaults the accumulator to an empty table:
+      expect(foldl({'a', 'b'}, function(acc, e) acc[#acc + 1] = e end)).to_equal {'a', 'b'}
+  - it keeps the accumulator when the function returns nil:
+      expect(foldl({1, 2, 3}, 0, function(acc, e)
+         if e ~= 2 then return acc + e end
+      end)).to_be(4)
+  - it can accumulate false:
+      expect(foldl({1}, true, function() return false end)).to_be(false)
+  - it passes every result of an iterator function:
+      i = 0
+      next_item = function()
+         i = i + 1
+         if i <= 2 then return i, 'x' .. i end
+      end
+      expect(foldl(next_item, {}, function(acc, n, s) acc[n] = s end)).to_equal {'x1', 'x2'}
+
+- describe filter:
+  - before:
+      filter = functional.filter
+
+  - it lists the items that pass a predicate function, with n:
+      expect(filter({1, 2, 3, 4}, function(e) return e % 2 == 0 end)).to_equal(list(2, 4))
+  - it compares items with anything that is not a function:
+      expect(filter({1, 2, 1}, 1)).to_equal(list(1, 1))
+  - it treats a callable table as a value:
+      callable = setmetatable({}, {__call = function() return true end})
+      expect(filter({callable, 1}, callable)).to_equal(list(callable))
+
+- describe reject:
+  - before:
+      reject = functional.reject
+
+  - it lists the items that fail a predicate function, with n:
+      expect(reject({1, 2, 3, 4}, function(e) return e % 2 == 0 end)).to_equal(list(1, 3))
+  - it rejects items equal to anything that is not a function:
+      expect(reject({1, 2, 1}, 1)).to_equal(list(2))
+  - it rejects nil items:
+      expect(reject(list('a', nil, 'b'), nil)).to_equal(list('a', 'b'))
+
+- describe some:
+  - before:
+      some = functional.some
+
+  - it is true if any item is truthy:
+      expect(some {false, 1}).to_be(true)
+  - it is false otherwise:
+      expect(some {false, nil}).to_be(false)
+      expect(some {}).to_be(false)
+  - it tests with a predicate:
+      expect(some({1, 2}, function(e) return e > 1 end)).to_be(true)
+      expect(some({1, 2}, 3)).to_be(false)
+
+- describe contains:
+  - before:
+      contains = functional.contains
+
+  - it is true or false:
+      expect(contains({'a', 'b'}, 'b')).to_be(true)
+      expect(contains({'a', 'b'}, 'c')).to_be(false)
+  - it tests with a predicate function:
+      expect(contains({1, 2}, function(e) return e > 1 end)).to_be(true)
+
+- describe dropuntil:
+  - before:
+      dropuntil = functional.dropuntil
+
+  - it returns the first item that passes a predicate:
+      expect(dropuntil({1, 2, 3, 4}, function(e) return e > 2 end)).to_be(3)
+  - it passes any non-nil item with a nil predicate:
+      expect(dropuntil(list(nil, false, 1))).to_be(false)
+  - it returns every result of the first call of a block that passes:
+      calls = 0
+      local a, b = dropuntil({1, 2, 3}, nil, function(e)
+         calls = calls + 1
+         if e == 2 then return 'two', e end
+      end)
+      expect({a, b}).to_equal {'two', 2}
+      expect(calls).to_be(2)
+  - it tests the first result of a block with a predicate:
+      expect(dropuntil({1, 2, 3}, function(r) return r > 4 end, function(e) return e * 2 end)).to_be(6)
+  - it returns nothing if no item passes:
+      expect(dropuntil({1, 2}, 3)).to_be(nil)
+
+- describe mapvalues:
+  - before:
+      mapvalues = functional.mapvalues
+
+  - it keeps keys and stores false results:
+      expect(mapvalues({a = 1, b = 2}, function(v) return v == 2 end)).to_equal {a = false, b = true}
+  - it leaves out keys for nil results:
+      expect(mapvalues({a = 1, b = 2}, function(v) if v == 2 then return v end end)).to_equal {b = 2}
+
+- describe case:
+  - before:
+      case = functional.case
+
+  - it matches a key, calling a function branch with the value:
+      expect(case('a', {a = function(s) return s .. '!' end})).to_be 'a!'
+  - it matches the first pattern pair, with its captures:
+      expect(case('k=v', {{'%a=%a', 'first'}, {'(%a)=(%a)', 'second'}})).to_be 'first'
+      expect(case('k=v', {{'(%a)=(%a)', function(k, v) return v .. k end}})).to_be 'vk'
+  - it anchors patterns:
+      expect(case('xk=v', {{'k=v', 'no'}, default = 'dflt'})).to_be 'dflt'
+  - it prefers a key to a pattern:
+      expect(case('a', {{'%a', 'pattern'}, a = 'key'})).to_be 'key'
+  - it falls back to default, calling it with the value:
+      expect(case('z', {{'%d', 'no'}, default = function(s) return s .. '?' end})).to_be 'z?'
+      expect(case('z', {default = false})).to_be(false)
+
+- describe cond:
+  - before:
+      cond = functional.cond
+
+  - it returns the branch of the first clause with a truthy test:
+      expect(cond({false, 'a'}, {1, 'b'}, {true, 'c'})).to_be 'b'
+  - it calls a function branch with the test:
+      expect(cond({'t', function(x) return x .. '!' end})).to_be 't!'
+  - it passes over a nil test:
+      expect(cond({nil, 'a'}, {true, 'b'})).to_be 'b'
+  - it returns nil when no test is truthy:
+      expect(cond({false, 'a'})).to_be(nil)

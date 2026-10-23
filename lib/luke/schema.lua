@@ -116,7 +116,7 @@ local function fields(schema, others)
    -- Each leg is wrapped, as `choose` would call a normalizer.
    local rest = choose(others == true, function() return id end, function() return others end)
    return setmetatable({schema = schema}, {__call = function(_, x, path)
-      return mkcheck 'table'(x, path) and reduce(keys(x), {}, function(r, k)
+      return mkcheck 'table'(x, path) and foldl(keys(x), {}, function(r, k)
          local normalize = schema[k] or rest or bind(bad, {path, "unsupported key '%s'", str(k)})
          r[k] = normalize(x[k], index(path, k))
       end)
@@ -142,7 +142,7 @@ end
 -- back to the parent.
 local function pathname(x, path)
    choose(mkcheck 'string'(x, path) == '', bind(bad, {path, 'empty path'}))
-   local r = x and match(x, '^/?') .. concat(except(gmatch(x, '[^/]+'), '.'), '/')
+   local r = x and match(x, '^/?') .. concat(reject(gmatch(x, '[^/]+'), '.'), '/')
    return choose(r == '', '.', r)
 end
 
@@ -197,7 +197,7 @@ local function definition(x, path)
          return {[name] = value}
       end,
 
-      function(kind)
+      default = function(kind)
          bad(path, 'string or table expected, got %s', kind)
       end,
    })
@@ -240,7 +240,7 @@ local function ordered_map(entry)
          bad(index(path, k), 'list entry expected, such as {%s = ...}', index('', k))
       end)
       local r = list_of(narrowed)(layer, path)
-      reduce(r, {}, function(seen, pair)
+      foldl(r, {}, function(seen, pair)
          claim(seen, (next(pair)), true, path)
       end)
       return r
@@ -322,7 +322,7 @@ local function rules(x, path)
          return x
       end,
 
-      function(kind)
+      default = function(kind)
          bad(path, 'string or table expected, got %s', kind)
       end,
    })
@@ -359,7 +359,7 @@ local function script(x, path)
          return program(x, path)
       end,
 
-      function(kind)
+      default = function(kind)
          bad(path, 'string or table expected, got %s', kind)
       end,
    })
@@ -389,7 +389,7 @@ local function mkscripts(mkname)
             return pair(x, path)
          end,
 
-         function(kind)
+         default = function(kind)
             bad(path, 'string or table expected, got %s', kind)
          end,
       })
@@ -441,7 +441,7 @@ local function copy_entry(x, path)
          return copy_pair(x, path)
       end,
 
-      function(kind)
+      default = function(kind)
          bad(path, 'string or table expected, got %s', kind)
       end,
    })
@@ -469,7 +469,7 @@ local function copies(x, path)
    r.command = mkcheck 'string'(x.command, index(path, 'command'))
    -- Every path written: each destination, then the path that each
    -- template copied under its own name is filled into.
-   local written = reduce(ordered_keys(r), {}, function(written, dest)
+   local written = foldl(ordered_keys(r), {}, function(written, dest)
       written[dest] = true
    end)
    map(r or {}, function(pair)

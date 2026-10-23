@@ -46,8 +46,8 @@ local function defines(...)
    return map(ordered_merge(...), function(definition)
       local name, value = destructure(definition)
       local fmt = cond(
-         {[int(value) == 1] = '-D%s'},
-         {[true] = '-D%s=%s'}
+         {int(value) == 1, '-D%s'},
+         {true, '-D%s=%s'}
       )
       return format(fmt, name, shellword(value))
    end)
@@ -109,14 +109,14 @@ end
 
 
 local function module_to_path(module, sources, objdir)
-   return dropuntil(sources, function(source)
+   return dropuntil(sources, nil, function(source)
       return case(source, {
-         ['.*%.[ch]']       = bind(c_source,   {module, objdir}),
-         ['(.*%.[ch])%.in'] = bind(c_source,   {module, objdir}),
-         ['.*%.lua']        = bind(lua_source, {module}),
-         ['(.*%.lua)%.in']  = bind(lua_source, {module}),
+         {'.*%.[ch]',       bind(c_source,   {module, objdir})},
+         {'(.*%.[ch])%.in', bind(c_source,   {module, objdir})},
+         {'.*%.lua',        bind(lua_source, {module})},
+         {'(.*%.lua)%.in',  bind(lua_source, {module})},
 
-         function(src)
+         default = function(src)
             fatal("unsupported source type '%s'", src)
          end,
       })
@@ -160,7 +160,7 @@ return {
    incdirs = incdirs,
 
    install_modules = function(L, env, luke, modules)
-      return reduce(ordered_keys(modules), 0, function(status, name)
+      return foldl(ordered_keys(modules), 0, function(status, name)
          if status == 0 then
             local src, dir = module_to_path(name, ordered_get(modules, name).sources, luke.variables.objdir)
             if not exists(interpolate(env, dir)) then
@@ -234,7 +234,7 @@ return {
       if not exists(interpolate(env, '$INST_BINDIR')) then
          status = run(L, env, {'$MAKEDIRS', '$INST_BINDIR'})
       end
-      return reduce(names, status, function(status, name)
+      return foldl(names, status, function(status, name)
          local rules = ordered_get(luke.install.bin, name)
          local src = script_target(name, rules, luke.variables.objdir, true)
          local dest = '$INST_BINDIR/' .. name

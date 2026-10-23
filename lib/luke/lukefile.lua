@@ -66,7 +66,7 @@ local LUKEFILE = fields({
 
 
 local function has_anykey(t, keylist)
-   return any(map(keylist, function(k)
+   return some(map(keylist, function(k)
       return t[k] ~= nil
    end))
 end
@@ -84,22 +84,16 @@ local function collect_configs(luke, modulename, configs, sectionname)
    configs = configs or {}
    map(sorted_keys(luke), function(k)
       local v = luke[k]
-      cond({
-         [isconfig(v)] = function()
-            append(configs, {t=luke, k=k, module=modulename, section=sectionname, order=len(configs) + 1})
-         end,
-      }, {
-         [istable(v) and (k == 'modules' or k == 'external_dependencies')] = function()
-            map(v, function(pair)
-               local name, rules = destructure(pair)
-               collect_configs(rules, name, configs, k)
-            end)
-         end,
-      }, {
-         [istable(v)] = function()
-            collect_configs(v, modulename, configs, sectionname)
-         end,
-      })
+      cond({isconfig(v), function()
+         append(configs, {t=luke, k=k, module=modulename, section=sectionname, order=len(configs) + 1})
+      end}, {istable(v) and (k == 'modules' or k == 'external_dependencies'), function()
+         map(v, function(pair)
+            local name, rules = destructure(pair)
+            collect_configs(rules, name, configs, k)
+         end)
+      end}, {istable(v), function()
+         collect_configs(v, modulename, configs, sectionname)
+      end})
    end)
    return configs
 end
@@ -108,8 +102,8 @@ end
 local function deepcopy(t)
    return mapvalues(t, function(v)
       return case(type(v), {
-         ['table'] = function() return deepcopy(v) end,
-         v,
+         table = function() return deepcopy(v) end,
+         default = v,
       })
    end)
 end
@@ -147,7 +141,7 @@ end
 
 local function rewrite_template_files(L, env, source)
    return case(source, {
-      ['(.+)%.in'] = function(r)
+      {'(.+)%.in', function(r)
          -- Fill each template once, even when a module and a script
          -- share it.
          if not L.filled[r] then
@@ -158,9 +152,9 @@ local function rewrite_template_files(L, env, source)
             end
          end
          return r
-      end,
+      end},
 
-      source,
+      default = source,
    })
 end
 
@@ -185,13 +179,13 @@ end
 
 local function normalize_configs(config)
    return cond({
-      [not istable(config)] = config,
+      not istable(config), config,
    }, {
-      [not isconfig(config)] = function()
+      not isconfig(config), function()
          return mapvalues(config, normalize_configs)
       end,
    }, {
-      [true] = function()
+      true, function()
          local keymap = {
             include = 'includes',
             prog = 'progs',
@@ -200,7 +194,7 @@ local function normalize_configs(config)
          return foldkeys(keymap, config, function(a, b)
             local r = istable(a) and copy(a) or {a}
             b = istable(b) and b or {b}
-            return reduce(b, r, function(r, v)
+            return foldl(b, r, function(r, v)
                return append(r, v)
             end)
          end)

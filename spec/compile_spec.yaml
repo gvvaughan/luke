@@ -87,12 +87,12 @@ specify luke.compile:
          {['posix.ctype'] = {sources={'ext/posix/ctype.c'}}},
          {['posix.fcntl'] = {sources={'ext/posix/fcntl.c'}}},
          {['posix.dirent'] = {sources={'ext/posix/dirent.c'}}},
-      }).to_equal {'posix.unistd', 'posix.ctype', 'posix.fcntl', 'posix.dirent'}
+      }).to_equal(list('posix.unistd', 'posix.ctype', 'posix.fcntl', 'posix.dirent'))
   - it lists only modules built from C sources:
       expect(compile.c_modules {
          {['posix.unistd'] = {sources={'ext/posix/unistd.c'}}},
          {['posix.version'] = {sources={'lib/posix/version.lua.in'}}},
-      }).to_equal {'posix.unistd'}
+      }).to_equal(list('posix.unistd'))
 
 - describe spawn:
   - before:

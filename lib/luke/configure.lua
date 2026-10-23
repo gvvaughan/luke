@@ -113,7 +113,7 @@ end
 
 local function check_executable_in_path(L, env, config, prog)
    local PATH = concat(bindirs(config.bindir)) .. getenv('PATH')
-   local found = dropuntil(gmatch(PATH, '[^:]+'), function(path)
+   local found = dropuntil(gmatch(PATH, '[^:]+'), nil, function(path)
       local progpath = path .. '/' .. prog
       return with(File(progpath, 'r'), function(h)
          return h and isfile(h.context) and progpath or nil
@@ -298,7 +298,7 @@ end
 
 local configure = setmetatable(OrderedDict({
    checkprog = function(L, env, config)
-      return dropuntil(config.progs, function(prog)
+      return dropuntil(config.progs, nil, function(prog)
          checking(L, 'for', prog)
          if found_prog(L, check_executable_in_path(L, env, config, prog)) then
             return prog
@@ -339,10 +339,10 @@ local configure = setmetatable(OrderedDict({
 
       -- Look for required symbol in libc, and then each of `libraries`.
       local libraries, symbol = config.libraries, config.checksymbol
-      local trylibs = reduce(libraries, {''}, function(r, lib)
+      local trylibs = foldl(libraries, {''}, function(r, lib)
          append(r, '-l' .. lib)
       end)
-      return dropuntil(trylibs, function(lib)
+      return dropuntil(trylibs, nil, function(lib)
          if try_link(L, env, config, lib, symbol) == 0 then
             if lib ~= '' then
                if CONFIGENV.libs ~= '' then
@@ -388,7 +388,7 @@ local configure = setmetatable(OrderedDict({
          end,
 
          ['table'] = function()
-            return dropuntil(self, function(fname)
+            return dropuntil(self, nil, function(fname)
                if config[fname] ~= nil then
                   add_external_deps(env, config, prefix)
                   return apply(self[fname], list(L, env, config))
@@ -397,7 +397,7 @@ local configure = setmetatable(OrderedDict({
                concat(keys(config), "', '"))
          end,
 
-         function(type)
+         default = function(type)
             fatal("unsupported configure type '%s'", type)
          end,
       })

@@ -162,7 +162,7 @@ end
 -- *pairs* replaced, in the order written, as plain text rather than as
 -- a pattern, by its replacement, filled from *substitute*.
 local function replace(text, substitute, pairs)
-   return reduce(pairs, text, function(r, pair)
+   return foldl(pairs, text, function(r, pair)
       local find, replacement = destructure(pair)
       return (gsub(r, (gsub(find, '%p', '%%%0')), (gsub(expand(substitute, replacement), '%%', '%%%%'))))
    end)
@@ -204,7 +204,7 @@ local function publish_steps(L, env, substitute, worktree, copies)
       local source, optional = copy.source, copy.optional
       local dest = worktree .. '/' .. path
       local template = match(source, '%.in$') ~= nil
-      return except(list(
+      return reject(list(
          choose(optional or not template, function()
             return bind(run, {L, env, copy_command(source, worktree, path, optional)})
          end),
@@ -264,7 +264,7 @@ local function preconditions(env, release, version, main, substitute)
       end})
       -- Each find string is looked for in the text that the
       -- replacements before it leave.
-      reduce(pairs, {}, function(before, pair)
+      foldl(pairs, {}, function(before, pair)
          local text, earlier = destructure(pair), copy(before)
          append(checks, {format("%s contains '%s'", path, text), function()
             local content = slurp(File(path))
@@ -324,7 +324,7 @@ end
 -- The undo command of each of *checks* that fails now, after a failed
 -- release, in order and without repeats.
 local function undo_commands(checks)
-   return reduce(filter(checks, function(check)
+   return foldl(filter(checks, function(check)
       local _, predicate, undo = unpack(check)
       return undo ~= nil and not predicate()
    end), {}, function(r, check)
@@ -410,7 +410,7 @@ return {
       local version, main = L.release, git(env, 'symbolic-ref --short HEAD')
       local substitute = mkenv({version = version}, L.clidefs, L.luke.substitute, SHELLENV)
       local checks = preconditions(env, L.luke.release or {}, version, main, substitute)
-      local failed = dropuntil(checks, function(check)
+      local failed = dropuntil(checks, nil, function(check)
          local description, predicate = unpack(check)
          L.verbose('checking whether ', description, '... ')
          local ok = predicate()
@@ -439,7 +439,7 @@ return {
       -- A temporary worktree for updating each branch that the release
       -- copies files to.
       local pages = branches(rules)
-      local worktrees = reduce(pages, {}, function(r, branch)
+      local worktrees = foldl(pages, {}, function(r, branch)
          r[branch] = tmpname()
          rm(r[branch])
       end)

@@ -29,7 +29,7 @@ local CANON = {
 
 
 -- The set of all available generic platform names.
-local ALLPLATFORMS = reduce(values(CANON), function(acc, platforms)
+local ALLPLATFORMS = foldl(values(CANON), function(acc, platforms)
    map(platforms, function(v)
       acc[v] = true
    end)
@@ -67,7 +67,7 @@ end
 local function selected(platforms, supported, isplatform)
    local matches = map(filter(supported, bind(get, {platforms})), bind(get, {platforms}))
    return choose(isempty(matches), function()
-      return {pluck(except(keys(platforms), isplatform), platforms)}
+      return {pluck(reject(keys(platforms), isplatform), platforms)}
    end, function()
       return matches
    end)
@@ -79,7 +79,7 @@ end
 -- there for each supported platform, or else its defaults.
 local function layers(t, using, predicate)
    local supported, isplatform = using or supported, predicate or isplatform
-   local own = pluck(except(keys(t), 'platforms'), t) or {}
+   local own = pluck(reject(keys(t), 'platforms'), t) or {}
    return {own, unpack(reversed(selected(t.platforms or {}, supported, isplatform)))}
 end
 
@@ -106,12 +106,12 @@ local function filter_platforms(t, using, predicate, opaque)
    local tables = map(layers(t, supported, isplatform), function(layer)
       return layer.platforms and narrow(layer) or layer
    end)
-   local r = reduce(tables, {}, function(r, layer)
+   local r = foldl(tables, {}, function(r, layer)
       map(layer, function(v)
          r[len(r) + 1] = narrow(v)
       end)
    end)
-   return reduce(reversed(tables), r, function(r, layer)
+   return foldl(reversed(tables), r, function(r, layer)
       map(filter(keys(layer), function(k)
          return not islistkey(layer, k) and r[k] == nil
       end), function(k)

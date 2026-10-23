@@ -29,34 +29,32 @@ local function call(fn, ...)
 end
 
 
-local function wrapnonnil(iterator)
-   return function(...)
-      local r = list(iterator(...))
-      if r[1] ~= nil then
-         return r
-      end
-   end
-end
-
-
-local function each(seq)
+-- Call *visit* with all the results of each item of *seq*, until it
+-- returns something truthy, and then return true.  The items of a table
+-- are its values from 1 to its `n` field or length, so holes are
+-- visited; those of an iterator function end with its first nil result.
+local function each(seq, visit)
    if type(seq) == 'function' then
-      return wrapnonnil(seq)
+      local function loop(...)
+         if ... ~= nil then
+            if visit(...) then
+               return true
+            end
+            return loop(seq())
+         end
+      end
+      return loop(seq())
    end
-   local i, n = 0, int(seq.n) or len(seq)
-   return function()
-      if i < n then
-         i = i + 1
-         return list(seq[i])
+   for i = 1, int(seq.n) or len(seq) do
+      if visit(seq[i]) then
+         return true
       end
    end
 end
 
 
-local function eq(x)
-   return function(y)
-      return x == y
-   end
+local function id(...)
+   return ...
 end
 
 
@@ -65,33 +63,40 @@ local function isnonnil(x)
 end
 
 
--- Not `choose`, which would call a function-valued *x* rather than
--- return it.
-local function mkpredicate(x)
+-- Only a function is a predicate, anything else is a value to compare
+-- with, as `==`.  Not `choose`, which would call a function-valued *x*
+-- rather than return it.
+local function topredicate(x)
    if type(x) == 'function' then
       return x
    end
-   return eq(x)
-end
-
-
-local function except(seq, predicate)
-   predicate = mkpredicate(predicate)
-   local r = {}
-   for valu in each(seq) do
-      if not predicate(unpack(valu)) then
-         r[#r + 1] = unpack(valu)
-      end
+   return function(y)
+      return y == x
    end
-   return r
 end
+
+
+-- A function to list the items of *seq* that pass a predicate, or those
+-- that fail it.
+local function keeper(passes)
+   return function(seq, predicate)
+      predicate = topredicate(predicate)
+      local r = list()
+      each(seq, function(...)
+         if not predicate(...) == not passes then
+            append(r, (...))
+         end
+      end)
+      return r
+   end
+end
+
+local filter, reject = keeper(true), keeper(false)
 
 
 local function visit(x)
    if type(x) == 'table' then
-      for valu in each(x) do
-         visit(unpack(valu))
-      end
+      each(x, visit)
    else
       yield(x)
    end
@@ -100,7 +105,7 @@ end
 
 local function flatten(...)
    local r = {}
-   for v in wrap(visit), except(list(...), nil) do
+   for v in wrap(visit), reject(list(...), nil) do
       r[#r + 1] = v
    end
    return r
@@ -116,27 +121,21 @@ local function keys(iterable)
 end
 
 
-local function reduce(seq, acc, block)
-   if block == nil then
-      acc, block = {}, acc
+local function foldl(seq, acc, fn)
+   if fn == nil then
+      acc, fn = {}, acc
    end
-   for valu in each(seq) do
-      acc = block(acc, unpack(valu)) or acc
-   end
+   each(seq, function(...)
+      local r = fn(acc, ...)
+      if r ~= nil then
+         acc = r
+      end
+   end)
    return acc
 end
 
 
 return {
-   any = function(seq)
-      for valu in each(seq) do
-         if unpack(valu) then
-            return true
-         end
-      end
-      return false
-   end,
-
    apply = apply,
 
    bind = function(fn, bound)
@@ -174,29 +173,36 @@ return {
       end
    end,
 
+   -- The branch for *s* as a key, or for the first `{pattern, branch}`
+   -- pair in the array part of *branches* whose pattern matches the
+   -- string *s*, anchored, or else `branches.default`.  A callable
+   -- branch is called with *s*, or the captures of the pattern.
    case = function(s, branches)
       if branches[s] ~= nil then
          return call(branches[s], s)
       end
-      local DEFAULT = 1
-      for pattern, fn in next, branches do
-         if s ~= nil and pattern ~= DEFAULT then
-            local argu = list(match(s, '^' .. pattern .. '$'))
-            if argu[1] ~= nil then
-               return apply(fn, argu)
+      if type(s) == 'string' then
+         for i = 1, len(branches) do
+            local pattern, branch = unpack(branches[i], 1, 2)
+            local captures = list(match(s, '^' .. pattern .. '$'))
+            if captures[1] ~= nil then
+               return apply(branch, captures)
             end
          end
       end
-      local default = branches[DEFAULT]
+      local default = branches.default
       if iscallable(default) then
          return call(default, s)
       end
       return default
    end,
 
+   -- The branch of the first `{test, branch}` clause in *...* whose
+   -- test is truthy, called with the test if it is callable.
    cond = function(...)
-      for clauseu in each(list(...)) do
-         local expr, consequence = destructure(unpack(clauseu))
+      local clauses = list(...)
+      for i = 1, clauses.n do
+         local expr, consequence = unpack(clauses[i], 1, 2)
          if expr then
             return call(consequence, expr)
          end
@@ -204,52 +210,36 @@ return {
    end,
 
    contains = function(seq, predicate)
-      if type(predicate) ~= 'function' then
-         predicate = eq(predicate)
-      end
-      for valu in each(seq) do
-         if predicate(unpack(valu)) then
-            return true
-         end
-      end
+      return each(seq, topredicate(predicate)) == true
    end,
 
    destructure = destructure,
 
+   -- The first item of *seq* that passes *predicate*, or with *block*
+   -- the first call of it with an item that passes, without calling it
+   -- for later items.  A nil *predicate* passes any non-nil.  Unlike
+   -- std.functional's `detect`, all the results of the passing call are
+   -- returned, rather than only the first.
    dropuntil = function(seq, predicate, block)
-      if block == nil then
-         predicate, block = isnonnil, predicate
+      predicate = topredicate(predicate == nil and isnonnil or predicate)
+      local found
+      local function test(...)
+         if predicate(...) then
+            found = list(...)
+            return true
+         end
       end
-      if block ~= nil then
-         for valu in each(seq) do
-            local r = list(block(unpack(valu)))
-            if predicate(unpack(r)) then
-               return unpack(r)
-            end
-         end
-      else
-         for r in each(seq) do
-            if predicate(unpack(r)) then
-               return unpack(r)
-            end
-         end
+      each(seq, block and function(...) return test(block(...)) end or test)
+      if found then
+         return unpack(found, 1, found.n)
       end
    end,
 
-   except = except,
-
-   filter = function(seq, predicate)
-      predicate = mkpredicate(predicate)
-      local r = {}
-      for valu in each(seq) do
-         if predicate(unpack(valu)) then
-            r[#r + 1] = unpack(valu)
-         end
-      end
-      return r
-   end,
+   filter = filter,
 
    flatten = flatten,
+
+   foldl = foldl,
 
    foldkeys = function(keymap, dict, combinator)
       local r = {}
@@ -270,15 +260,13 @@ return {
 
    hoist = function(keylist, dict)
       local r = {}
-      for keyu in each(keylist) do
-         merge(r, dict[unpack(keyu)])
-      end
+      each(keylist, function(key)
+         merge(r, dict[key])
+      end)
       return next(r) and r or nil
    end,
 
-   id = function(...)
-      return ...
-   end,
+   id = id,
 
    -- Whether *x* is a table with no elements, counting a `list` with
    -- only its `n = 0` field as empty.
@@ -321,16 +309,18 @@ return {
 
    map = function(seq, block)
       local r = list()
-      for valu in each(seq) do
-         append(r, block(unpack(valu)))
-      end
+      each(seq, function(...)
+         append(r, (block(...)))
+      end)
       return r
    end,
 
+   -- *iterable* with the result of calling *block* with each value,
+   -- which can be false, and leaves out a key for nil.
    mapvalues = function(iterable, block)
       local r = {}
       for k, v in next, iterable or {} do
-         r[k] = block(v) or v
+         r[k] = block(v)
       end
       return r
    end,
@@ -342,8 +332,8 @@ return {
    -- value of the last pair for that key.
    ordered_merge = function(...)
       local at = {}
-      return reduce(except(list(...), nil), {}, function(r, pairs)
-         reduce(pairs, r, function(r, pair)
+      return foldl(reject(list(...), nil), {}, function(r, pairs)
+         foldl(pairs, r, function(r, pair)
             local k, v = destructure(pair)
             at[k] = at[k] or #r + 1
             r[at[k]] = {[k] = v}
@@ -353,14 +343,14 @@ return {
 
    -- The value paired with *key* in the list of one-pair tables *om*.
    ordered_get = function(om, key)
-      return reduce(om or {}, nil, function(_, pair)
+      return foldl(om or {}, nil, function(_, pair)
          return pair[key]
       end)
    end,
 
    -- The key of each pair in the list of one-pair tables *om*, in order.
    ordered_keys = function(om)
-      return reduce(om or {}, list(), function(r, pair)
+      return foldl(om or {}, list(), function(r, pair)
          return append(r, (destructure(pair)))
       end)
    end,
@@ -368,7 +358,7 @@ return {
    -- A copy of the list of one-pair tables *om*, with *fn* applied to
    -- the value of each pair.
    ordered_mapvalues = function(om, fn)
-      return reduce(om or {}, {}, function(r, pair)
+      return foldl(om or {}, {}, function(r, pair)
          local k, v = destructure(pair)
          r[#r + 1] = {[k] = fn(v)}
       end)
@@ -377,36 +367,36 @@ return {
    -- The pairs in the list of one-pair tables *om* whose keys are in
    -- *keylist*, in the order of *om*.
    ordered_pluck = function(keylist, om)
-      local wanted = reduce(keylist, {}, function(r, k)
+      local wanted = foldl(keylist, {}, function(r, k)
          r[k] = true
       end)
-      return except(om or {}, function(pair)
+      return reject(om or {}, function(pair)
          return not wanted[(destructure(pair))]
       end)
    end,
 
-   partition = function(seq, block)
+   partition = function(seq, predicate)
+      predicate = topredicate(predicate)
       local r, s = list(), list()
-      for valu in each(seq) do
-         append(block(unpack(valu)) and r or s, unpack(valu))
-      end
+      each(seq, function(...)
+         append(predicate(...) and r or s, (...))
+      end)
       return r, s
    end,
 
    pluck = function(keylist, dict)
       local r = {}
-      for keyu in each(keylist) do
-         local key = unpack(keyu)
+      each(keylist, function(key)
          r[key] = dict[key]
-      end
+      end)
       return next(r) and r or nil
    end,
 
-   reduce = reduce,
+   reject = reject,
 
    -- A copy of *seq* in reverse order.
    reversed = function(seq)
-      return reduce(seq, {}, function(r, v)
+      return foldl(seq, {}, function(r, v)
          return {v, unpack(r)}
       end)
    end,
@@ -431,18 +421,16 @@ return {
       return r
    end,
 
+   -- Whether any item of *seq* passes *predicate*, by default if it is
+   -- truthy.
+   some = function(seq, predicate)
+      return each(seq, predicate == nil and id or topredicate(predicate)) == true
+   end,
+
    values = function(iterable)
       local r = list()
       for _, v in next, iterable or {} do
          append(r, v)
-      end
-      return r
-   end,
-
-   zip_with = function(iterable, block)
-      local r = list()
-      for k, v in next, iterable or {} do
-         append(r, block(k, v))
       end
       return r
    end,

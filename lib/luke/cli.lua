@@ -130,13 +130,13 @@ return {
                end
             end,
 
-            ['%-%-file=(.+)'] = function(optarg)
+            {'%-%-file=(.+)', function(optarg)
                r.fname = optarg
-            end,
+            end},
 
-            ['%-%-value=(.+)'] = function(optarg)
+            {'%-%-value=(.+)', function(optarg)
                r.valreqs[#r.valreqs + 1] = optarg
-            end,
+            end},
 
             ['--quiet'] = function()
                r.write = nop
@@ -150,11 +150,11 @@ return {
 
             ['--version'] = version,
 
-            ['([^-][^=]-)=(.+)'] = function(name, value)
+            {'([^-][^=]-)=(.+)', function(name, value)
                r.clidefs[name] = value
-            end,
+            end},
 
-            function(opt)
+            default = function(opt)
                if match(opt, '^-') ~= nil then
                   opterr("unrecognized option '%s'", opt)
                end
@@ -187,11 +187,11 @@ return {
          release = parsed.clidefs.version
          diagnose(release ~= nil, 'release needs a version=VERSION argument')
          case(release, {
-            ['%d+']           = nop,
-            ['%d+%.%d+']      = nop,
-            ['%d+%.%d+%.%d+'] = nop,
+            {'%d+',           nop},
+            {'%d+%.%d+',      nop},
+            {'%d+%.%d+%.%d+', nop},
 
-            function()
+            default = function()
                fatal("bad release version '%s': X, X.Y or X.Y.Z expected", release)
             end,
          })
@@ -203,16 +203,16 @@ return {
       local rulesets = {luke.modules, sections.bin, sections.files, installbin}
 
       local function hasrule(target)
-         return target == 'install' or any(map(rulesets, function(rules)
+         return target == 'install' or some(map(rulesets, function(rules)
             return ordered_get(rules, target) ~= nil
          end))
       end
 
       local targets = call(function()
          if isempty(parsed.targets) or contains(parsed.targets, 'all') then
-            return except(flatten(parsed.targets, map(rulesets, ordered_keys)), 'all')
+            return reject(flatten(parsed.targets, map(rulesets, ordered_keys)), 'all')
          end
-         local unknown = except(parsed.targets, hasrule)
+         local unknown = reject(parsed.targets, hasrule)
          diagnose(isempty(unknown), "no rule to make target '%s'", unknown[1])
          assert(len(parsed.targets) > 0, "no build targets specified")
          return parsed.targets
@@ -221,11 +221,11 @@ return {
       -- Each target names every module, script and file called that,
       -- and `install` alone installs every module and installable
       -- script.
-      local named = except(targets, 'install')
+      local named = reject(targets, 'install')
       local build = ordered_pluck(named, luke.modules)
       local scripts = {
-         build = reduce(SCRIPT_SECTIONS, list(), function(entries, section)
-            return reduce(ordered_keys(ordered_pluck(named, sections[section])), entries, function(entries, name)
+         build = foldl(SCRIPT_SECTIONS, list(), function(entries, section)
+            return foldl(ordered_keys(ordered_pluck(named, sections[section])), entries, function(entries, name)
                return append(entries, {name = name, section = section})
             end)
          end),
