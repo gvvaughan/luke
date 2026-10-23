@@ -186,3 +186,126 @@ specify luke.compile:
          return require 'luke.compile'.install_modules(...)
       end, L, env, luke, {{foo = {sources={'foo.txt'}}}})).
          to_fail_with "luke: fatal: unsupported source type 'foo.txt'\n"
+
+- describe script_target:
+  - it is the script beside its source without any .in suffix:
+      expect(compile.script_target('foo', 'bin/foo.in', 'obj', true)).to_be 'bin/foo'
+  - it is the name of a program that is not installed:
+      expect(compile.script_target('foo', {}, 'obj', false)).to_be 'foo'
+  - it is beneath the objdir for a program that is installed:
+      expect(compile.script_target('foo', {}, 'obj', true)).to_be 'obj/foo'
+
+- describe build_c_module:
+  - before:
+      env = E.mkenv({CC='cc', MAKEDIRS='mkdir -p'}, E.DEFAULTENV, E.SHELLENV)
+      luke = {variables = {objdir = 'obj'}, modules = {{foo = {sources = {'ext/foo.c'}}}}}
+
+  - it makes the directory, and then compiles and links: |
+      calls = {}
+      L = {
+         spawn = function(env, ...)
+            calls[#calls + 1] = table.concat({...}, ' ')
+            return 0, '', ''
+         end,
+         write = Stub(),
+      }
+      expect(compile.build_c_module(L, env, luke, 'foo')).to_be(0)
+      expect(#calls).to_be(2)
+      expect(calls[1]).to_be '$MAKEDIRS obj'
+      expect(calls[2]).to_contain 'ext/foo.c -o obj/foo.$LIB_EXTENSION'
+
+  - it returns the status of failing to make the directory: |
+      expect(capture(function(L, env, luke)
+         print(require 'luke.compile'.build_c_module(L, env, luke, 'foo'))
+      end, {spawn = function() return 3, 'boom', '' end, write = function() end}, env, luke)).
+         to_succeed_with '$MAKEDIRS obj\n3\n'
+
+- describe build_program:
+  - before:
+      env = E.mkenv({CC='cc', MAKEDIRS='mkdir -p'}, E.DEFAULTENV, E.SHELLENV)
+      luke = {variables = {objdir = 'obj'}}
+
+  - it makes the directory of a target beneath one, and then builds: |
+      calls = {}
+      L = {
+         spawn = function(env, ...)
+            calls[#calls + 1] = table.concat({...}, ' ')
+            return 0, '', ''
+         end,
+         write = Stub(),
+      }
+      expect((compile.build_program(L, env, luke, {}, 'obj/foo', {'foo.c'}))).to_be(0)
+      expect(calls[1]).to_be '$MAKEDIRS obj'
+      expect(calls[2]).to_contain 'foo.c -o obj/foo'
+
+  - it does not make a directory for a target in the current one:
+      calls = {}
+      L = {
+         spawn = function(env, ...)
+            calls[#calls + 1] = table.concat({...}, ' ')
+            return 0, '', ''
+         end,
+         write = Stub(),
+      }
+      expect((compile.build_program(L, env, luke, {}, 'foo', {'foo.c'}))).to_be(0)
+      expect(#calls).to_be(1)
+
+  - it exports the variables of a command in sorted order:
+      calls = {}
+      L = {
+         spawn = function(env, ...)
+            calls[#calls + 1] = table.concat({...}, ' ')
+            return 0, '', ''
+         end,
+         write = Stub(),
+      }
+      rules = {command = {'gen', '$target'}, env = {B = 'b', A = 'a'}}
+      expect((compile.build_program(L, env, luke, rules, 'foo', {'foo.in'}))).to_be(0)
+      expect(calls[1]).to_be 'export A=a B=b ; gen $target'
+
+  - it returns the status of failing to make the directory: |
+      expect(capture(function(L, env, luke)
+         print(require 'luke.compile'.build_program(L, env, luke, {}, 'obj/foo', {'foo.c'}))
+      end, {spawn = function() return 3, 'boom', '' end, write = function() end}, env, luke)).
+         to_succeed_with '$MAKEDIRS obj\n3\n'
+
+- describe install_scripts:
+  - before:
+      dest = tmpdir()
+      env = E.mkenv({INST_BINDIR=dest .. '/bin'}, E.DEFAULTENV, E.SHELLENV)
+      luke = {
+         variables = {objdir = 'obj'},
+         install = {bin = {{foo = 'bin/foo.in'}, {bar = 'bin/bar.in'}}},
+      }
+
+  - it installs nothing without scripts:
+      expect(compile.install_scripts({}, env, luke, {})).to_be(0)
+
+  - it makes the directory, and then installs and makes each executable: |
+      written = {}
+      L = {
+         spawn = function() return 0, '', '' end,
+         write = function(s) written[#written + 1] = s end,
+      }
+      expect(compile.install_scripts(L, env, luke, {'foo', 'bar'})).to_be(0)
+      commands = {}
+      for _, s in ipairs(written) do
+         if s ~= '\n' then commands[#commands + 1] = s end
+      end
+      expect(commands).to_equal {
+         'mkdir -p ' .. dest .. '/bin',
+         'cp bin/foo ' .. dest .. '/bin/foo',
+         'chmod +x ' .. dest .. '/bin/foo',
+         'cp bin/bar ' .. dest .. '/bin/bar',
+         'chmod +x ' .. dest .. '/bin/bar',
+      }
+
+  - it stops at the first failure: |
+      expect(capture(function(L, env, luke)
+         calls = {}
+         L.spawn = function(env, ...)
+            calls[#calls + 1] = table.concat({...}, ' ')
+            return #calls == 2 and 5 or 0, '', ''
+         end
+         print(require 'luke.compile'.install_scripts(L, env, luke, {'foo', 'bar'}), #calls)
+      end, {write = function() end}, env, luke)).to_succeed_with '5\t2\n'

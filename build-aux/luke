@@ -96,55 +96,38 @@ stderr:write(err..'\n')end
 return status,out,err
 end
 local function defines(...)return map(ordered_merge(...),function(definition)local name,value=destructure(definition)local fmt=cond({int(value)==1,'-D%s'},{true,'-D%s=%s'})return format(fmt,name,shellword(value))end)end
-local function incdirs(...)return map(flatten(...),function(v)return'-I'..v
+local function flagged(flag)return function(...)return map(flatten(...),function(v)return flag..v
 end)end
-local function libdirs(...)return map(flatten(...),function(v)return'-L'..v
-end)end
-local function c_module_path(objdir,name)return format('%s/%s.$LIB_EXTENSION',objdir,gsub(name,'%.','/'))end
-local function c_source(module,objdir)local path=gsub(module,'%.','/')local src=c_module_path(objdir,path)return src,(gsub('$INST_LIBDIR/'..path,'/[^/]+$',''))end
-local function lua_source(module,src)local abspath='$INST_LUADIR/'..gsub(module,'%.','/')if match(src,'/init%.lua$')then
-abspath=abspath..'/init'end
-abspath=abspath..'.lua'return src,(gsub(abspath,'/[^/]+%.lua$',''))end
-local function script_target(name,rules,objdir,installed)if isstring(rules)then
-return(gsub(rules,'%.in$',''))elseif installed then
-return format('%s/%s',objdir,name)end
-return name
 end
+local incdirs=flagged'-I'local libdirs=flagged'-L'local function c_module_path(objdir,name)return format('%s/%s.$LIB_EXTENSION',objdir,gsub(name,'%.','/'))end
+local function c_source(module,objdir)local path=gsub(module,'%.','/')local src=c_module_path(objdir,path)return src,(gsub('$INST_LIBDIR/'..path,'/[^/]+$',''))end
+local function lua_source(module,src)local suffix=choose(match(src,'/init%.lua$'),'/init','')local abspath='$INST_LUADIR/'..gsub(module,'%.','/')..suffix..'.lua'return src,(gsub(abspath,'/[^/]+%.lua$',''))end
+local function script_target(name,rules,objdir,installed)return cond({isstring(rules),function()return(gsub(rules,'%.in$',''))end},{installed,function()return format('%s/%s',objdir,name)end},{true,name})end
 local function c_sources(sources)return some(sources,bind(match,{[2]='%.[ch]$'}))end
 local function module_to_path(module,sources,objdir)return case(sources[1],{{'.*%.[ch]',bind(c_source,{module,objdir})},{'(.*%.[ch])%.in',bind(c_source,{module,objdir})},{'.*%.lua',bind(lua_source,{module})},{'(.*%.lua)%.in',bind(lua_source,{module})},default=function(src)fatal("unsupported source type '%s'",src)end,})end
-return{build_c_module=function(L,env,luke,name)local rules=ordered_get(luke.modules,name)local c_module=c_module_path(luke.variables.objdir,name)local command={'$MAKEDIRS',dirname(c_module)}local status,err,out=L.spawn(env,unpack(command))if status~=0 then
-stdout:write(concat(command,' ')..'\n')stderr:write(err..'\n')exit(status)end
-return run(L,env,flatten('$CC $CFLAGS $LIBFLAG $PKGFLAGS $CPPFLAGS',defines(luke.defines,rules.defines),incdirs(rules.incdirs,luke.incdirs),rules.sources,'-o',c_module,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries))end,c_modules=function(modules)return filter(ordered_keys(modules),function(name)return c_sources(ordered_get(modules,name).sources)end)end,defines=defines,incdirs=incdirs,install_modules=function(L,env,luke,modules)return foldl(ordered_keys(modules),0,function(status,name)if status==0 then
-local src,dir=module_to_path(name,ordered_get(modules,name).sources,luke.variables.objdir)if not exists(interpolate(env,dir))then
-status=run(L,env,{'$MAKEDIRS',dir})end
-if status==0 then
-status=run(L,env,{'$INSTALL',src,dir..'/'})end
+local function sequence(steps)return firstof(steps,isnonzero,call)or 0
 end
+local function make_dir(L,env,dir)local command={'$MAKEDIRS',dir}local status,err=L.spawn(env,unpack(command))if status~=0 then
+stdout:write(concat(command,' ')..'\n')stderr:write(err..'\n')end
 return status
-end)end,build_program=function(L,env,luke,rules,target,sources)if match(target,'/')then
-local command={'$MAKEDIRS',dirname(target)}local status,err=L.spawn(env,unpack(command))if status~=0 then
-stdout:write(concat(command,' ')..'\n')stderr:write(err..'\n')return status
 end
+local function install_dir(L,env,dir)return choose(exists(interpolate(env,dir)),0,function()return run(L,env,{'$MAKEDIRS',dir})end)end
+local function c_command(luke,rules,head,sources,output)return flatten(head,defines(luke.defines,rules.defines),incdirs(rules.incdirs,luke.incdirs),sources,'-o',output,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries)end
+local function exports_for(env,rules)local names=sorted(keys(rules.env))return choose(isempty(names),{},function()return flatten('export',map(names,function(name)return format('%s=%s',name,shellword(interpolate(env,rules.env[name])))end),';')end)end
+local function install_module(L,env,luke,modules,name)local src,dir=module_to_path(name,ordered_get(modules,name).sources,luke.variables.objdir)return sequence{bind(install_dir,{L,env,dir}),bind(run,{L,env,{'$INSTALL',src,dir..'/'}}),}end
+local function install_script(L,env,luke,name)local rules=ordered_get(luke.install.bin,name)local src=script_target(name,rules,luke.variables.objdir,true)local dest='$INST_BINDIR/'..name
+return sequence{bind(run,{L,env,{'$INSTALL',src,dest}}),bind(run,{L,env,{'$CHMOD','+x',dest}}),}end
+return{build_c_module=function(L,env,luke,name)local rules=ordered_get(luke.modules,name)local c_module=c_module_path(luke.variables.objdir,name)return sequence{bind(make_dir,{L,env,dirname(c_module)}),bind(run,{L,env,c_command(luke,rules,'$CC $CFLAGS $LIBFLAG $PKGFLAGS $CPPFLAGS',rules.sources,c_module)}),}end,build_program=function(L,env,luke,rules,target,sources)local status=choose(match(target,'/'),function()return make_dir(L,env,dirname(target))end,0)if status~=0 then
+return status
 end
 if rules.command~=nil then
-local names=sorted(keys(rules.env))env=mkenv({sources=concat(sources,' '),target=target},rules.env,env)local exports={}if not isempty(names)then
-exports=flatten('export',map(names,function(name)return format('%s=%s',name,shellword(interpolate(env,rules.env[name])))end),';')end
-return run(L,env,flatten(exports,rules.command))end
+env=mkenv({sources=concat(sources,' '),target=target},rules.env,env)return run(L,env,flatten(exports_for(env,rules),rules.command))end
 if not c_sources(sources)then
 fatal("no command to build '%s' from %s",target,concat(sources,' '))end
-return run(L,env,flatten('$CC $CFLAGS $CPPFLAGS',defines(luke.defines,rules.defines),incdirs(rules.incdirs,luke.incdirs),sources,'-o',target,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries))end,c_program=function(rules)return istable(rules)and rules.command==nil and c_sources(rules.sources)end,install_scripts=function(L,env,luke,names)if isempty(names)then
+return run(L,env,c_command(luke,rules,'$CC $CFLAGS $CPPFLAGS',sources,target))end,c_modules=function(modules)return filter(ordered_keys(modules),function(name)return c_sources(ordered_get(modules,name).sources)end)end,c_program=function(rules)return istable(rules)and rules.command==nil and c_sources(rules.sources)end,defines=defines,incdirs=incdirs,install_modules=function(L,env,luke,modules)return sequence(map(ordered_keys(modules),function(name)return bind(install_module,{L,env,luke,modules,name})end))end,install_scripts=function(L,env,luke,names)if isempty(names)then
 return 0
 end
-local status=0
-if not exists(interpolate(env,'$INST_BINDIR'))then
-status=run(L,env,{'$MAKEDIRS','$INST_BINDIR'})end
-return foldl(names,status,function(status,name)local rules=ordered_get(luke.install.bin,name)local src=script_target(name,rules,luke.variables.objdir,true)local dest='$INST_BINDIR/'..name
-if status==0 then
-status=run(L,env,{'$INSTALL',src,dest})end
-if status==0 then
-status=run(L,env,{'$CHMOD','+x',dest})end
-return status
-end)end,libdirs=libdirs,make_executable=function(L,env,path)return run(L,env,{'$CHMOD','+x',path})end,run_command=run,script_target=script_target,spawn=spawn,}
+return sequence(flatten(bind(install_dir,{L,env,'$INST_BINDIR'}),map(names,function(name)return bind(install_script,{L,env,luke,name})end)))end,libdirs=libdirs,make_executable=function(L,env,path)return run(L,env,{'$CHMOD','+x',path})end,run_command=run,script_target=script_target,spawn=spawn,}
 end
 package.preload['luke.configure']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.environment','luke.functional','type.context-manager','type.dict',CCPROGS={'cc','gcc','clang'},}local function logspawn(L,env,filename,...)local status,err=spawn(env,...)if status~=0 and err~=''then
@@ -897,8 +880,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/c442547',versiontext=[[
-luke (Luke) gvv/c442547
+return{VERSION='gvv/4e739af',versiontext=[[
+luke (Luke) gvv/4e739af
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
