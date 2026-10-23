@@ -538,7 +538,7 @@ collect_variables(v,variables)end
 end
 return variables
 end
-local function normalize_configs(config)return cond({[not istable(config)]=config,},{[not isconfig(config)]=function()return mapvalues(config,normalize_configs)end,},{[true]=function()local keymap={include='includes',prog='progs',library='libraries',}return foldkeys(keymap,config,function(a,b)local r=istable(a)and copy(a)or{a}b=istable(b)and b or{b}return reduce(b,r,function(v)append(r,v)end)end)end,})end
+local function normalize_configs(config)return cond({[not istable(config)]=config,},{[not isconfig(config)]=function()return mapvalues(config,normalize_configs)end,},{[true]=function()local keymap={include='includes',prog='progs',library='libraries',}return foldkeys(keymap,config,function(a,b)local r=istable(a)and copy(a)or{a}b=istable(b)and b or{b}return reduce(b,r,function(r,v)return append(r,v)end)end)end,})end
 local function unwrap_external_dependencies(luke)if istable(luke.external_dependencies)then
 map(luke.external_dependencies,function(pair)local prefix,config=destructure(pair)if istable(config)and next(config)and config.library~=''then
 luke.incdirs=append(luke.incdirs or{},format('$%s_INCDIR',prefix))luke.libdirs=append(luke.libdirs or{},format('$%s_LIBDIR',prefix))luke.libraries=append(luke.libraries or{},config.library)end
@@ -887,8 +887,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,luke_format=luke_format,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvaughan/023ce17',versiontext=[[
-luke (Luke) gvaughan/023ce17
+return{VERSION='gvv/48c0a5d',versiontext=[[
+luke (Luke) gvv/48c0a5d
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

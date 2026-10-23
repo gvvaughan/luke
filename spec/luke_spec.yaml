@@ -227,6 +227,18 @@ specify luke:
       luke = require 'luke.lukefile'.loadluke(fname)
       expect(luke.defines).to_equal {{PACKAGE = '"$package"'}, {NDEBUG = 1}, {_POSIX_C_SOURCE = '200809L'}}
       expect(luke.modules[1].example.defines).to_equal {{B = '2'}, {A = 1}}
+  - it merges a singular probe key into its plural: |
+      spit(fname, [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+         variables = {
+            ECHO = {checkprog = 'ECHO', prog = 'echo', progs = {'cat', 'sed'}},
+         }
+      ]])
+      luke = require 'luke.lukefile'.loadluke(fname)
+      expect(luke.variables.ECHO.progs).to_equal(list('echo', 'cat', 'sed'))
   - it diagnoses keyed defines: |
       spit(fname, [[
          luke_format = 0

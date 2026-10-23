@@ -8,6 +8,12 @@
     `luke --help` when help2man is installed, and `luke release`
     commits.
 
+### Bug fixes:
+
+  - A probe with both a singular and a plural key, such as `prog` and
+    `progs`, merges them into the plural, rather than leaving the list
+    with references to itself in place of the singular value.
+
 
 ## Noteworthy changes in release 0.6 (2026-10-20) [stable]
 

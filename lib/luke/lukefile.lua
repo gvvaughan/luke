@@ -200,8 +200,8 @@ local function normalize_configs(config)
          return foldkeys(keymap, config, function(a, b)
             local r = istable(a) and copy(a) or {a}
             b = istable(b) and b or {b}
-            return reduce(b, r, function(v)
-               append(r, v)
+            return reduce(b, r, function(r, v)
+               return append(r, v)
             end)
          end)
       end,
