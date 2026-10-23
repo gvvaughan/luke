@@ -58,6 +58,11 @@ local function id(...)
 end
 
 
+local function isnonnil(x)
+   return x ~= nil
+end
+
+
 -- Only a function is a predicate, anything else is a value to compare
 -- with, as `==`.  Not `choose`, which would call a function-valued *x*
 -- rather than return it.
@@ -138,7 +143,53 @@ local function foldl(seq, acc, fn)
 end
 
 
+-- The first result of calling *fn* with each item of *seq* that passes
+-- *predicate*, which defaults to anything truthy, without calling it
+-- for later items.  The predicate is called with all the results.
+local function firstof(seq, predicate, fn)
+   if fn == nil then
+      predicate, fn = nil, predicate
+   end
+   if predicate == nil then
+      predicate = id
+   end
+   predicate = topredicate(predicate)
+   local found
+   local function test(...)
+      if predicate(...) then
+         found = ...
+         return true
+      end
+   end
+   walk(seq, function(...) return test(fn(...)) end)
+   return found
+end
+
+
+-- The set of the items of *seq*, as a table with each of them a key
+-- for `true`.
+local function set(seq)
+   local r = {}
+   each(seq, function(v)
+      r[v] = true
+   end)
+   return r
+end
+
+
 return {
+   -- A function that calls each of *...* with its arguments, lazily,
+   -- until one returns something that is not nil, and returns that.
+   any = function(...)
+      local fns = list(...)
+      return function(...)
+         local argu = list(...)
+         return firstof(fns, isnonnil, function(fn)
+            return fn(unpack(argu, 1, argu.n))
+         end)
+      end
+   end,
+
    apply = apply,
 
    bind = function(fn, bound)
@@ -218,26 +269,22 @@ return {
 
    destructure = destructure,
 
-   -- The first result of calling *fn* with each item of *seq* that passes
-   -- *predicate*, which defaults to anything truthy, without calling it
-   -- for later items.  The predicate is called with all the results.
-   firstof = function(seq, predicate, fn)
-      if fn == nil then
-         predicate, fn = nil, predicate
-      end
-      predicate = topredicate(predicate == nil and id or predicate)
-      local found
-      local function test(...)
-         if predicate(...) then
-            found = ...
-            return true
+   each = each,
+
+   firstof = firstof,
+
+   -- A copy of *t* without the keys that match *predicate*, a function
+   -- to call with a key, or else a key to compare with.
+   except = function(t, predicate)
+      predicate = topredicate(predicate)
+      local r = {}
+      for k, v in next, t do
+         if not predicate(k) then
+            r[k] = v
          end
       end
-      walk(seq, function(...) return test(fn(...)) end)
-      return found
+      return r
    end,
-
-   each = each,
 
    filter = filter,
 
@@ -371,9 +418,7 @@ return {
    -- The pairs in the list of one-pair tables *om* whose keys are in
    -- *keylist*, in the order of *om*.
    ordered_pluck = function(keylist, om)
-      local wanted = foldl(keylist, {}, function(r, k)
-         r[k] = true
-      end)
+      local wanted = set(keylist)
       return reject(om or {}, function(pair)
          return not wanted[(destructure(pair))]
       end)
@@ -425,10 +470,15 @@ return {
       return r
    end,
 
+   set = set,
+
    -- Whether any item of *seq* passes *predicate*, by default if it is
    -- truthy.
    some = function(seq, predicate)
-      return walk(seq, predicate == nil and id or topredicate(predicate)) == true
+      if predicate == nil then
+         predicate = id
+      end
+      return walk(seq, topredicate(predicate)) == true
    end,
 
    values = function(iterable)

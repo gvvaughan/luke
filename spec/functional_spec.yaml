@@ -317,3 +317,46 @@ specify luke.functional:
       expect(cond({nil, 'a'}, {true, 'b'})).to_be 'b'
   - it returns nil when no test is truthy:
       expect(cond({false, 'a'})).to_be(nil)
+
+- describe set:
+  - before:
+      set = functional.set
+
+  - it makes a table with each item as a key for true:
+      expect(set {'a', 'b', 'a'}).to_equal {a = true, b = true}
+  - it makes an empty table from nothing:
+      expect(set {}).to_equal {}
+  - it takes the items of an iterator function:
+      expect(set(('a b'):gmatch '%a')).to_equal {a = true, b = true}
+
+- describe except:
+  - before:
+      except = functional.except
+
+  - it copies a table without the key it is given:
+      expect(except({a = 1, b = 2, 'x'}, 'a')).to_equal {b = 2, 'x'}
+  - it copies a table without the keys that pass a predicate:
+      expect(except({a = 1, b = 2, c = 3}, function(k) return k ~= 'b' end)).to_equal {b = 2}
+  - it returns a new table, even if there is nothing left:
+      t = {a = 1}
+      expect(except(t, 'a')).to_equal {}
+      expect(t).to_equal {a = 1}
+
+- describe any:
+  - before:
+      any = functional.any
+
+  - it returns the first result that is not nil:
+      expect(any(function() end, function(x) return x .. '!' end, function() return 'no' end)('a')).
+         to_be 'a!'
+  - it counts false as a result:
+      expect(any(function() return false end, function() return 'no' end)()).to_be(false)
+  - it does not call the functions after one that returns:
+      calls = 0
+      any(function() return 1 end, function() calls = calls + 1 end)()
+      expect(calls).to_be(0)
+  - it passes the arguments to each function, including nils:
+      expect(any(function(...) return nil end, function(...) return select('#', ...) end)(nil, nil)).
+         to_be(2)
+  - it returns nil if none do:
+      expect(any(function() end, function() end)()).to_be(nil)
