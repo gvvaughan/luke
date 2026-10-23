@@ -255,7 +255,7 @@ return {
       luke_format(r.luke_format, 'luke_format')
       -- Each ordered map resolves its own platforms, to diagnose its
       -- entries for every platform, not only this one.
-      return LUKEFILE(normalize_configs(filter_platforms(r, nil, nil, ORDERED)), '')
+      return LUKEFILE(normalize_configs(narrow_platforms(r, ORDERED)), '')
    end,
 
    collect_variables = function(luke)

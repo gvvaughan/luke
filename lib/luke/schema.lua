@@ -21,9 +21,7 @@ local MACRO = '^[%a_][%w_]*$'
 
 -- The name of every ordered map in the lukefile, which resolves its own
 -- platforms, so that platform filtering leaves it alone.
-local ORDERED = {
-   bin = true, defines = true, external_dependencies = true, files = true, modules = true,
-}
+local ORDERED = set {'bin', 'defines', 'external_dependencies', 'files', 'modules'}
 
 
 --[[
@@ -68,15 +66,25 @@ local function mkcheck(kind)
    end
 end
 
+local checkstring, checktable = mkcheck 'string', mkcheck 'table'
+
+
+-- *x*, or a list of just *x* if it is a string.
+local function listed(x)
+   return choose(isstring(x), function()
+      return {x}
+   end, function()
+      return x
+   end)
+end
+
 
 -- A list of values that pass *normalize*, or a single string to be
 -- treated as a list of one.
 local function list_of(normalize)
    return function(x, path)
-      if isstring(x) then
-         x = {x}
-      end
-      mkcheck 'table'(x, path)
+      x = listed(x)
+      checktable(x, path)
       if x ~= nil then
          local r = {}
          for i = 1, len(x) do
@@ -92,7 +100,7 @@ end
 -- *names*, names that pass that too.
 local function map_of(normalize, names)
    return function(x, path)
-      mkcheck 'table'(x, path)
+      checktable(x, path)
       if x ~= nil then
          local r = {}
          for k, v in next, x do
@@ -116,7 +124,7 @@ local function fields(schema, others)
    -- Each leg is wrapped, as `choose` would call a normalizer.
    local rest = choose(others == true, function() return id end, function() return others end)
    return setmetatable({schema = schema}, {__call = function(_, x, path)
-      return mkcheck 'table'(x, path) and foldl(keys(x), {}, function(r, k)
+      return checktable(x, path) and foldl(keys(x), {}, function(r, k)
          local normalize = schema[k] or rest or bind(bad, {path, "unsupported key '%s'", str(k)})
          r[k] = normalize(x[k], index(path, k))
       end)
@@ -141,7 +149,7 @@ end
 -- A '..' component is left alone, as following a symlink may not lead
 -- back to the parent.
 local function pathname(x, path)
-   choose(mkcheck 'string'(x, path) == '', bind(bad, {path, 'empty path'}))
+   choose(checkstring(x, path) == '', bind(bad, {path, 'empty path'}))
    local r = x and match(x, '^/?') .. concat(reject(gmatch(x, '[^/]+'), '.'), '/')
    return choose(r == '', '.', r)
 end
@@ -165,11 +173,22 @@ local function luke_format(x, path)
 end
 
 
+-- Choose by the type of *x*, a string or a table, with the *branches*
+-- for them, and diagnose anything else at *path*.
+local function string_or_table(x, path, branches)
+   return case(type(x), merge({
+      default = function(kind)
+         bad(path, 'string or table expected, got %s', kind)
+      end,
+   }, branches))
+end
+
+
 -- A macro definition, as a table pairing the macro name with its value
 -- or probe, from such a table or a rockspec style 'NAME' or 'NAME=value'
 -- string, where 'NAME' defines NAME to 1.
 local function definition(x, path)
-   return case(type(x), {
+   return string_or_table(x, path, {
       ['string'] = function()
          local name, eq, value = match(x, '^([%a_][%w_]*)(=?)(.*)$')
          choose(name == nil or eq == '' and value ~= '', bind(bad, {path, "bad macro definition '%s'", x}))
@@ -188,10 +207,6 @@ local function definition(x, path)
             bind(bad, {index(path, name), 'string, number or probe expected, got %s', type(value)}))
          return {[name] = value}
       end,
-
-      default = function(kind)
-         bad(path, 'string or table expected, got %s', kind)
-      end,
    })
 end
 
@@ -200,7 +215,7 @@ end
 -- *rename* if given, with a value that passes *normalize*.
 local function pair_of(normalize, rename)
    return function(x, path)
-      local names = keys(mkcheck 'table'(x, path))
+      local names = keys(checktable(x, path))
       choose(names.n ~= 1, bind(bad, {path, 'one entry expected, got %d', names.n}))
       local name = names[1]
       choose(not isstring(name), bind(bad, {path, 'name expected, got %s', type(name)}))
@@ -221,7 +236,11 @@ local function ordered_map(entry)
    -- *x*, an entry, narrowed for this platform, apart from any ordered
    -- map in it, and then normalized by *entry*.
    local function narrowed(x, path)
-      return entry(istable(x) and filter_platforms(x, nil, nil, ORDERED) or x, path)
+      return entry(choose(istable(x), function()
+         return narrow_platforms(x, ORDERED)
+      end, function()
+         return x
+      end), path)
    end
 
    -- The entries of one *layer* at *path*, apart from its platforms.
@@ -232,17 +251,18 @@ local function ordered_map(entry)
          bad(index(path, k), 'list entry expected, such as {%s = ...}', index('', k))
       end)
       local r = list_of(narrowed)(layer, path)
-      foldl(r, {}, function(seen, pair)
-         claim(seen, (next(pair)), true, path)
+      local seen = {}
+      each(r, function(pair)
+         claim(seen, (destructure(pair)), true, path)
       end)
       return r
    end
 
    -- Diagnose every layer of *x* at *path*, whichever platforms apply.
    local function check_layers(x, path)
-      layer_entries(mkcheck 'table'(x, path), path)
+      layer_entries(checktable(x, path), path)
       local at = index(path, 'platforms')
-      local platforms = mkcheck 'table'(x.platforms, at)
+      local platforms = checktable(x.platforms, at)
       choose(platforms ~= nil, function()
          each(filter(sorted_keys(platforms), isplatform), function(name)
             check_layers(platforms[name], index(at, name))
@@ -263,11 +283,7 @@ local function ordered_map(entry)
    end
 
    return function(x, path)
-      local t = choose(isstring(x), function()
-         return {x}
-      end, function()
-         return x
-      end)
+      local t = listed(x)
       choose(t ~= nil, bind(check_layers, {t, path}))
       return t and resolve(t, path)
    end
@@ -290,14 +306,14 @@ end
 -- Like the rockspec `external_dependencies` table, each dependency name
 -- mapped to a table with its `library`, but as an ordered map, so that
 -- their compiler and linker flags are added in the order written.
-local dependencies = ordered_map(pair_of(mkcheck 'table', dependency_name))
+local dependencies = ordered_map(pair_of(checktable, dependency_name))
 
 
 -- The rules for building a module: a source path, a list of source
 -- paths, or a table with `sources` and other build settings, where the
 -- source and directory paths are normalized.
 local function rules(x, path)
-   local r = case(type(x), {
+   local r = string_or_table(x, path, {
       ['nil'] = nop,
 
       ['string'] = function()
@@ -305,16 +321,9 @@ local function rules(x, path)
       end,
 
       ['table'] = function()
-         if len(x) > 0 then
-            return {sources=x}
-         elseif isstring(x.sources) then
+         return cond({len(x) > 0, {sources = x}}, {isstring(x.sources), function()
             return merge({sources = {x.sources}}, x)
-         end
-         return x
-      end,
-
-      default = function(kind)
-         bad(path, 'string or table expected, got %s', kind)
+         end}, {true, x})
       end,
    })
    return r and merge({
@@ -333,25 +342,21 @@ local function program(x, path)
    if isempty(r.sources or {}) then
       bad(path, 'no sources')
    end
-   mkcheck 'string'(r.command, index(path, 'command'))
-   map_of(mkcheck 'string', mkcheck 'string')(r.env, index(path, 'env'))
+   checkstring(r.command, index(path, 'command'))
+   map_of(checkstring, checkstring)(r.env, index(path, 'env'))
    return r
 end
 
 
 -- The source path of a script, or the rules for building a program.
 local function script(x, path)
-   return case(type(x), {
+   return string_or_table(x, path, {
       ['string'] = function()
          return pathname(x, path)
       end,
 
       ['table'] = function()
          return program(x, path)
-      end,
-
-      default = function(kind)
-         bad(path, 'string or table expected, got %s', kind)
       end,
    })
 end
@@ -365,7 +370,7 @@ end
 local function mkscripts(mkname)
    local pair = pair_of(script, pathname)
    return ordered_map(function(x, path)
-      return case(type(x), {
+      return string_or_table(x, path, {
          ['string'] = function()
             local source = pathname(x, path)
             return {[mkname(source)] = source}
@@ -378,10 +383,6 @@ local function mkscripts(mkname)
             choose(x.sources ~= nil,
                bind(bad, {path, 'programs need a name, such as {prog = {sources = ...}}'}))
             return pair(x, path)
-         end,
-
-         default = function(kind)
-            bad(path, 'string or table expected, got %s', kind)
          end,
       })
    end)
@@ -422,7 +423,7 @@ local copy_pair = pair_of(function(x, path)
 end, pathname)
 
 local function copy_entry(x, path)
-   return case(type(x), {
+   return string_or_table(x, path, {
       ['string'] = function()
          local source = pathname(x, path)
          return {[source] = {optional = true, source = source}}
@@ -430,10 +431,6 @@ local function copy_entry(x, path)
 
       ['table'] = function()
          return copy_pair(x, path)
-      end,
-
-      default = function(kind)
-         bad(path, 'string or table expected, got %s', kind)
       end,
    })
 end
@@ -451,21 +448,17 @@ end
 -- platforms are filtered before this, and only this platform's copies
 -- are diagnosed.
 local function copies(x, path)
-   if mkcheck 'table'(x, path) == nil then
+   if checktable(x, path) == nil then
       return nil
    end
-   local entries = copy(x)
-   entries.command = nil
-   local r = ordered_map(copy_entry)(entries, path)
-   r.command = mkcheck 'string'(x.command, index(path, 'command'))
+   local r = ordered_map(copy_entry)(except(x, 'command'), path)
+   r.command = checkstring(x.command, index(path, 'command'))
    -- Every path written: each destination, then the path that each
    -- template copied under its own name is filled into.
-   local written = foldl(ordered_keys(r), {}, function(written, dest)
-      written[dest] = true
-   end)
+   local written = set(ordered_keys(r))
    each(r or {}, function(pair)
-      local dest, copy = destructure(pair)
-      choose(fills_too(dest, copy.source), function()
+      local dest, entry = destructure(pair)
+      choose(fills_too(dest, entry.source), function()
          claim(written, filled(dest), true, path)
       end)
    end)

@@ -214,3 +214,13 @@ specify luke.platforms:
          '_POSIX_C_SOURCE=200809L',
          '_XOPEN_SOURCE=700',
       }
+
+- describe narrow_platforms:
+  - it narrows for this system, leaving alone what it is told to: |
+      t = {defines = {'a', platforms = {linux = {'b'}}}, other = {platforms = {linux = {'c'}}}}
+      expect(platforms_on 'Linux'.narrow_platforms(t, set('defines'))).
+         to_equal {defines = {'a', platforms = {linux = {'b'}}}, other = {'c'}}
+  - it takes the platforms of this system:
+      t = {platforms = {macosx = {x = 1}, linux = {x = 2}}}
+      expect(platforms_on 'Linux'.narrow_platforms(t, {})).to_equal {x = 2}
+      expect(platforms_on 'Darwin'.narrow_platforms(t, {})).to_equal {x = 1}

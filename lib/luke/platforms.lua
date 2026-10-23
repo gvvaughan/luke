@@ -86,7 +86,7 @@ end
 -- specific first: *t* itself without its `platforms`, then its table
 -- there for each supported platform, or else its defaults.
 local function layers(t, using, predicate)
-   local supported, isplatform = using or supported, predicate or isplatform
+   local supported, isplatform = default(using, supported), default(predicate, isplatform)
    local own = except(t, 'platforms')
    return {own, unpack(reversed(selected(t.platforms or {}, supported, isplatform)))}
 end
@@ -116,14 +116,14 @@ end
 -- dict, least specific first, while any other element of a match takes
 -- precedence over the same element of a less specific match, or of the
 -- dict itself.  An element named in *opaque* is left alone, for its
--- normalizer to narrow.
-local function filter_platforms(t, using, predicate, opaque)
-   local supported, isplatform, opaque = using or supported, predicate or isplatform, opaque or {}
+-- normalizer to narrow.  Everything is given, so that there is no need to
+-- pass over what is not.
+local function narrow_for(t, supported, isplatform, opaque)
    local function narrow(v, k)
       if opaque[k] or not istable(v) then
          return v
       end
-      return filter_platforms(v, supported, isplatform, opaque)
+      return narrow_for(v, supported, isplatform, opaque)
    end
 
    -- A platform table may have platforms of its own.
@@ -141,10 +141,27 @@ local function filter_platforms(t, using, predicate, opaque)
 end
 
 
+-- *t* narrowed for the *using* platforms, that are those of this system
+-- by default, as *predicate*, by default for the platforms that luke
+-- knows, says which keys name them, and leaving alone any element named
+-- in *opaque*.
+local function filter_platforms(t, using, predicate, opaque)
+   return narrow_for(t, default(using, supported), default(predicate, isplatform), default(opaque, {}))
+end
+
+
+-- *t* narrowed for this system, leaving alone any element named in the
+-- set *opaque*.
+local function narrow_platforms(t, opaque)
+   return narrow_for(t, supported, isplatform, opaque)
+end
+
+
 return {
    filter_platforms = filter_platforms,
    isplatform = isplatform,
    layers = layers,
+   narrow_platforms = narrow_platforms,
    platforms = supported,
    toplatforms = toplatforms,
 }
