@@ -286,7 +286,7 @@ return {
       return run(L, env, {'$CHMOD', '+x', path})
    end,
 
-   run_command = run,
+   run = run,
 
    script_target = script_target,
 

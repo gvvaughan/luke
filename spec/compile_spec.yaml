@@ -106,23 +106,23 @@ specify luke.compile:
       env = E.mkenv({GREETING='hello'}, E.DEFAULTENV, E.SHELLENV)
       expect(list(compile.spawn(env, 'echo', '$GREETING'))).to_equal(list(0, '', 'hello\n'))
 
-- describe run_command:
+- describe run:
   - before:
       env = E.mkenv({}, E.DEFAULTENV, E.SHELLENV)
 
   - it writes the command, and returns its status and output:
       L = {spawn = compile.spawn, write = Stub()}
-      expect(list(compile.run_command(L, env, {'echo', 'hello'}))).to_equal(list(0, 'hello\n', ''))
+      expect(list(compile.run(L, env, {'echo', 'hello'}))).to_equal(list(0, 'hello\n', ''))
       expect(L.write).to_contain 'echo hello'
 
   - it runs the command with L.spawn:
       L = {spawn = function() return 0, '', '' end, write = Stub()}
-      expect(list(compile.run_command(L, env, {'false'}))).to_equal(list(0, '', ''))
+      expect(list(compile.run(L, env, {'false'}))).to_equal(list(0, '', ''))
       expect(L.write).to_contain 'false'
 
   - it reports the error output of a failing command: |
       p = capture(function(L, env)
-         return require 'luke.compile'.run_command(L, env, {'(echo oops >&2; false)'})
+         return require 'luke.compile'.run(L, env, {'(echo oops >&2; false)'})
       end, {spawn = compile.spawn, write = Stub()}, env)
       expect(p).to_fail_with 'oops\n\n'
 
@@ -130,7 +130,7 @@ specify luke.compile:
       p = capture(function(env)
          local nop = require 'luke.functional'.nop
          local compile = require 'luke.compile'
-         return compile.run_command({spawn = compile.spawn, write = nop}, env, {'false'})
+         return compile.run({spawn = compile.spawn, write = nop}, env, {'false'})
       end, env)
       expect(p).to_exit(1)
       expect(p).to_output 'false\n'

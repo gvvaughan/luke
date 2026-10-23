@@ -127,7 +127,7 @@ fatal("no command to build '%s' from %s",target,concat(sources,' '))end
 return run(L,env,c_command(luke,rules,'$CC $CFLAGS $CPPFLAGS',sources,target))end,c_modules=function(modules)return filter(ordered_keys(modules),function(name)return c_sources(ordered_get(modules,name).sources)end)end,c_program=function(rules)return istable(rules)and rules.command==nil and c_sources(rules.sources)end,defines=defines,incdirs=incdirs,install_modules=function(L,env,luke,modules)return sequence(map(ordered_keys(modules),function(name)return bind(install_module,{L,env,luke,modules,name})end))end,install_scripts=function(L,env,luke,names)if isempty(names)then
 return 0
 end
-return sequence(flatten(bind(install_dir,{L,env,'$INST_BINDIR'}),map(names,function(name)return bind(install_script,{L,env,luke,name})end)))end,libdirs=libdirs,make_executable=function(L,env,path)return run(L,env,{'$CHMOD','+x',path})end,run_command=run,script_target=script_target,spawn=spawn,}
+return sequence(flatten(bind(install_dir,{L,env,'$INST_BINDIR'}),map(names,function(name)return bind(install_script,{L,env,luke,name})end)))end,libdirs=libdirs,make_executable=function(L,env,path)return run(L,env,{'$CHMOD','+x',path})end,run=run,script_target=script_target,spawn=spawn,}
 end
 package.preload['luke.configure']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.environment','luke.functional','type.context-manager','type.dict',CCPROGS={'cc','gcc','clang'},}local function logspawn(L,env,filename,...)local status,err=spawn(env,...)if status~=0 and err~=''then
@@ -458,7 +458,7 @@ return r
 end,}
 end
 package.preload['luke']=function()
-local _ENV=require'luke.normalize'{'luke.cli','luke.compile','luke.configure','luke.environment','luke.lukefile','luke.functional','luke.release',}local function run_ldocs(L,env,ldocs)return run_command(L,env,flatten{'$LDOC -c',ldocs.sources,'.'})end
+local _ENV=require'luke.normalize'{'luke.cli','luke.compile','luke.configure','luke.environment','luke.lukefile','luke.functional','luke.release',}local function run_ldocs(L,env,ldocs)return run(L,env,flatten{'$LDOC -c',ldocs.sources,'.'})end
 local function script_rules(L,entry)return ordered_get(script_sections(L.luke)[entry.section],entry.name)end
 local function build_script(L,env,substitute,entry)local rules=script_rules(L,entry)local target=script_target(entry.name,rules,L.luke.variables.objdir,entry.section=='install')if isstring(rules)then
 fill_template(L,substitute,rules)else
@@ -876,8 +876,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/ca6b052',versiontext=[[
-luke (Luke) gvv/ca6b052
+return{VERSION='gvv/90b0204',versiontext=[[
+luke (Luke) gvv/90b0204
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

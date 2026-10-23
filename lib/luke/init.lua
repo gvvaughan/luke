@@ -15,7 +15,7 @@ local _ENV = require 'luke.normalize' {
 
 
 local function run_ldocs(L, env, ldocs)
-   return run_command(L, env, flatten{'$LDOC -c', ldocs.sources, '.'})
+   return run(L, env, flatten{'$LDOC -c', ldocs.sources, '.'})
 end
 
 
