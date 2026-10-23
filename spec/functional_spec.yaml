@@ -110,6 +110,12 @@ specify luke.functional:
       r = keys {a=2, b=1, 'c'}
       expect(r.n).to_be(3)
       expect(set(unpack(r, 1, r.n))).to_equal(set(1, 'a', 'b'))
+  - it returns an empty list for an empty table:
+      expect(keys {}).to_equal(list())
+  - it lists the key of a false value:
+      expect(keys {a = false}).to_equal(list('a'))
+  - it raises an error for an argument that is not a table:
+      expect(keys(nil)).to_raise()
 
 - describe sorted:
   - before:
@@ -142,6 +148,8 @@ specify luke.functional:
 
   - it lists the keys of a table, numbers first, then strings:
       expect(sorted_keys {b = 1, a = 2, 'x', 'y'}).to_equal(list(1, 2, 'a', 'b'))
+  - it lists no keys for nil:
+      expect(sorted_keys(nil)).to_equal(list())
   - it lists list keys in numeric order, whatever the order of their values:
       expect(sorted_keys {'k', 'j', 'i', 'h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'}).
          to_equal(list(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11))

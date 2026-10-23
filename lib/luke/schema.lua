@@ -215,7 +215,7 @@ end
 -- *rename* if given, with a value that passes *normalize*.
 local function pairof(normalize, rename)
    return function(x, path)
-      local names = keys(checktable(x, path))
+      local names = keys(checktable(x, path) or {})
       choose(names.n ~= 1, bind(bad, {path, 'one entry expected, got %d', names.n}))
       local name = names[1]
       choose(not isstring(name), bind(bad, {path, 'name expected, got %s', type(name)}))

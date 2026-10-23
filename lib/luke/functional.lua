@@ -160,11 +160,13 @@ local function compact(seq)
 end
 
 
-local function keys(iterable)
-   local r = list()
-   for k in next, iterable or {} do
-      append(r, k)
+local function keys(t)
+   local r, n = {}, 0
+   for k in next, t do
+      n = n + 1
+      r[n] = k
    end
+   r.n = n
    return r
 end
 
@@ -594,7 +596,7 @@ return {
    -- any others by their string form.
    sorted_keys = function(iterable)
       local rank = {number = 1, string = 2}
-      local r = keys(iterable)
+      local r = keys(iterable or {})
       sort(r, function(a, b)
          local ra, rb = rank[type(a)] or 3, rank[type(b)] or 3
          return ra < rb or ra == rb and (ra < 3 and a < b or ra == 3 and str(a) < str(b))

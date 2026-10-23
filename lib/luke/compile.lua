@@ -173,7 +173,7 @@ end
 -- value is expanded before it is quoted, so that a quote in a variable
 -- it uses is quoted too.
 local function exports_for(env, rules)
-   local names = sorted(keys(rules.env))
+   local names = sorted(keys(rules.env or {}))
    return choose(isempty(names), {}, function()
       return compact(flatten(list('export', map(names, function(name)
          return format('%s=%s', name, shellword(interpolate(env, rules.env[name])))

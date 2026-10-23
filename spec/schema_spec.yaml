@@ -141,6 +141,9 @@ specify luke.schema:
   - it diagnoses an entry that is not a table: |
       schema = setup()
       expect(schema.pairof(schema.rules)('a.lua', 'p')).to_raise 'bad p: table expected, got string'
+  - it diagnoses a missing entry: |
+      schema = setup()
+      expect(schema.pairof(schema.rules)(nil, 'p')).to_raise 'bad p: one entry expected, got 0'
   - it diagnoses a value at its path: |
       schema = setup()
       expect(schema.pairof(schema.rules)({a = 42}, 'p')).
