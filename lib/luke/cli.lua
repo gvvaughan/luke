@@ -115,7 +115,7 @@ return {
          write   = display,
       }
 
-      map(args, function(opt)
+      each(args, function(opt)
          case(opt, {
             -- Undocumented: for debugging luke itself, not lukefiles.
             ['--debug'] = function()
@@ -173,7 +173,7 @@ return {
       if isempty(luke.modules or {}) then
          fatal("no modules table in '%s', nothing to build", parsed.fname)
       end
-      map({'package', 'version'}, function(key)
+      each({'package', 'version'}, function(key)
          diagnose(luke[key] ~= nil, "no %s in '%s'", key, parsed.fname)
       end)
 

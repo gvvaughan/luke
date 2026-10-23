@@ -30,7 +30,7 @@ local CANON = {
 
 -- The set of all available generic platform names.
 local ALLPLATFORMS = foldl(values(CANON), function(acc, platforms)
-   map(platforms, function(v)
+   each(platforms, function(v)
       acc[v] = true
    end)
 end)
@@ -46,7 +46,7 @@ local function toplatforms(canon, uname)
       return sub(k, 1, 1) ~= '^'
    end)
    return (pluck(literalkeys, canon) or {})[uname]
-      or dropuntil(map(patternkeys, bind(match_uname, {canon, uname})))
+      or dropuntil(patternkeys, bind(match_uname, {canon, uname}))
       or list('unix')
 end
 
@@ -107,12 +107,12 @@ local function filter_platforms(t, using, predicate, opaque)
       return layer.platforms and narrow(layer) or layer
    end)
    local r = foldl(tables, {}, function(r, layer)
-      map(layer, function(v)
+      each(layer, function(v)
          r[len(r) + 1] = narrow(v)
       end)
    end)
    return foldl(reversed(tables), r, function(r, layer)
-      map(filter(keys(layer), function(k)
+      each(filter(keys(layer), function(k)
          return not islistkey(layer, k) and r[k] == nil
       end), function(k)
          r[k] = narrow(layer[k], k)

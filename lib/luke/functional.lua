@@ -33,7 +33,7 @@ end
 -- returns something truthy, and then return true.  The items of a table
 -- are its values from 1 to its `n` field or length, so holes are
 -- visited; those of an iterator function end with its first nil result.
-local function each(seq, visit)
+local function walk(seq, visit)
    if type(seq) == 'function' then
       local function loop(...)
          if ... ~= nil then
@@ -82,7 +82,7 @@ local function keeper(passes)
    return function(seq, predicate)
       predicate = topredicate(predicate)
       local r = list()
-      each(seq, function(...)
+      walk(seq, function(...)
          if not predicate(...) == not passes then
             append(r, (...))
          end
@@ -96,7 +96,7 @@ local filter, reject = keeper(true), keeper(false)
 
 local function visit(x)
    if type(x) == 'table' then
-      each(x, visit)
+      walk(x, visit)
    else
       yield(x)
    end
@@ -109,6 +109,14 @@ local function flatten(...)
       r[#r + 1] = v
    end
    return r
+end
+
+
+-- Call *fn* with every result of each item of *seq*, for its effects.
+local function each(seq, fn)
+   walk(seq, function(...)
+      fn(...)
+   end)
 end
 
 
@@ -125,7 +133,7 @@ local function foldl(seq, acc, fn)
    if fn == nil then
       acc, fn = {}, acc
    end
-   each(seq, function(...)
+   walk(seq, function(...)
       local r = fn(acc, ...)
       if r ~= nil then
          acc = r
@@ -210,17 +218,18 @@ return {
    end,
 
    contains = function(seq, predicate)
-      return each(seq, topredicate(predicate)) == true
+      return walk(seq, topredicate(predicate)) == true
    end,
 
    destructure = destructure,
 
-   -- The first item of *seq* that passes *predicate*, or with *block*
-   -- the first call of it with an item that passes, without calling it
-   -- for later items.  A nil *predicate* passes any non-nil.  Unlike
-   -- std.functional's `detect`, all the results of the passing call are
-   -- returned, rather than only the first.
-   dropuntil = function(seq, predicate, block)
+   -- All the results of the first call of *fn* with an item of *seq*
+   -- that passes *predicate*, without calling it for later items.  A
+   -- nil or omitted *predicate* passes any non-nil.
+   dropuntil = function(seq, predicate, fn)
+      if fn == nil then
+         predicate, fn = nil, predicate
+      end
       predicate = topredicate(predicate == nil and isnonnil or predicate)
       local found
       local function test(...)
@@ -229,11 +238,13 @@ return {
             return true
          end
       end
-      each(seq, block and function(...) return test(block(...)) end or test)
+      walk(seq, function(...) return test(fn(...)) end)
       if found then
          return unpack(found, 1, found.n)
       end
    end,
+
+   each = each,
 
    filter = filter,
 
@@ -309,7 +320,7 @@ return {
 
    map = function(seq, block)
       local r = list()
-      each(seq, function(...)
+      walk(seq, function(...)
          append(r, (block(...)))
       end)
       return r
@@ -378,7 +389,7 @@ return {
    partition = function(seq, predicate)
       predicate = topredicate(predicate)
       local r, s = list(), list()
-      each(seq, function(...)
+      walk(seq, function(...)
          append(predicate(...) and r or s, (...))
       end)
       return r, s
@@ -424,7 +435,7 @@ return {
    -- Whether any item of *seq* passes *predicate*, by default if it is
    -- truthy.
    some = function(seq, predicate)
-      return each(seq, predicate == nil and id or topredicate(predicate)) == true
+      return walk(seq, predicate == nil and id or topredicate(predicate)) == true
    end,
 
    values = function(iterable)

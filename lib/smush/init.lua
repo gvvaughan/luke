@@ -166,7 +166,7 @@ end
 
 return {
    main = function()
-      map({
+      each({
          '#!/usr/bin/env lua',
          '--[[ minified code follows, see --help text for source location! ]]',
          'local require=function(modname)if package.loaded[modname]==nil then',
@@ -178,7 +178,7 @@ return {
          'return package.loaded[modname]end',
       }, print)
 
-      map(arg, function(fname)
+      each(arg, function(fname)
          print("package.preload['"
            .. gsub(fname, '/', '.'):gsub('lib%.', ''):gsub('%.lua$', ''):gsub('%.init', '')
            .. "']=function()"
@@ -191,7 +191,7 @@ return {
 
          -- strategically inject whitespace tokens back into the stream
          local l, prev = 1
-         map(tokens, function(token)
+         each(tokens, function(token)
             if needspace(prev, token[1]) then
                write(l < token[3] and '\n' or ' ')
             end

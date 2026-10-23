@@ -106,7 +106,7 @@ return {
          -- Only the probes in `variables` can set a value to print.
          local probed = run_configs(L, mkenv(CONFIGENV, env), {variables = L.luke.variables})
          env = mkenv(L.clidefs, probed.variables, env)
-         map(L.valreqs, function(name)
+         each(L.valreqs, function(name)
             print(interpolate(env, concat {name, "='$", name, "'"}))
          end)
          exit(0)

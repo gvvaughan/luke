@@ -237,22 +237,49 @@ specify luke.functional:
   - before:
       dropuntil = functional.dropuntil
 
-  - it returns the first item that passes a predicate:
-      expect(dropuntil({1, 2, 3, 4}, function(e) return e > 2 end)).to_be(3)
-  - it passes any non-nil item with a nil predicate:
-      expect(dropuntil(list(nil, false, 1))).to_be(false)
-  - it returns every result of the first call of a block that passes:
+  - it returns the first non-nil result of a function:
+      expect(dropuntil({1, 2, 3}, function(e) if e > 1 then return e * 10 end end)).to_be(20)
+  - it passes false by default:
+      expect(dropuntil({1, 2}, function() return false end)).to_be(false)
+  - it returns every result of the first call that passes:
       calls = 0
-      local a, b = dropuntil({1, 2, 3}, nil, function(e)
+      local a, b = dropuntil({1, 2, 3}, function(e)
          calls = calls + 1
          if e == 2 then return 'two', e end
       end)
       expect({a, b}).to_equal {'two', 2}
       expect(calls).to_be(2)
-  - it tests the first result of a block with a predicate:
+  - it takes a predicate before the function:
       expect(dropuntil({1, 2, 3}, function(r) return r > 4 end, function(e) return e * 2 end)).to_be(6)
-  - it returns nothing if no item passes:
-      expect(dropuntil({1, 2}, 3)).to_be(nil)
+  - it compares results with anything that is not a function:
+      expect(dropuntil({1, 2, 3}, 4, function(e) return e * 2 end)).to_be(4)
+  - it tests the first of several results with all of them:
+      expect({dropuntil({1, 2}, function(r, x) return x == 'y' end, function(e)
+         return e, e == 2 and 'y'
+      end)}).to_equal {2, 'y'}
+  - it returns nothing if no call passes:
+      expect(select('#', dropuntil({1, 2}, 3, function(e) return e end))).to_be(0)
+
+- describe each:
+  - before:
+      each = functional.each
+
+  - it calls a function with every item, whatever it returns:
+      seen = {}
+      each({'a', 'b', 'c'}, function(e) seen[#seen + 1] = e; return true end)
+      expect(seen).to_equal {'a', 'b', 'c'}
+  - it visits holes:
+      n = 0
+      each(list('a', nil, 'c'), function() n = n + 1 end)
+      expect(n).to_be(3)
+  - it passes every result of an iteration:
+      i = 0
+      next_item = function() i = i + 1; if i <= 2 then return i, 'x' .. i end end
+      seen = {}
+      each(next_item, function(n, s) seen[n] = s end)
+      expect(seen).to_equal {'x1', 'x2'}
+  - it returns nothing:
+      expect(select('#', each({1}, function() return 1 end))).to_be(0)
 
 - describe mapvalues:
   - before:

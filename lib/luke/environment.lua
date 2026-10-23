@@ -13,7 +13,7 @@ local _ENV = require 'luke.normalize' {
 
 local env_mt = {
    __index = function(self, varname)
-      return dropuntil(self, nil, function(env)
+      return dropuntil(self, function(env)
          local value = env[varname]
          if value ~= nil then
             self[varname] = value
@@ -101,7 +101,7 @@ return {
    mkenv = function(...)
       local env = foldl(reject(list(...), nil), function(r, t)
          if isenv(t) then
-            map(t, bind(append, {r}))
+            each(t, bind(append, {r}))
          else
             append(r, t)
          end

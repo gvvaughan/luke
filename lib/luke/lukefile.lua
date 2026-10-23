@@ -82,12 +82,12 @@ end
 -- that probes of the same kind run in the same order on every run.
 local function collect_configs(luke, modulename, configs, sectionname)
    configs = configs or {}
-   map(sorted_keys(luke), function(k)
+   each(sorted_keys(luke), function(k)
       local v = luke[k]
       cond({isconfig(v), function()
          append(configs, {t=luke, k=k, module=modulename, section=sectionname, order=len(configs) + 1})
       end}, {istable(v) and (k == 'modules' or k == 'external_dependencies'), function()
-         map(v, function(pair)
+         each(v, function(pair)
             local name, rules = destructure(pair)
             collect_configs(rules, name, configs, k)
          end)
@@ -162,7 +162,7 @@ end
 local function collect_variables(luke, variables)
    for k, v in next, luke do
       if k == 'external_dependencies' then
-         map(ordered_keys(v), function(name)
+         each(ordered_keys(v), function(name)
             local rootdir = concat{'$', name, '_DIR'}
             variables[name .. '_DIR'] = '/usr'
             variables[name .. '_BINDIR'] = rootdir .. '/bin'
@@ -205,7 +205,7 @@ end
 
 local function unwrap_external_dependencies(luke)
    if istable(luke.external_dependencies) then
-      map(luke.external_dependencies, function(pair)
+      each(luke.external_dependencies, function(pair)
          local prefix, config = destructure(pair)
          -- `config={}` for unsupported, `config={library=''}` for no library required
          if istable(config) and next(config) and config.library ~= '' then
@@ -289,7 +289,7 @@ return {
    -- table, and execute each in topological order.
    run_configs = function(L, env, luke)
       local r = deepcopy(luke)
-      map(sorted(collect_configs(r), config_cmp), function(config)
+      each(sorted(collect_configs(r), config_cmp), function(config)
          local prefix = case(config.section, {
             external_dependencies = function() return config.module end,
          })

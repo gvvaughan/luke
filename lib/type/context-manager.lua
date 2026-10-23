@@ -49,7 +49,7 @@ local function with(...)
    local argu = list(...)
    local block = pop(argu)
    local r = list(apply(block, argu))
-   map(argu, function(cm)
+   each(argu, function(cm)
       if cm ~= nil then
          cm:release()
       end

@@ -257,7 +257,7 @@ local function preconditions(env, release, version, main, substitute)
       end})
    end
 
-   map(release.replacements or {}, function(entry)
+   each(release.replacements or {}, function(entry)
       local path, pairs = destructure(entry)
       append(checks, {format('%s exists', path), function()
          return exists(path)
@@ -274,7 +274,7 @@ local function preconditions(env, release, version, main, substitute)
       end)
    end)
 
-   map(branches(release), function(pages)
+   each(branches(release), function(pages)
       local copies = release[pages]
       -- A branch that is only on origin, as in a fresh clone, or that
       -- is behind it, is set to origin's before the release adds its
@@ -293,7 +293,7 @@ local function preconditions(env, release, version, main, substitute)
       -- TODO: the source of a copy under another name is not checked,
       -- as the build may make it, so a missing one fails only after the
       -- release is tagged.
-      map(filter(ordered_keys(copies), function(path)
+      each(filter(ordered_keys(copies), function(path)
          return ordered_get(copies, path).optional and match(path, '%.in$') ~= nil
       end), function(template)
          append(checks, {format('%s or the release has %s', pages, template), function()
@@ -384,7 +384,7 @@ local function unignore(L, env, paths)
    repeat
       local lines = ignoring(env, paths)
       local sources = sorted(keys(lines))
-      map(sources, function(source)
+      each(sources, function(source)
          edit(L, source, function(text)
             local kept, n = {}, 0
             for line in gmatch(text, '[^\n]*\n?') do
@@ -410,7 +410,7 @@ return {
       local version, main = L.release, git(env, 'symbolic-ref --short HEAD')
       local substitute = mkenv({version = version}, L.clidefs, L.luke.substitute, SHELLENV)
       local checks = preconditions(env, L.luke.release or {}, version, main, substitute)
-      local failed = dropuntil(checks, nil, function(check)
+      local failed = dropuntil(checks, function(check)
          local description, predicate = unpack(check)
          L.verbose('checking whether ', description, '... ')
          local ok = predicate()
@@ -487,7 +487,7 @@ return {
       -- Remove any worktree that a failed step leaves behind, with
       -- whatever was copied into it.
       choose(status ~= 0, function()
-         map(filter(sorted(values(worktrees)), exists), function(worktree)
+         each(filter(sorted(values(worktrees)), exists), function(worktree)
             run(L, env, 'git worktree remove --force', worktree)
          end)
       end)

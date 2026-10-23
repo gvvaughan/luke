@@ -109,7 +109,7 @@ end
 
 
 local function module_to_path(module, sources, objdir)
-   return dropuntil(sources, nil, function(source)
+   return dropuntil(sources, function(source)
       return case(source, {
          {'.*%.[ch]',       bind(c_source,   {module, objdir})},
          {'(.*%.[ch])%.in', bind(c_source,   {module, objdir})},
