@@ -11,33 +11,21 @@ local _ENV = require 'luke.normalize' {
 }
 
 
-local env_mt = {
-   __index = function(self, varname)
-      return firstof(self, function(env)
-         local value = env[varname]
-         if value ~= nil then
-            self[varname] = value
-            return value
-         end
-      end)
-   end,
-}
-
-
+-- *s* with each name that matches *pattern* replaced by its value in
+-- *env*, or nothing, and then again, until that changes nothing.
 local function interpolate_with(pattern, env, s)
-   local r = ''
-   while r ~= s do
-      r = s
-      s = gsub(r, pattern, function(varname)
+   return fixpoint(s, function(text)
+      return (gsub(text, pattern, function(varname)
          return env[varname] or ''
-      end)
-   end
-   return r
+      end))
+   end)
 end
 
 
-local function isenv(t)
-   return getmetatable(t) == env_mt
+-- *s* as a single shell word, in single quotes, with each of its own
+-- single quotes written as '\''.
+local function quoted(s)
+   return "'" .. gsub(s, "'", [['\'']]) .. "'"
 end
 
 
@@ -85,28 +73,30 @@ return {
    expand = bind(interpolate_with, {'@([%w_]+)@'}),
    interpolate = bind(interpolate_with, {'%$([%w_]+)'}),
 
-   -- *s* as a single shell word: as it is, or else in single quotes,
-   -- with each of its own single quotes written as '\''.  Quote a word
-   -- after interpolating it, or a quote in a variable it uses is left
-   -- bare.
+   -- *s* as a single shell word: as it is, or else quoted.  Quote a
+   -- word after interpolating it, or a quote in a variable it uses is
+   -- left bare.
    shellword = function(s)
-      return choose(match(s, SHELLMETACHARS) ~= nil, function()
-         return "'" .. gsub(s, "'", [['\'']]) .. "'"
-      end, s)
+      if match(s, SHELLMETACHARS) then
+         return quoted(s)
+      end
+      return s
    end,
 
    -- An environment that looks a name up in each of the tables *...* in
-   -- turn, skipping nils, and searching the tables of an environment
-   -- among them in its place.
+   -- turn, skipping nils, and remembers what it finds.  An environment
+   -- among them is such a table too.
    mkenv = function(...)
-      local env = foldl(reject(list(...), nil), function(r, t)
-         if isenv(t) then
-            each(t, bind(append, {r}))
-         else
-            append(r, t)
-         end
-      end)
-
-      return setmetatable(env, env_mt)
+      local tables, found = reject(list(...), nil), {}
+      return setmetatable({}, {
+         __index = function(_, varname)
+            if found[varname] == nil then
+               found[varname] = firstof(tables, function(t)
+                  return t[varname]
+               end)
+            end
+            return found[varname]
+         end,
+      })
    end,
 }

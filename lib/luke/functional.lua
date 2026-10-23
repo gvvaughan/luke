@@ -166,6 +166,17 @@ local function firstof(seq, predicate, fn)
 end
 
 
+-- *x* after calling *fn* with it, and then with each result, until the
+-- result is what it was called with.
+local function fixpoint(x, fn)
+   local r = fn(x)
+   while r ~= x do
+      x, r = r, fn(r)
+   end
+   return x
+end
+
+
 -- The set of the items of *seq*, as a table with each of them a key
 -- for `true`.
 local function set(seq)
@@ -315,6 +326,8 @@ return {
    filter = filter,
 
    flatten = flatten,
+
+   fixpoint = fixpoint,
 
    foldl = foldl,
 

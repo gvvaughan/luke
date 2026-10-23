@@ -18,6 +18,46 @@ specify luke.environment:
       expect(environment.expand(env, 'mail gary@example.com for @version@')).
          to_be 'mail gary@example.com for 1.0'
 
+- describe mkenv:
+  - before:
+      mkenv = require 'luke.environment'.mkenv
+
+  - it looks a name up in each table in turn:
+      env = mkenv({A = 'a1'}, {A = 'a2', B = 'b'})
+      expect(env.A).to_be 'a1'
+      expect(env.B).to_be 'b'
+  - it skips nils:
+      expect(mkenv(nil, {A = 1}).A).to_be(1)
+  - it returns nil for a name that is in none of them:
+      expect(mkenv({A = 1}).MISSING).to_be(nil)
+  - it searches an environment among them, in its place: |
+      inner = mkenv({A = 'inner', B = 'b'})
+      env = mkenv({C = 'c'}, inner, {B = 'outer', D = 'd'})
+      expect({env.A, env.B, env.C, env.D}).to_equal {'inner', 'b', 'c', 'd'}
+  - it has no variables of its own, whatever their names:
+      env = mkenv {n = 'a name', ['1'] = 'text'}
+      expect(env.n).to_be 'a name'
+      expect(env['1']).to_be 'text'
+  - it remembers what it finds:
+      t = {A = 1}
+      env = mkenv(t)
+      expect(env.A).to_be(1)
+      t.A = 2
+      expect(env.A).to_be(1)
+
+- describe interpolate:
+  - before:
+      environment = require 'luke.environment'
+
+  - it fills each name with its value:
+      env = environment.mkenv {A = 'a', B = 'b'}
+      expect(environment.interpolate(env, '$A-$B')).to_be 'a-b'
+  - it fills names that values bring in, until there are none: |
+      env = environment.mkenv {A = '$B/a', B = '$C', C = 'z'}
+      expect(environment.interpolate(env, '$A')).to_be 'z/a'
+  - it fills a name that has no value with nothing:
+      expect(environment.interpolate(environment.mkenv {}, 'a$X.b')).to_be 'a.b'
+
 - describe shellword:
   - before:
       shellword = require 'luke.environment'.shellword

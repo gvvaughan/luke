@@ -288,21 +288,14 @@ return env
 end,configure=configure,}
 end
 package.preload['luke.environment']=function()
-local _ENV=require'luke.normalize'{'luke.platforms','luke.functional',LUAVERSION=string.gsub(_VERSION,'[^0-9%.]+',''),SHELLMETACHARS='[%s%$"\'&;|<>()*?`\\]',}local env_mt={__index=function(self,varname)return firstof(self,function(env)local value=env[varname]if value~=nil then
-self[varname]=value
-return value
-end
-end)end,}local function interpolate_with(pattern,env,s)local r=''while r~=s do
-r=s
-s=gsub(r,pattern,function(varname)return env[varname]or''end)end
-return r
-end
-local function isenv(t)return getmetatable(t)==env_mt
-end
-return{CONFIGENV={compile='$CC -c $CFLAGS $CPPFLAGS',libs='',link='$CC $CFLAGS $CPPFLAGS $LDFLAGS',},DEFAULTENV=filter_platforms{LUA='lua',LUAVERSION=LUAVERSION,PREFIX='/usr/local',INST_BINDIR='$PREFIX/bin',INST_LIBDIR='$PREFIX/lib/lua/$LUAVERSION',INST_LUADIR='$PREFIX/share/lua/$LUAVERSION',LIB_EXTENSION='so',OBJ_EXTENSION='o',CHMOD='chmod',INSTALL='cp',MAKEDIRS='mkdir -p',CFLAGS='-O2',platforms={macosx={LIBFLAG='-fPIC -bundle -undefined dynamic_lookup -all_load',},LIBFLAG='-shared -fPIC',},},SHELLENV=setmetatable({},{__index=function(_,v)return getenv(v)end,}),expand=bind(interpolate_with,{'@([%w_]+)@'}),interpolate=bind(interpolate_with,{'%$([%w_]+)'}),shellword=function(s)return choose(match(s,SHELLMETACHARS)~=nil,function()return"'"..gsub(s,"'",[['\'']]).."'"end,s)end,mkenv=function(...)local env=foldl(reject(list(...),nil),function(r,t)if isenv(t)then
-each(t,bind(append,{r}))else
-append(r,t)end
-end)return setmetatable(env,env_mt)end,}
+local _ENV=require'luke.normalize'{'luke.platforms','luke.functional',LUAVERSION=string.gsub(_VERSION,'[^0-9%.]+',''),SHELLMETACHARS='[%s%$"\'&;|<>()*?`\\]',}local function interpolate_with(pattern,env,s)return fixpoint(s,function(text)return(gsub(text,pattern,function(varname)return env[varname]or''end))end)end
+local function quoted(s)return"'"..gsub(s,"'",[['\'']]).."'"end
+return{CONFIGENV={compile='$CC -c $CFLAGS $CPPFLAGS',libs='',link='$CC $CFLAGS $CPPFLAGS $LDFLAGS',},DEFAULTENV=filter_platforms{LUA='lua',LUAVERSION=LUAVERSION,PREFIX='/usr/local',INST_BINDIR='$PREFIX/bin',INST_LIBDIR='$PREFIX/lib/lua/$LUAVERSION',INST_LUADIR='$PREFIX/share/lua/$LUAVERSION',LIB_EXTENSION='so',OBJ_EXTENSION='o',CHMOD='chmod',INSTALL='cp',MAKEDIRS='mkdir -p',CFLAGS='-O2',platforms={macosx={LIBFLAG='-fPIC -bundle -undefined dynamic_lookup -all_load',},LIBFLAG='-shared -fPIC',},},SHELLENV=setmetatable({},{__index=function(_,v)return getenv(v)end,}),expand=bind(interpolate_with,{'@([%w_]+)@'}),interpolate=bind(interpolate_with,{'%$([%w_]+)'}),shellword=function(s)if match(s,SHELLMETACHARS)then
+return quoted(s)end
+return s
+end,mkenv=function(...)local tables,found=reject(list(...),nil),{}return setmetatable({},{__index=function(_,varname)if found[varname]==nil then
+found[varname]=firstof(tables,function(t)return t[varname]end)end
+return found[varname]end,})end,}
 end
 package.preload['luke.functional']=function()
 local _ENV=require'luke.normalize'{destructure=next,isfile=function(x)return io.type(x)=='file'end,wrap=coroutine.wrap,yield=coroutine.yield,}local function apply(fn,argu)assert(fn~=nil,'cannot apply nil-valued function')if iscallable(fn)then
@@ -376,6 +369,10 @@ end
 end
 walk(seq,function(...)return test(fn(...))end)return found
 end
+local function fixpoint(x,fn)local r=fn(x)while r~=x do
+x,r=r,fn(r)end
+return x
+end
 local function set(seq)local r={}each(seq,function(v)r[v]=true
 end)return r
 end
@@ -431,7 +428,7 @@ r[k]=v
 end
 end
 return r
-end,filter=filter,flatten=flatten,foldl=foldl,foldkeys=function(keymap,dict,combinator)local r={}for k,v in next,dict or{}do
+end,filter=filter,flatten=flatten,fixpoint=fixpoint,foldl=foldl,foldkeys=function(keymap,dict,combinator)local r={}for k,v in next,dict or{}do
 local key=keymap[k]if key then
 r[key]=combinator(v,dict[key])else
 r[k]=r[k]or v
@@ -884,8 +881,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,luke_format=luke_format,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/8ab5681',versiontext=[[
-luke (Luke) gvv/8ab5681
+return{VERSION='gvv/f56ee79',versiontext=[[
+luke (Luke) gvv/f56ee79
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
