@@ -115,10 +115,14 @@ specify luke.functional:
 
   - it returns a reversed copy, leaving its argument unchanged:
       seq = {1, 2, 3}
-      expect(reversed(seq)).to_equal {3, 2, 1}
+      expect(reversed(seq)).to_equal(list(3, 2, 1))
       expect(seq).to_equal {1, 2, 3}
   - it returns an empty list unchanged:
-      expect(reversed {}).to_equal {}
+      expect(reversed {}).to_equal(list())
+  - it keeps holes in a table:
+      expect(reversed(list('a', nil, nil, 'd'))).to_equal(list('d', nil, nil, 'a'))
+  - it reverses the items of an iterator function:
+      expect(reversed(('abc'):gmatch '.')).to_equal(list('c', 'b', 'a'))
 
 - describe islistkey:
   - before:

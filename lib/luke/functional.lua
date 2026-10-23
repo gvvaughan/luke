@@ -572,7 +572,7 @@ return {
          n = n + 1
          items[n] = v
       end)
-      local r = {}
+      local r = {n = n}
       for i = 1, n do
          r[n - i + 1] = items[i]
       end
