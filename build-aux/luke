@@ -125,7 +125,7 @@ fatal("no command to build '%s' from %s",target,concat(sources,' '))end
 return run(L,env,c_command(luke,rules,'$CC $CFLAGS $CPPFLAGS',sources,target))end,c_modules=function(modules)return filter(ordered_keys(modules),function(name)return c_sources(ordered_get(modules,name).sources)end)end,c_program=function(rules)return istable(rules)and rules.command==nil and c_sources(rules.sources)end,defines=defines,incdirs=incdirs,install_modules=function(L,env,luke,modules)return sequence(map(ordered_keys(modules),function(name)return bind(install_module,{L,env,luke,modules,name})end))end,install_scripts=function(L,env,luke,names)if isempty(names)then
 return 0
 end
-return sequence(flatten(bind(install_dir,{L,env,'$INST_BINDIR'}),map(names,function(name)return bind(install_script,{L,env,luke,name})end)))end,libdirs=libdirs,make_executable=function(L,env,path)return run(L,env,{'$CHMOD','+x',path})end,run=run,script_target=script_target,spawn=spawn,}
+return sequence(flatten(bind(install_dir,{L,env,'$INST_BINDIR'}),map(names,function(name)return bind(install_script,{L,env,luke,name})end)))end,libdirs=libdirs,make_executable=function(L,env,path)return run(L,env,{'$CHMOD','+x',path})end,run=run,sequence=sequence,script_target=script_target,spawn=spawn,}
 end
 package.preload['luke.configure']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.environment','luke.functional','type.context-manager','type.dict',CCPROGS={'cc','gcc','clang'},}local function logspawn(L,env,filename,...)local status,err=spawn(env,...)if status~=0 and err~=''then
@@ -471,41 +471,28 @@ end
 package.preload['luke']=function()
 local _ENV=require'luke.normalize'{'luke.cli','luke.compile','luke.configure','luke.environment','luke.lukefile','luke.functional','luke.release',}local function run_ldocs(L,env,ldocs)return run(L,env,flatten{'$LDOC -c',ldocs.sources,'.'})end
 local function script_rules(L,entry)return ordered_get(script_sections(L.luke)[entry.section],entry.name)end
-local function build_script(L,env,substitute,entry)local rules=script_rules(L,entry)local target=script_target(entry.name,rules,L.luke.variables.objdir,entry.section=='install')if isstring(rules)then
-fill_template(L,substitute,rules)else
-local sources=map(rules.sources,function(source)return fill_template(L,substitute,source)end)local status=build_program(L,env,L.luke,rules,target,sources)if status~=0 then
-return status
+local function build_script(L,env,substitute,entry)local rules=script_rules(L,entry)local target=script_target(entry.name,rules,L.luke.variables.objdir,entry.section=='install')return sequence{function()if isstring(rules)then
+fill_template(L,substitute,rules)return 0
 end
-end
-return choose(entry.section=='files',0,bind(make_executable,{L,env,target}))end
-local function build(L,env)local modules=not isempty(L.luke.modules or{})local conf=mkenv(CONFIGENV,env)if modules and not isempty(L.luke.ldocs or{})then
+local sources=map(rules.sources,function(source)return fill_template(L,substitute,source)end)return build_program(L,env,L.luke,rules,target,sources)end,function()return choose(entry.section=='files',0,bind(make_executable,{L,env,target}))end,}end
+local function configured(L,env)local modules=not isempty(L.luke.modules or{})local conf=mkenv(CONFIGENV,env)if modules and not isempty(L.luke.ldocs or{})then
 conf=config_ldoc(L,conf)env=mkenv(env,{LDOC=conf.LDOC})end
-local c=c_modules(L.luke.modules or{})local cprograms=filter(L.scripts.build,function(entry)return c_program(script_rules(L,entry))end)if not isempty(c)or not isempty(cprograms)then
+local c_names=c_modules(L.luke.modules or{})local c_programs=filter(L.scripts.build,function(entry)return c_program(script_rules(L,entry))end)if not isempty(c_names)or not isempty(c_programs)then
 conf=config_compiler(L,conf)env=mkenv(env,{CC=conf.CC})end
-L.luke=run_configs(L,conf,L.luke)env=mkenv(L.clidefs,L.luke.variables,env)local substitute=mkenv(L.clidefs,L.luke.substitute,SHELLENV)local status=0
-if modules then
-L.luke=run_templates(L,substitute,L.luke)status=firstof(c,isnonzero,function(name)return build_c_module(L,env,L.luke,name)end)or 0
-if status==0 and not isempty(L.luke.ldocs or{})then
-status=run_ldocs(L,env,L.luke.ldocs)end
+L.luke=run_configs(L,conf,L.luke)env=mkenv(L.clidefs,L.luke.variables,env)return env,mkenv(L.clidefs,L.luke.substitute,SHELLENV),c_names
 end
-if status==0 then
-status=firstof(L.scripts.build,isnonzero,function(entry)return build_script(L,env,substitute,entry)end)or 0
+local function build_modules(L,env,substitute,c_names)if isempty(L.luke.modules or{})then
+return 0
 end
-return status
-end
-return{main=function(args)local L=validate_arguments(parse_arguments(args))local env=mkenv(L.clidefs,L.luke.variables,DEFAULTENV,SHELLENV)local status=0
-if not isempty(L.valreqs)then
-local probed=run_configs(L,mkenv(CONFIGENV,env),{variables=L.luke.variables})env=mkenv(L.clidefs,probed.variables,env)each(L.valreqs,function(name)print(interpolate(env,concat{name,"='$",name,"'"}))end)exit(0)end
+L.luke=run_templates(L,substitute,L.luke)return sequence(flatten(map(c_names,function(name)return bind(build_c_module,{L,env,L.luke,name})end),choose(not isempty(L.luke.ldocs or{}),function()return bind(run_ldocs,{L,env,L.luke.ldocs})end)))end
+local function build_scripts(L,env,substitute)return sequence(map(L.scripts.build,function(entry)return bind(build_script,{L,env,substitute,entry})end))end
+local function build(L,env)local env,substitute,c_names=configured(L,env)return sequence{bind(build_modules,{L,env,substitute,c_names}),bind(build_scripts,{L,env,substitute}),}end
+local function print_values(L,env)local probed=run_configs(L,mkenv(CONFIGENV,env),{variables=L.luke.variables})env=mkenv(L.clidefs,probed.variables,env)each(L.valreqs,function(name)print(interpolate(env,format("%s='$%s'",name,name)))end)exit(0)end
+return{main=function(args)local L=validate_arguments(parse_arguments(args))local env=mkenv(L.clidefs,L.luke.variables,DEFAULTENV,SHELLENV)if not isempty(L.valreqs)then
+print_values(L,env)end
 if L.release~=nil then
-return release(L,env,function()return build(L,env)end)end
-if not isempty(L.luke.modules or{})or not isempty(L.scripts.build)then
-status=build(L,env)end
-if status==0 then
-status=install_modules(L,env,L.luke,L.install)end
-if status==0 then
-status=install_scripts(L,env,L.luke,L.scripts.install)end
-return status
-end,}
+return release(L,env,bind(build,{L,env}))end
+return sequence{function()local wanted=not isempty(L.luke.modules or{})or not isempty(L.scripts.build)return choose(wanted,bind(build,{L,env}),0)end,bind(install_modules,{L,env,L.luke,L.install}),bind(install_scripts,{L,env,L.luke,L.scripts.install}),}end,}
 end
 package.preload['luke.lukefile']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local str,t=mkcheck'string',mkcheck'table'local RELEASE=fields({add=listof(pathname),check_dependencies=mkcheck'boolean',news=pathname,replacements=ordered_map(pairof(ordered_map(pairof(str)),pathname)),rockspec=pathname,},copies)local LUKEFILE=fields({luke_format=luke_format,package=str,version=str,defines=defines,external_dependencies=dependencies,incdirs=listof(pathname),ldocs=rules,libdirs=listof(pathname),libraries=listof(id),modules=ordered_map(pairof(rules)),substitute=t,variables=t,bin=scripts,files=files,install=fields{bin=scripts,},release=RELEASE,},true)local function collect_configs(luke,modulename,sectionname)return flatmap(sorted_keys(luke),function(k)local v=luke[k]return cond({isprobe(v),{{t=luke,k=k,module=modulename,section=sectionname}}},{istable(v)and(k=='modules'or k=='external_dependencies'),function()return flatmap(v,function(pair)local name,rules=destructure(pair)return collect_configs(rules,name,k)end)end},{istable(v),function()return collect_configs(v,modulename,sectionname)end})end)end
@@ -876,8 +863,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/714d180',versiontext=[[
-luke (Luke) gvv/714d180
+return{VERSION='gvv/ade118b',versiontext=[[
+luke (Luke) gvv/ade118b
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

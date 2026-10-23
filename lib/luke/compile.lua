@@ -288,6 +288,8 @@ return {
 
    run = run,
 
+   sequence = sequence,
+
    script_target = script_target,
 
    spawn = spawn,

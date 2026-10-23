@@ -31,23 +31,28 @@ local function build_script(L, env, substitute, entry)
    local rules = script_rules(L, entry)
    local target = script_target(entry.name, rules, L.luke.variables.objdir, entry.section == 'install')
 
-   if isstring(rules) then
-      fill_template(L, substitute, rules)
-   else
-      local sources = map(rules.sources, function(source)
-         return fill_template(L, substitute, source)
-      end)
-      local status = build_program(L, env, L.luke, rules, target, sources)
-      if status ~= 0 then
-         return status
-      end
-   end
-
-   return choose(entry.section == 'files', 0, bind(make_executable, {L, env, target}))
+   return sequence{
+      function()
+         if isstring(rules) then
+            fill_template(L, substitute, rules)
+            return 0
+         end
+         local sources = map(rules.sources, function(source)
+            return fill_template(L, substitute, source)
+         end)
+         return build_program(L, env, L.luke, rules, target, sources)
+      end,
+      function()
+         return choose(entry.section == 'files', 0, bind(make_executable, {L, env, target}))
+      end,
+   }
 end
 
 
-local function build(L, env)
+-- Run the probes that building *L.luke* needs, and return the
+-- environment for commands, the substitutions for templates, and the
+-- names of the C modules, as they are before templates are filled.
+local function configured(L, env)
    local modules = not isempty(L.luke.modules or {})
    local conf = mkenv(CONFIGENV, env)
 
@@ -56,11 +61,11 @@ local function build(L, env)
       env = mkenv(env, {LDOC=conf.LDOC})
    end
 
-   local c = c_modules(L.luke.modules or {})
-   local cprograms = filter(L.scripts.build, function(entry)
+   local c_names = c_modules(L.luke.modules or {})
+   local c_programs = filter(L.scripts.build, function(entry)
       return c_program(script_rules(L, entry))
    end)
-   if not isempty(c) or not isempty(cprograms) then
+   if not isempty(c_names) or not isempty(c_programs) then
       conf = config_compiler(L, conf)
       env = mkenv(env, {CC=conf.CC})
    end
@@ -71,28 +76,54 @@ local function build(L, env)
    -- program found with checkprog, while command line values still win.
    env = mkenv(L.clidefs, L.luke.variables, env)
 
-   local substitute = mkenv(L.clidefs, L.luke.substitute, SHELLENV)
-   local status = 0
+   return env, mkenv(L.clidefs, L.luke.substitute, SHELLENV), c_names
+end
 
-   if modules then
-      L.luke = run_templates(L, substitute, L.luke)
 
-      status = firstof(c, isnonzero, function(name)
-         return build_c_module(L, env, L.luke, name)
-      end) or 0
-
-      if status == 0 and not isempty(L.luke.ldocs or {}) then
-         status = run_ldocs(L, env, L.luke.ldocs)
-      end
+-- Fill the templates of the modules, build the C modules *c_names*, and
+-- run ldocs, if there are modules to build.
+local function build_modules(L, env, substitute, c_names)
+   if isempty(L.luke.modules or {}) then
+      return 0
    end
+   L.luke = run_templates(L, substitute, L.luke)
+   return sequence(flatten(
+      map(c_names, function(name)
+         return bind(build_c_module, {L, env, L.luke, name})
+      end),
+      choose(not isempty(L.luke.ldocs or {}), function()
+         return bind(run_ldocs, {L, env, L.luke.ldocs})
+      end)
+   ))
+end
 
-   if status == 0 then
-      status = firstof(L.scripts.build, isnonzero, function(entry)
-         return build_script(L, env, substitute, entry)
-      end) or 0
-   end
 
-   return status
+-- Build each script, program and generated file selected.
+local function build_scripts(L, env, substitute)
+   return sequence(map(L.scripts.build, function(entry)
+      return bind(build_script, {L, env, substitute, entry})
+   end))
+end
+
+
+local function build(L, env)
+   local env, substitute, c_names = configured(L, env)
+   return sequence{
+      bind(build_modules, {L, env, substitute, c_names}),
+      bind(build_scripts, {L, env, substitute}),
+   }
+end
+
+
+-- Print the value of each variable that the command line asks for, and
+-- exit.  Only the probes in `variables` can set a value to print.
+local function print_values(L, env)
+   local probed = run_configs(L, mkenv(CONFIGENV, env), {variables = L.luke.variables})
+   env = mkenv(L.clidefs, probed.variables, env)
+   each(L.valreqs, function(name)
+      print(interpolate(env, format("%s='$%s'", name, name)))
+   end)
+   exit(0)
 end
 
 
@@ -100,36 +131,22 @@ return {
    main = function(args)
       local L = validate_arguments(parse_arguments(args))
       local env = mkenv(L.clidefs, L.luke.variables, DEFAULTENV, SHELLENV)
-      local status = 0
 
       if not isempty(L.valreqs) then
-         -- Only the probes in `variables` can set a value to print.
-         local probed = run_configs(L, mkenv(CONFIGENV, env), {variables = L.luke.variables})
-         env = mkenv(L.clidefs, probed.variables, env)
-         each(L.valreqs, function(name)
-            print(interpolate(env, concat {name, "='$", name, "'"}))
-         end)
-         exit(0)
+         print_values(L, env)
       end
 
       if L.release ~= nil then
-         return release(L, env, function()
-            return build(L, env)
-         end)
+         return release(L, env, bind(build, {L, env}))
       end
 
-      if not isempty(L.luke.modules or {}) or not isempty(L.scripts.build) then
-         status = build(L, env)
-      end
-
-      if status == 0 then
-         status = install_modules(L, env, L.luke, L.install)
-      end
-
-      if status == 0 then
-         status = install_scripts(L, env, L.luke, L.scripts.install)
-      end
-
-      return status
+      return sequence{
+         function()
+            local wanted = not isempty(L.luke.modules or {}) or not isempty(L.scripts.build)
+            return choose(wanted, bind(build, {L, env}), 0)
+         end,
+         bind(install_modules, {L, env, L.luke, L.install}),
+         bind(install_scripts, {L, env, L.luke, L.scripts.install}),
+      }
    end,
 }
