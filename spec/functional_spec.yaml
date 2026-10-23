@@ -137,9 +137,9 @@ specify luke.functional:
       ordered_pluck = functional.ordered_pluck
 
   - it keeps the pairs for the given keys, in their own order: |
-      expect(ordered_pluck({'c', 'b'}, {{b = 1}, {a = 2}, {c = 3}})).to_equal(list({b = 1}, {c = 3}))
+      expect(ordered_pluck({{b = 1}, {a = 2}, {c = 3}}, {'c', 'b'})).to_equal(list({b = 1}, {c = 3}))
   - it keeps nothing from nil: |
-      expect(ordered_pluck({'a'}, nil)).to_equal(list())
+      expect(ordered_pluck(nil, {'a'})).to_equal(list())
 
 - describe ordered_mapvalues:
   - before:
@@ -358,6 +358,9 @@ specify luke.functional:
   - it passes the arguments to each function, including nils:
       expect(any(function(...) return nil end, function(...) return select('#', ...) end)(nil, nil)).
          to_be(2)
+  - it returns every result of the first call that returns one:
+      expect({any(function() end, function() return 1, 2 end, function() return 3 end)()}).
+         to_equal {1, 2}
   - it returns nil if none do:
       expect(any(function() end, function() end)()).to_be(nil)
 
@@ -379,3 +382,14 @@ specify luke.functional:
       expect(either(0, 'b')).to_be(0)
   - it returns nil if the default is nil:
       expect(either({})).to_be(nil)
+
+- describe pluck:
+  - before:
+      pluck = functional.pluck
+
+  - it copies just the entries for the keys:
+      expect(pluck({a = 1, b = 2, c = 3}, {'a', 'c'})).to_equal {a = 1, c = 3}
+  - it leaves out keys that are not in the table:
+      expect(pluck({a = 1}, {'a', 'z'})).to_equal {a = 1}
+  - it returns an empty table if there are none:
+      expect(pluck({a = 1}, {'z'})).to_equal {}

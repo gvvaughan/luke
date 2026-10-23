@@ -222,10 +222,10 @@ return {
       -- and `install` alone installs every module and installable
       -- script.
       local named = reject(targets, 'install')
-      local build = ordered_pluck(named, luke.modules)
+      local build = ordered_pluck(luke.modules, named)
       local scripts = {
          build = foldl(SCRIPT_SECTIONS, list(), function(entries, section)
-            return foldl(ordered_keys(ordered_pluck(named, sections[section])), entries, function(entries, name)
+            return foldl(ordered_keys(ordered_pluck(sections[section], named)), entries, function(entries, name)
                return append(entries, {name = name, section = section})
             end)
          end),
@@ -236,7 +236,7 @@ return {
          if isempty(named) then
             install, scripts.install = luke.modules, ordered_keys(installbin)
          else
-            install, scripts.install = build, ordered_keys(ordered_pluck(named, installbin))
+            install, scripts.install = build, ordered_keys(ordered_pluck(installbin, named))
          end
       end
       luke.modules = build

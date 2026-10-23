@@ -75,11 +75,11 @@ end))end
 local targets=call(function()if isempty(parsed.targets)or contains(parsed.targets,'all')then
 return reject(flatten(parsed.targets,map(rulesets,ordered_keys)),'all')end
 local unknown=reject(parsed.targets,hasrule)diagnose(isempty(unknown),"no rule to make target '%s'",unknown[1])assert(len(parsed.targets)>0,"no build targets specified")return parsed.targets
-end)local named=reject(targets,'install')local build=ordered_pluck(named,luke.modules)local scripts={build=foldl(SCRIPT_SECTIONS,list(),function(entries,section)return foldl(ordered_keys(ordered_pluck(named,sections[section])),entries,function(entries,name)return append(entries,{name=name,section=section})end)end),install={},}local install
+end)local named=reject(targets,'install')local build=ordered_pluck(luke.modules,named)local scripts={build=foldl(SCRIPT_SECTIONS,list(),function(entries,section)return foldl(ordered_keys(ordered_pluck(sections[section],named)),entries,function(entries,name)return append(entries,{name=name,section=section})end)end),install={},}local install
 if contains(targets,'install')then
 if isempty(named)then
 install,scripts.install=luke.modules,ordered_keys(installbin)else
-install,scripts.install=build,ordered_keys(ordered_pluck(named,installbin))end
+install,scripts.install=build,ordered_keys(ordered_pluck(installbin,named))end
 end
 luke.modules=build
 local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merge(luke.substitute or{},{abs_top_srcdir=srcdir,gitref=ref,package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),})luke.variables=merge(luke.variables or{},collect_variables(luke),{LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUAVERSION',LUA_LIBDIR='$LUA_DIR/lib',abs_top_srcdir=srcdir,gitref=ref,objdir=platforms[1],package=luke.package,version=luke.version,})return{clidefs=parsed.clidefs,debug=parsed.debug,dryrun=parsed.dryrun,filled={},install=install,log=parsed.log,luke=luke,release=release,scripts=scripts,spawn=parsed.spawn,valreqs=parsed.valreqs,verbose=parsed.verbose,write=parsed.write,}end,}
@@ -383,7 +383,12 @@ local function isempty(x)if type(x)~='table'then
 return false
 end
 local k=next(x)return k==nil or(k=='n'and x.n==0 and next(x,k)==nil)end
-return{any=function(...)local fns=list(...)return function(...)local argu=list(...)return firstof(fns,isnonnil,function(fn)return fn(unpack(argu,1,argu.n))end)end
+return{any=function(...)local fns=list(...)return function(...)local r=list()for i=1,fns.n do
+r=list(fns[i](...))if r[1]~=nil then
+break
+end
+end
+return unpack(r,1,r.n)end
 end,apply=apply,bind=function(fn,bound)local n=bound.n or maxn(bound)return function(...)local argu,unbound=copy(bound),list(...)local i=1
 for j=1,unbound.n do
 while argu[i]~=nil do
@@ -441,8 +446,8 @@ end,mapvalues=function(iterable,block)local r={}for k,v in next,iterable or{}do
 r[k]=block(v)end
 return r
 end,nop=function()end,ordered_merge=function(...)local at={}return foldl(reject(list(...),nil),{},function(r,pairs)foldl(pairs,r,function(r,pair)local k,v=destructure(pair)at[k]=at[k]or#r+1
-r[at[k]]={[k]=v}end)end)end,ordered_get=function(om,key)return foldl(om or{},nil,function(_,pair)return pair[key]end)end,ordered_keys=function(om)return foldl(om or{},list(),function(r,pair)return append(r,(destructure(pair)))end)end,ordered_mapvalues=function(om,fn)return foldl(om or{},{},function(r,pair)local k,v=destructure(pair)r[#r+1]={[k]=fn(v)}end)end,ordered_pluck=function(keylist,om)local wanted=set(keylist)return reject(om or{},function(pair)return not wanted[(destructure(pair))]end)end,partition=function(seq,predicate)predicate=topredicate(predicate)local r,s=list(),list()walk(seq,function(...)append(predicate(...)and r or s,(...))end)return r,s
-end,pluck=function(keylist,dict)local r={}each(keylist,function(key)r[key]=dict[key]end)return next(r)and r or nil
+r[at[k]]={[k]=v}end)end)end,ordered_get=function(om,key)return foldl(om or{},nil,function(_,pair)return pair[key]end)end,ordered_keys=function(om)return foldl(om or{},list(),function(r,pair)return append(r,(destructure(pair)))end)end,ordered_mapvalues=function(om,fn)return foldl(om or{},{},function(r,pair)local k,v=destructure(pair)r[#r+1]={[k]=fn(v)}end)end,ordered_pluck=function(om,keylist)local wanted=set(keylist)return reject(om or{},function(pair)return not wanted[(destructure(pair))]end)end,partition=function(seq,predicate)predicate=topredicate(predicate)local r,s=list(),list()walk(seq,function(...)append(predicate(...)and r or s,(...))end)return r,s
+end,pluck=function(t,keylist)local r={}each(keylist,function(key)r[key]=t[key]end)return r
 end,reject=reject,reversed=function(seq)return foldl(seq,{},function(r,v)return{v,unpack(r)}end)end,sorted_keys=function(iterable)local rank={number=1,string=2}local r=keys(iterable)sort(r,function(a,b)local ra,rb=rank[type(a)]or 3,rank[type(b)]or 3
 return ra<rb or ra==rb and(ra<3 and a<b or ra==3 and str(a)<str(b))end)return r
 end,sorted=function(seq,cmp)local r=copy(seq)sort(r,cmp)return r
@@ -847,7 +852,7 @@ end
 local function ordered_map(entry)local function narrowed(x,path)return entry(istable(x)and filter_platforms(x,nil,nil,ORDERED)or x,path)end
 local function layer_entries(layer,path)each(filter(sorted_keys(layer),function(k)return k~='platforms'and not islistkey(layer,k)end),function(k)bad(index(path,k),'list entry expected, such as {%s = ...}',index('',k))end)local r=list_of(narrowed)(layer,path)foldl(r,{},function(seen,pair)claim(seen,(next(pair)),true,path)end)return r
 end
-local function check_layers(x,path)layer_entries(mkcheck'table'(x,path),path)local at=index(path,'platforms')local platforms=mkcheck'table'(x.platforms,at)choose(platforms~=nil,function()local names,others=partition(sorted_keys(platforms),isplatform)each(names,function(name)check_layers(platforms[name],index(at,name))end)check_layers(pluck(others,platforms)or{},at)end)end
+local function check_layers(x,path)layer_entries(mkcheck'table'(x,path),path)local at=index(path,'platforms')local platforms=mkcheck'table'(x.platforms,at)choose(platforms~=nil,function()each(filter(sorted_keys(platforms),isplatform),function(name)check_layers(platforms[name],index(at,name))end)check_layers(except(platforms,isplatform),at)end)end
 local function resolve(x,path)return ordered_merge(unpack(map(layers(x),function(layer)return choose(layer.platforms~=nil,function()return resolve(layer,path)end,function()return layer_entries(layer,path)end)end)))end
 return function(x,path)local t=choose(isstring(x),function()return{x}end,function()return x
 end)choose(t~=nil,bind(check_layers,{t,path}))return t and resolve(t,path)end
@@ -879,8 +884,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,list_of=list_of,luke_format=luke_format,map_of=map_of,mkcheck=mkcheck,ordered_map=ordered_map,pair_of=pair_of,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/c4f0cf5',versiontext=[[
-luke (Luke) gvv/c4f0cf5
+return{VERSION='gvv/8ab5681',versiontext=[[
+luke (Luke) gvv/8ab5681
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

@@ -252,11 +252,10 @@ local function ordered_map(entry)
       local at = index(path, 'platforms')
       local platforms = mkcheck 'table'(x.platforms, at)
       choose(platforms ~= nil, function()
-         local names, others = partition(sorted_keys(platforms), isplatform)
-         each(names, function(name)
+         each(filter(sorted_keys(platforms), isplatform), function(name)
             check_layers(platforms[name], index(at, name))
          end)
-         check_layers(pluck(others, platforms) or {}, at)
+         check_layers(except(platforms, isplatform), at)
       end)
    end
 

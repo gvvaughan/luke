@@ -190,14 +190,19 @@ end
 
 return {
    -- A function that calls each of *...* with its arguments, lazily,
-   -- until one returns something that is not nil, and returns that.
+   -- until one returns something that is not nil, and returns all its
+   -- results, or those of the last if none do.
    any = function(...)
       local fns = list(...)
       return function(...)
-         local argu = list(...)
-         return firstof(fns, isnonnil, function(fn)
-            return fn(unpack(argu, 1, argu.n))
-         end)
+         local r = list()
+         for i = 1, fns.n do
+            r = list(fns[i](...))
+            if r[1] ~= nil then
+               break
+            end
+         end
+         return unpack(r, 1, r.n)
       end
    end,
 
@@ -430,7 +435,7 @@ return {
 
    -- The pairs in the list of one-pair tables *om* whose keys are in
    -- *keylist*, in the order of *om*.
-   ordered_pluck = function(keylist, om)
+   ordered_pluck = function(om, keylist)
       local wanted = set(keylist)
       return reject(om or {}, function(pair)
          return not wanted[(destructure(pair))]
@@ -446,12 +451,13 @@ return {
       return r, s
    end,
 
-   pluck = function(keylist, dict)
+   -- A table of just the entries of *t* for the keys in *keylist*.
+   pluck = function(t, keylist)
       local r = {}
       each(keylist, function(key)
-         r[key] = dict[key]
+         r[key] = t[key]
       end)
-      return next(r) and r or nil
+      return r
    end,
 
    reject = reject,
