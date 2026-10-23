@@ -149,6 +149,26 @@ specify luke.functional:
   - it reverses the items of an iterator function:
       expect(reversed(('abc'):gmatch '.')).to_equal(list('c', 'b', 'a'))
 
+- describe tabulate:
+  - before:
+      tabulate = functional.tabulate
+
+  - it works with an empty table:
+      expect(tabulate({}, functional.id)).to_equal {}
+  - it makes a table from the keys and values returned:
+      expect(tabulate({'a', 'b'}, function(e) return e, e .. 'x' end)).
+         to_equal {a='ax', b='bx'}
+  - it leaves out items with a nil key:
+      expect(tabulate({1, 2, 3}, function(e) if e ~= 2 then return e, true end end)).
+         to_equal {[1]=true, [3]=true}
+  - it stores false values:
+      expect(tabulate({1}, function(e) return e, false end)).to_equal {[1]=false}
+  - it lets a later key replace an earlier one:
+      expect(tabulate({1, 2}, function(e) return 'k', e end)).to_equal {k=2}
+  - it tabulates the results of an iterator function:
+      expect(tabulate(('a b'):gmatch '%a', function(e) return e, true end)).
+         to_equal {a=true, b=true}
+
 - describe islistkey:
   - before:
       islistkey = functional.islistkey

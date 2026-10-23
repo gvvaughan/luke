@@ -219,6 +219,21 @@ local function converge(x, limit, fn)
 end
 
 
+-- A table of the key and value results of calling *fn* with each item of
+-- *seq*, leaving out an item for which the key is nil, and with a later
+-- result for a key replacing an earlier one.
+local function tabulate(seq, fn)
+   local r = {}
+   walk(seq, function(...)
+      local k, v = fn(...)
+      if k ~= nil then
+         r[k] = v
+      end
+   end)
+   return r
+end
+
+
 -- The set of the items of *seq*, as a table with each of them a key
 -- for `true`.
 local function set(seq)
@@ -593,6 +608,8 @@ return {
       end)
       return r
    end,
+
+   tabulate = tabulate,
 
    values = function(iterable)
       local r = list()
