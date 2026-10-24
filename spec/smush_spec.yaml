@@ -46,6 +46,9 @@ specify smush:
   - it bundles a file that it is given by path: |
       p = smush(tmpdir, '--module=x', tmpdir .. '/two.lua')
       expect(p).to_succeed_while_containing "two']=function()"
+  - it bundles a file that it is given by path as the module that it is named: |
+      p = smush(tmpdir, '--module=x', 'x=' .. tmpdir .. '/two.lua')
+      expect(p).to_succeed_while_containing "bundled['x']=function()"
   - it keeps what it bundles out of package: |
       p = smush(tmpdir, '--module=one', 'one', 'two')
       load(p.output)()

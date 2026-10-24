@@ -195,10 +195,14 @@ local function modfile(name)
 end
 
 
--- Each argument is a path, or the name of a module to find in the Lua
--- path, which is bundled under the name it was asked for.
+-- Each argument is a path, which is bundled under the module name that
+-- its path makes, or NAME=PATH, which is bundled as NAME, or else the name
+-- of a module to find in the Lua path, which is bundled under that name.
 local function source(arg)
-   if find(arg, '/', 1, true) or find(arg, '%.lua') then
+   local name, fname = match(arg, '^([%w_.%-]+)=(.+)$')
+   if name ~= nil then
+      return name, fname
+   elseif find(arg, '/', 1, true) or find(arg, '%.lua') then
       return modname(arg), arg
    end
    return arg, modfile(arg)
@@ -286,7 +290,7 @@ end
 
 
 --- Write a single file that bundles *sources*.
--- A source is a path, or the name of a module in the Lua path.
+-- A source is a path, NAME=PATH, or the name of a module in the Lua path.
 -- With `--module=NAME` the file is a module that returns the bundled
 -- module NAME, otherwise it is a script that exits with what the main
 -- function of the bundled module `luke` returns (or of `--main=NAME`).

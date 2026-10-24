@@ -15,6 +15,9 @@
     also bundles the modules that it finds in the Lua path, by name, and
     can write a module for the bundle to return, rather than a program.
 
+  - `smush` also bundles `NAME=PATH`, a file as the module NAME, rather
+    than the module that its path makes.
+
   - `smush` warns of a module that a bundled module names, which is in
     the Lua path but is not bundled, such as a dependency left off the
     list, rather than leaving it to fail when the bundle runs.  A module
