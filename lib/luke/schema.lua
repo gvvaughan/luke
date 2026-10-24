@@ -466,6 +466,8 @@ end
 return {
    ORDERED      = ORDERED,
 
+   bad          = bad,
+   index        = index,
    copies       = copies,
    defines      = defines,
    dependencies = dependencies,

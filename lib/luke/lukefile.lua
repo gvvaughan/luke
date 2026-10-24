@@ -28,14 +28,53 @@ local str, t = mkcheck 'string', mkcheck 'table'
 -- files for the release branch, commits generated files, and whether
 -- it first checks that the rockspec's dependencies are installed; any
 -- other key names a branch, such as `gh-pages`, mapped to the release
--- files to copy there.
-local RELEASE = fields({
+-- files to copy there.  The `rockspec` can be a list, to release more
+-- than one rock together, at one version.
+--
+-- To release rocks separately, each with versions of its own, every
+-- development rockspec is instead the key of a table of the keys above,
+-- except `rockspec`, or a bare name when there are none, and nothing else.
+local RELEASEKEYS = {
    add                = listof(pathname),
    check_dependencies = mkcheck 'boolean',
    news               = pathname,
    replacements       = ordered_map(pairof(ordered_map(pairof(str)), pathname)),
-   rockspec           = pathname,
-}, copies)
+}
+local release_fields = fields(merged(RELEASEKEYS, {rockspec = listof(pathname)}), copies)
+local rock_fields = fields(RELEASEKEYS, copies)
+
+
+local function isrockspec(k)
+   return type(k) == 'string' and match(k, '%.rockspec$') ~= nil
+end
+
+
+local RELEASE = setmetatable({schema = release_fields.schema}, {__call = function(_, x, path)
+   if t(x, path) == nil then
+      return nil
+   end
+   local own, rocks = {}, {}
+   for k, v in next, x do
+      if type(k) == 'number' then
+         -- A bare development rockspec, for a rock with no other keys.
+         if not isrockspec(str(v, index(path, k))) then
+            bad(index(path, k), 'development rockspec name expected, got %s', v)
+         end
+         rocks[v] = {}
+      elseif isrockspec(k) then
+         rocks[k] = rock_fields(v, index(path, k))
+      else
+         own[k] = v
+      end
+   end
+   if next(rocks) == nil then
+      return release_fields(x, path)
+   elseif next(own) ~= nil then
+      bad(path, 'a release table with rockspecs has no other keys: put them in an entry of one')
+   end
+   return rocks
+end})
+
 
 -- TODO: lukefile keys luke does not understand are let through, as a
 -- rockspec-style lukefile may have fields for other tools; diagnose
@@ -274,7 +313,7 @@ return {
    -- in sorted order.
    branches = function(release)
       return filter(sorted(keys(release or {})), function(k)
-         return RELEASE.schema[k] == nil
+         return RELEASE.schema[k] == nil and not isrockspec(k)
       end)
    end,
 

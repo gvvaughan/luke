@@ -623,7 +623,8 @@ Luke checks, before changing anything, that:
  * the working tree is clean, and a branch is checked out, such as
    `master`, `main` or a maintenance branch, and is up to date with
    origin, which Luke fetches;
- * there is no `release-vX.Y` branch or `vX.Y` tag yet;
+ * there is no `release-vX.Y` branch or `vX.Y` tag yet (for a rock other
+   than the `package`, `release-NAME-vX.Y` and `NAME-vX.Y`);
  * the first `##` header in `news` is a placeholder for the next
    release, with `?.?` in place of its version, and has news under it;
  * `news` has no release X.Y yet;
@@ -770,6 +771,67 @@ what an earlier replacement wrote.  A replacement is a
 commits the edited files with everything else, and the branch checked
 out keeps them as they were.
 
+### 8.5. Releasing More Than One Rock
+
+A repository can release more than one rock, in either of two ways.
+
+To release them together, at one version, with one tag, list their
+development rockspecs in `rockspec`:
+
+{% highlight lua %}
+    release = {
+       news     = 'NEWS.md',
+       rockspec = {'mylib-dev-1.rockspec', 'mylib-extra-dev-1.rockspec'},
+    }
+{% endhighlight %}
+
+Luke checks, writes and commits each, and prints a `luarocks upload` for
+each.  The rockspec whose name starts with the lukefile `package` gives
+the `description` of the announcement, or else the first does, and the
+announcement says how to install every rock.
+
+To release them separately, each with versions of its own, make each
+development rockspec the key of a table of the keys above, other than
+`rockspec`, or write its name alone when it has none, and write nothing
+else in `release`.  Luke's own is:
+
+{% highlight lua %}
+    release = {
+       'luarocks-build-luke-dev-1.rockspec',
+       ['luke-dev-1.rockspec'] = {
+          news         = 'NEWS.md',
+          replacements = {
+             {['README.md'] = {
+                {['?branch=master'] = '?branch=release-v@version@'},
+             }},
+          },
+          ['gh-pages'] = {
+             {['index.md'] = 'doc/luke.md'},
+             '_config.yml.in',
+          },
+       },
+    }
+{% endhighlight %}
+
+`luke release version=X.Y` releases the rock that the lukefile `package`
+names, as `luke-dev-1.rockspec` is of `luke`, and `luke release
+rock=luarocks-build-luke version=X.Y` another, by the rules in its table
+alone.  Luke stops if there is no such rock.
+
+So that the releases of one repository do not meet, the tag and the branch
+of every rock but the `package` name it: `luarocks-build-luke-vX.Y` and
+`release-luarocks-build-luke-vX.Y`, where the `package` has `vX.Y` and
+`release-vX.Y`.  The source of the release rockspec of such a rock must say
+the same, as the archive that GitHub makes of a tag has a directory named
+for it:
+
+{% highlight lua %}
+    source = {
+       url = 'https://github.com/gvvaughan/luke/archive/' .. package .. '-v' .. _MODREV .. '.zip',
+       dir = 'luke-' .. package .. '-v' .. _MODREV,
+    }
+{% endhighlight %}
+
 
 ## 9. Lukefile Reference
 
@@ -801,12 +863,13 @@ and `./` is `.`, the directory itself.  It leaves `..` alone.
 | `ldocs`                 | an LDoc configuration file                                   | [3.6](#36-ldocs) |
 | `variables`             | variable names, each mapped to a value                       | [4.1](#41-variables) |
 | `substitute`            | template names, each mapped to a value                       | [4.3](#43-templates) |
-| `release`               | a table with `news`, `rockspec`, `check_dependencies`, `add`, `replacements` and branches | [8](#8-releases) |
+| `release`               | a table with `news`, `rockspec`, `check_dependencies`, `add`, `replacements` and branches, or one for each rock | [8](#8-releases) |
 | `release.news`          | the NEWS file                                                | [8.1](#81-checks), [8.2](#82-steps) |
-| `release.rockspec`      | the development rockspec                                     | [8.1](#81-checks), [8.2](#82-steps) |
+| `release.rockspec`      | the development rockspec, or a list of them to release together | [8.1](#81-checks), [8.2](#82-steps) |
 | `release.check_dependencies` | `true` to check that LuaRocks has the rockspec's dependencies | [8.1](#81-checks) |
 | `release.replacements`  | {% raw %}`{path = {{text = replacement}, ...}}`{% endraw %} entries, in order     | [8.4](#84-replacements) |
 | `release.add`           | a list of paths to commit to the release                     | [8.2](#82-steps) |
+| `release[NAME-dev-1.rockspec]` | a table of the keys above but `rockspec`, or a bare name, for a rock released on its own | [8.5](#85-releasing-more-than-one-rock) |
 | `release[branch]`       | `{path = source}` entries, or paths on their own, in order   | [8.3](#83-publishing-to-branches) |
 
 

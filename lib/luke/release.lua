@@ -27,6 +27,56 @@ local MODREV = "^(local _MODREV, _SPECREV = ')[^']*(')"
 local DEVROCKSPEC = '^(.-%-)dev(%-%d+%.rockspec)$'
 
 
+-- The tag that releases *version*, of *rock* if there is one, and the
+-- branch that it is released on.  Rocks released from one repository
+-- have versions of their own, so the tag names every rock but the
+-- package of the lukefile.
+local function names(rock, version)
+   local tag = (rock ~= nil and rock .. '-' or '') .. 'v' .. version
+   return tag, 'release-' .. tag
+end
+
+
+-- The name of the rock that the development rockspec *rockspec* is of.
+local function rockname(rockspec)
+   local name = basename(rockspec)
+   return match(name, '^(.-)%-dev%-%d+%.rockspec$') or (gsub(name, '%.rockspec$', ''))
+end
+
+
+-- The development rockspecs that the release *rules* release, as a list:
+-- `rockspec` is a path, or a list of them.
+local function rockspecs(rules)
+   return isstring(rules.rockspec) and {rules.rockspec} or rules.rockspec or {}
+end
+
+
+-- The development rockspec of *rockspecs* that a release is announced by:
+-- the first that starts with *package*, or else the first.
+local function main_rockspec(rockspecs, package)
+   for i = 1, len(rockspecs) do
+      if sub(basename(rockspecs[i]), 1, len(package)) == package then
+         return rockspecs[i]
+      end
+   end
+   return rockspecs[1]
+end
+
+
+-- The release tables of a *release* that has a table for each development
+-- rockspec, by the name of its rock, each with its `rockspec`, or else nil.
+local function release_tables(release)
+   local r
+   for k, v in next, release do
+      if isstring(k) and match(k, '%.rockspec$') then
+         r = r or {}
+         r[rockname(k)] = merged(v, {rockspec = k})
+      end
+   end
+   return r
+end
+
+
 -- The output of git with arguments *...*, without its trailing newline,
 -- or nil if git fails.
 local function git(env, ...)
@@ -95,7 +145,7 @@ end
 -- summary and home page from *rockspec* text, the *news* for the
 -- release, and how to install it with LuaRocks, as far as each is
 -- known.  The name in *rockspec* wins over *package*.
-local function announcement(package, version, news, rockspec)
+local function announcement(package, version, news, rockspec, rocks)
    local fields = rockspec_fields(rockspec)
    local description = istable(fields.description) and fields.description or {}
    package = isstring(fields.package) and fields.package or package
@@ -104,7 +154,9 @@ local function announcement(package, version, news, rockspec)
       format('I am happy to announce release %s of %s.', version, package), '',
       isstring(description.homepage) and {format("%s's home page is at %s", package, description.homepage), ''} or {},
       news and {news, ''} or {},
-      rockspec and {'Install it with LuaRocks, using:', '', format('    luarocks install %s %s', package, version)} or {}
+      rockspec and {'Install it with LuaRocks, using:', '', map(rocks or {package}, function(rock)
+         return format('    luarocks install %s %s', rock, version)
+      end)} or {}
    )))
    return package, match(concat(lines, '\n'), '^(.-)%s*$') .. '\n'
 end
@@ -116,15 +168,15 @@ local function remove_placeholder(text)
 end
 
 
--- Tag release *version* with the annotated message *notes*, written to
+-- Tag a release as *name* with the annotated message *notes*, written to
 -- a temporary file for git to read as it is, keeping the '#' of each
 -- Markdown header; return the exit status.
-local function tag(L, env, version, notes)
+local function tag(L, env, name, notes)
    local filename = tmpname()
    with(File(filename, 'w'), function(h)
       h:write(notes)
    end)
-   local status = run(L, env, {'git tag -a --cleanup=verbatim', 'v' .. version, '-F', filename})
+   local status = run(L, env, {'git tag -a --cleanup=verbatim', name, '-F', filename})
    rm(filename)
    return status
 end
@@ -204,11 +256,11 @@ local function publish_steps(L, env, substitute, worktree, copies)
 end
 
 
--- The checks of the repository that must pass to release *version* from
--- *main*, the branch checked out, as a description, a predicate, and the
--- command that undoes what a failed release did to make it fail, if any.
-local function repository_checks(env, version, main)
-   local branch, tag = 'release-v' .. version, 'v' .. version
+-- The checks of the repository that must pass to release as *tag* on
+-- *branch* from *main*, the branch checked out, as a description, a
+-- predicate, and the command that undoes what a failed release did to
+-- make it fail, if any.
+local function repository_checks(env, tag, branch, main)
    local name = choose(main ~= nil, main, 'a branch')
    local checkout = format('git checkout --force %s', name)
    return {
@@ -315,20 +367,20 @@ end
 -- can be set to a version, and that its dependencies are installed, if
 -- the release asks.
 local function rockspec_checks(env, release)
-   return choose(release.rockspec ~= nil, function()
-      local rockspec = slurp(File(release.rockspec))
+   return flatmap(rockspecs(release), function(name)
+      local rockspec = slurp(File(name))
       return reject(list(
-         {format('%s is a development rockspec', release.rockspec), function()
-            return match(release.rockspec, DEVROCKSPEC) ~= nil
+         {format('%s is a development rockspec', name), function()
+            return match(name, DEVROCKSPEC) ~= nil
          end},
-         {format('%s sets _MODREV on its first line', release.rockspec), function()
+         {format('%s sets _MODREV on its first line', name), function()
             return rockspec ~= nil and match(rockspec, MODREV) ~= nil
          end},
-         choose(release.check_dependencies, {format('the dependencies of %s are installed', release.rockspec), function()
-            return dependencies_installed(env, release.rockspec)
+         choose(release.check_dependencies, {format('the dependencies of %s are installed', name), function()
+            return dependencies_installed(env, name)
          end})
       ), nil)
-   end, {})
+   end)
 end
 
 
@@ -336,9 +388,9 @@ end
 -- *main*, the branch checked out, as a description, a predicate, and
 -- the command that undoes what a failed release did to make it fail,
 -- if any.  Replacements are filled from *substitute*.
-local function preconditions(env, release, version, main, substitute)
+local function preconditions(env, release, tag, branch, version, main, substitute)
    return flatmap(list(
-      repository_checks(env, version, main),
+      repository_checks(env, tag, branch, main),
       news_checks(release, version),
       replacement_checks(release, substitute),
       branch_checks(env, release),
@@ -446,7 +498,8 @@ end
 -- the `worktrees` for them, and the `substitute` environment.
 local function release_steps(L, env, build, plan)
    local version, rules = plan.version, plan.rules
-   local news, rockspec, pages, worktrees = rules.news, rules.rockspec, plan.pages, plan.worktrees
+   local news, pages, worktrees = rules.news, plan.pages, plan.worktrees
+   local tagname, branch = plan.tag, plan.branch
    -- TODO: before branching, rename any PACKAGE-git-1.rockspec to
    -- PACKAGE-dev-1.rockspec, setting its _MODREV from 'git' to 'dev'.
    return compact(flatten(list(
@@ -454,23 +507,25 @@ local function release_steps(L, env, build, plan)
          bind(edit, {L, news, bind(add_release_header, {[2]=version, [3]=plan.today})}),
          bind(run, {L, env, {'git commit', format("-m 'maint: update NEWS.md for %s.'", version), news}}),
       },
-      bind(run, {L, env, {'git checkout -b', 'release-v' .. version}}),
+      bind(run, {L, env, {'git checkout -b', branch}}),
       news and bind(edit, {L, news, remove_placeholder}),
       map(rules.replacements or {}, function(entry)
          local path, pairs = destructure(entry)
          return bind(edit, {L, path, bind(replace, {[2]=plan.substitute, [3]=pairs})})
       end),
       build,
-      rockspec and {
-         bind(edit, {L, rockspec, bind(set_modrev, {[2]=version}), plan.released}),
-         bind(run, {L, env, {'git rm --quiet', rockspec}}),
-      },
+      map(rockspecs(rules), function(rockspec)
+         return {
+            bind(edit, {L, rockspec, bind(set_modrev, {[2]=version}), rockspec_name(rockspec, version)}),
+            bind(run, {L, env, {'git rm --quiet', rockspec}}),
+         }
+      end),
       not isempty(plan.added) and {
          bind(unignore, {L, env, plan.added}),
          bind(run, {L, env, {'git add -f', unpack(plan.added)}}),
       } or nil,
-      bind(run, {L, env, {format("git commit -a -m 'Release v%s.'", version)}}),
-      bind(tag, {L, env, version, plan.notes}),
+      bind(run, {L, env, {format("git commit -a -m 'Release %s.'", tagname)}}),
+      bind(tag, {L, env, tagname, plan.notes}),
       map(pages, function(branch)
          local worktree = worktrees[branch]
          return {
@@ -492,28 +547,30 @@ end
 -- announcing it as *package*.
 local function ready_message(L, env, plan, package)
    local version, main, released = plan.version, plan.main, plan.released
-   local pushed = compact(flatten(list(main, 'release-v' .. version, 'v' .. version, plan.pages)))
-   L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',
-      version, concat(pushed, ' ')))
+   local pushed = compact(flatten(list(main, plan.branch, plan.tag, plan.pages)))
+   L.write(format('\nRelease %s is ready.  To publish it:\n\n   git push origin %s\n',
+      plan.tag, concat(pushed, ' ')))
    -- GH=true skips announcing the release on GitHub.
    local GH = env.GH or configure(L, env, {checkprog='GitHub CLI', progs={'gh', 'true'}})
    if GH ~= 'true' then
-      L.write(format("   %s release create v%s --verify-tag --latest --title '[ANN] %s v%s released' --notes-from-tag\n",
-         GH, version, package, version))
+      L.write(format("   %s release create %s --verify-tag --latest --title '[ANN] %s v%s released' --notes-from-tag\n",
+         GH, plan.tag, package, version))
    end
-   if released ~= nil then
-      L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout %s\n',
-         version, released, main))
+   if not isempty(released) then
+      L.write(format('   git checkout %s\n%s   git checkout %s\n', plan.branch,
+         concat(map(released, function(rockspec)
+            return format('   luarocks upload %s\n', rockspec)
+         end)), main))
    end
 end
 
 
--- Say how to undo release *version*, which failed, as far as the
+-- Say how to undo release *tag*, which failed, as far as the
 -- *checks* that it passed before and fails now say.
-local function failed_message(L, checks, version)
+local function failed_message(L, checks, tag)
    local undo = undo_commands(checks)
    choose(not isempty(undo), function()
-      L.write(format('\nRelease v%s failed.  To undo it before trying again:\n\n%s', version,
+      L.write(format('\nRelease %s failed.  To undo it before trying again:\n\n%s', tag,
          concat(map(undo, function(command)
             return '   ' .. command .. '\n'
          end))))
@@ -529,23 +586,41 @@ return {
    release = function(L, env, build)
       local version, main = L.release, git(env, 'symbolic-ref --short HEAD')
       local substitute = mkenv({version = version}, L.clidefs, L.luke.substitute, SHELLENV)
-      local checks = preconditions(env, L.luke.release or {}, version, main, substitute)
+
+      -- Release the rock that `rock=NAME` asks for, or else the package of
+      -- the lukefile, by the release table of that rock: its own, if the
+      -- release table has a table for each development rockspec, or the
+      -- release table itself, to release every rockspec in it together.
+      local package = interpolate(env, L.luke.package)
+      local rock = (L.clidefs or {}).rock or package
+      local release = L.luke.release or {}
+      local rules = (release_tables(release) or {[package] = release})[rock]
+      if rules == nil then
+         fatal("cannot release %s: no rock '%s' in the release table of the lukefile", version, rock)
+         return 1
+      end
+
+      local tag, branch = names(choose(rock ~= package, rock), version)
+      local checks = preconditions(env, rules, tag, branch, version, main, substitute)
       local failed = failed_check(L, checks)
       if failed ~= nil then
          fatal('cannot release %s: expected that %s', version, failed)
          return 1
       end
 
-      local rules = L.luke.release or {}
-      local news, rockspec = rules.news, rules.rockspec
-      local released = rockspec and rockspec_name(rockspec, version)
+      local news, rocks = rules.news, rockspecs(rules)
+      local released = map(rocks, function(rockspec)
+         return rockspec_name(rockspec, version)
+      end)
+      local main_rock = main_rockspec(rocks, rock)
       local today = date '%Y-%m-%d'
 
       -- Compose the announcement before any step changes NEWS, so that
       -- --dry-run tags with the same message.
-      local package, notes = announcement((interpolate(env, L.luke.package)), version,
+      local _, notes = announcement(rock, version,
          news and release_news(add_release_header(slurp(File(news)) or '', version, today), version),
-         rockspec and slurp(File(rockspec)))
+         main_rock and slurp(File(main_rock)),
+         len(rocks) > 1 and map(rocks, rockname) or nil)
 
       -- A temporary worktree for updating each branch that the release
       -- copies files to.
@@ -556,7 +631,7 @@ return {
          return branch, worktree
       end)
       local plan = {
-         version = version, main = main, rules = rules, today = today, notes = notes,
+         version = version, tag = tag, branch = branch, main = main, rules = rules, today = today, notes = notes,
          added = compact(flatten(list(rules.add, generated(L.luke), released))), released = released,
          pages = pages, worktrees = worktrees, substitute = substitute,
       }
@@ -571,11 +646,11 @@ return {
          end)
       end)
       if status == 0 then
-         ready_message(L, env, plan, package)
+         ready_message(L, env, plan, rock)
       else
          -- Whatever the failed release left behind now fails the checks
          -- it passed before.
-         failed_message(L, checks, version)
+         failed_message(L, checks, plan.tag)
       end
       return status
    end,

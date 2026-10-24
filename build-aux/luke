@@ -55,7 +55,8 @@ Each TARGET can be one of the module table keys from lukefile, or:
 
   all           build all targets in lukefile
   install       copy all built targets to $PREFIX
-  release       cut a release of the version given by version=VERSION
+  release       cut a release of the rock=NAME at version=VERSION
+                (rock=@package@ if not specified)
 
 If no TARGET is given, 'all' is implied.
 
@@ -505,7 +506,25 @@ return sequence{function()local wanted=not isempty(L.luke.modules or{})or not is
 return{main=function(args)return make(commandline(args))end,make=make,}
 end
 bundled['luke.lukefile']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local str,t=mkcheck'string',mkcheck'table'local RELEASE=fields({add=listof(pathname),check_dependencies=mkcheck'boolean',news=pathname,replacements=ordered_map(pairof(ordered_map(pairof(str)),pathname)),rockspec=pathname,},copies)local LUKEFILE=fields({luke_format=luke_format,package=str,version=str,defines=defines,external_dependencies=dependencies,incdirs=listof(pathname),ldocs=rules,libdirs=listof(pathname),libraries=listof(id),modules=ordered_map(pairof(rules)),substitute=t,variables=t,bin=scripts,files=files,install=fields{bin=scripts,},release=RELEASE,},true)local function collect_configs(luke,modulename,sectionname)return flatmap(sorted_keys(luke),function(k)local v=luke[k]return cond({isprobe(v),{{t=luke,k=k,module=modulename,section=sectionname}}},{istable(v)and(k=='modules'or k=='external_dependencies'),function()return flatmap(v,function(pair)local name,rules=destructure(pair)return collect_configs(rules,name,k)end)end},{istable(v),function()return collect_configs(v,modulename,sectionname)end})end)end
+local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local str,t=mkcheck'string',mkcheck'table'local RELEASEKEYS={add=listof(pathname),check_dependencies=mkcheck'boolean',news=pathname,replacements=ordered_map(pairof(ordered_map(pairof(str)),pathname)),}local release_fields=fields(merged(RELEASEKEYS,{rockspec=listof(pathname)}),copies)local rock_fields=fields(RELEASEKEYS,copies)local function isrockspec(k)return type(k)=='string'and match(k,'%.rockspec$')~=nil
+end
+local RELEASE=setmetatable({schema=release_fields.schema},{__call=function(_,x,path)if t(x,path)==nil then
+return nil
+end
+local own,rocks={},{}for k,v in next,x do
+if type(k)=='number'then
+if not isrockspec(str(v,index(path,k)))then
+bad(index(path,k),'development rockspec name expected, got %s',v)end
+rocks[v]={}elseif isrockspec(k)then
+rocks[k]=rock_fields(v,index(path,k))else
+own[k]=v
+end
+end
+if next(rocks)==nil then
+return release_fields(x,path)elseif next(own)~=nil then
+bad(path,'a release table with rockspecs has no other keys: put them in an entry of one')end
+return rocks
+end})local LUKEFILE=fields({luke_format=luke_format,package=str,version=str,defines=defines,external_dependencies=dependencies,incdirs=listof(pathname),ldocs=rules,libdirs=listof(pathname),libraries=listof(id),modules=ordered_map(pairof(rules)),substitute=t,variables=t,bin=scripts,files=files,install=fields{bin=scripts,},release=RELEASE,},true)local function collect_configs(luke,modulename,sectionname)return flatmap(sorted_keys(luke),function(k)local v=luke[k]return cond({isprobe(v),{{t=luke,k=k,module=modulename,section=sectionname}}},{istable(v)and(k=='modules'or k=='external_dependencies'),function()return flatmap(v,function(pair)local name,rules=destructure(pair)return collect_configs(rules,name,k)end)end},{istable(v),function()return collect_configs(v,modulename,sectionname)end})end)end
 local function deepcopy(tree)return mapvalues(tree,function(v)if istable(v)then
 return deepcopy(v)end
 return v
@@ -548,8 +567,7 @@ end
 local ok,err=pcall(chunk)if not ok then
 return nil,"Error running file: "..err
 end
-return normalize(r)end,normalize=normalize,collect_variables=collect_variables,branches=function(release)return filter(sorted(keys(release or{})),function(k)return RELEASE.schema[k]==nil
-end)end,keypaths=function()return keypaths(LUKEFILE)end,SCRIPT_SECTIONS={'bin','install','files'},script_sections=function(luke)return{bin=luke.bin or{},files=luke.files or{},install=(luke.install or{}).bin or{},}end,fill_template=rewrite_template_files,run_configs=function(L,env,luke)local r=deepcopy(luke)each(sorted(collect_configs(r),config_cmp),function(config)local prefix=case(config.section,{external_dependencies=function()return config.module end,})config.t[config.k]=configure(L,env,config.t[config.k],prefix)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local rewrite=bind(rewrite_template_files,{L,env})local function rewritten(rules)return merged(rules,{sources=map(rules.sources,rewrite)})end
+return normalize(r)end,normalize=normalize,collect_variables=collect_variables,branches=function(release)return filter(sorted(keys(release or{})),function(k)return RELEASE.schema[k]==nil and not isrockspec(k)end)end,keypaths=function()return keypaths(LUKEFILE)end,SCRIPT_SECTIONS={'bin','install','files'},script_sections=function(luke)return{bin=luke.bin or{},files=luke.files or{},install=(luke.install or{}).bin or{},}end,fill_template=rewrite_template_files,run_configs=function(L,env,luke)local r=deepcopy(luke)each(sorted(collect_configs(r),config_cmp),function(config)local prefix=case(config.section,{external_dependencies=function()return config.module end,})config.t[config.k]=configure(L,env,config.t[config.k],prefix)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local rewrite=bind(rewrite_template_files,{L,env})local function rewritten(rules)return merged(rules,{sources=map(rules.sources,rewrite)})end
 local r=copy(luke)r.modules=ordered_mapvalues(r.modules,rewritten)if r.ldocs then
 r.ldocs=rewritten(r.ldocs)end
 return r
@@ -723,7 +741,24 @@ local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merged({abs_top_srcdir
 return{mkrequest=mkrequest,prepare=prepare,}
 end
 bundled['luke.release']=function()
-local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.configure','luke.environment','luke.functional','luke.lukefile','type.context-manager','type.path',date=os.date,}local PLACEHOLDER='\n(## [^\n]*%?%.%?[^\n]*\n)'local MODREV="^(local _MODREV, _SPECREV = ')[^']*(')"local DEVROCKSPEC='^(.-%-)dev(%-%d+%.rockspec)$'local function git(env,...)local status,err,out=spawn(env,'git',...)if status==0 then
+local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.configure','luke.environment','luke.functional','luke.lukefile','type.context-manager','type.path',date=os.date,}local PLACEHOLDER='\n(## [^\n]*%?%.%?[^\n]*\n)'local MODREV="^(local _MODREV, _SPECREV = ')[^']*(')"local DEVROCKSPEC='^(.-%-)dev(%-%d+%.rockspec)$'local function names(rock,version)local tag=(rock~=nil and rock..'-'or'')..'v'..version
+return tag,'release-'..tag
+end
+local function rockname(rockspec)local name=basename(rockspec)return match(name,'^(.-)%-dev%-%d+%.rockspec$')or(gsub(name,'%.rockspec$',''))end
+local function rockspecs(rules)return isstring(rules.rockspec)and{rules.rockspec}or rules.rockspec or{}end
+local function main_rockspec(rockspecs,package)for i=1,len(rockspecs)do
+if sub(basename(rockspecs[i]),1,len(package))==package then
+return rockspecs[i]end
+end
+return rockspecs[1]end
+local function release_tables(release)local r
+for k,v in next,release do
+if isstring(k)and match(k,'%.rockspec$')then
+r=r or{}r[rockname(k)]=merged(v,{rockspec=k})end
+end
+return r
+end
+local function git(env,...)local status,err,out=spawn(env,'git',...)if status==0 then
 return(gsub(out,'\n$',''))end
 end
 local function dependencies_installed(env,rockspec)local status,err,out=spawn(env,env.LUAROCKS or'luarocks','--lua-version=$LUA_VERSION','make --only-deps --only-server=',shellword(rockspec))if status~=0 then
@@ -743,10 +778,10 @@ local function rockspec_fields(text)local r={}local chunk=text and loadstring(te
 return{}end
 return r
 end
-local function announcement(package,version,news,rockspec)local fields=rockspec_fields(rockspec)local description=istable(fields.description)and fields.description or{}package=isstring(fields.package)and fields.package or package
-local lines=compact(flatten(list(isstring(description.summary)and{description.summary,''}or{},format('I am happy to announce release %s of %s.',version,package),'',isstring(description.homepage)and{format("%s's home page is at %s",package,description.homepage),''}or{},news and{news,''}or{},rockspec and{'Install it with LuaRocks, using:','',format('    luarocks install %s %s',package,version)}or{})))return package,match(concat(lines,'\n'),'^(.-)%s*$')..'\n'end
+local function announcement(package,version,news,rockspec,rocks)local fields=rockspec_fields(rockspec)local description=istable(fields.description)and fields.description or{}package=isstring(fields.package)and fields.package or package
+local lines=compact(flatten(list(isstring(description.summary)and{description.summary,''}or{},format('I am happy to announce release %s of %s.',version,package),'',isstring(description.homepage)and{format("%s's home page is at %s",package,description.homepage),''}or{},news and{news,''}or{},rockspec and{'Install it with LuaRocks, using:','',map(rocks or{package},function(rock)return format('    luarocks install %s %s',rock,version)end)}or{})))return package,match(concat(lines,'\n'),'^(.-)%s*$')..'\n'end
 local function remove_placeholder(text)return(gsub(text,PLACEHOLDER..'\n?','\n',1))end
-local function tag(L,env,version,notes)local filename=tmpname()with(File(filename,'w'),function(h)h:write(notes)end)local status=run(L,env,{'git tag -a --cleanup=verbatim','v'..version,'-F',filename})rm(filename)return status
+local function tag(L,env,name,notes)local filename=tmpname()with(File(filename,'w'),function(h)h:write(notes)end)local status=run(L,env,{'git tag -a --cleanup=verbatim',name,'-F',filename})rm(filename)return status
 end
 local function edit(L,path,fn,dest)dest=dest or path
 L.write((dest==path and'updating 'or'creating ')..dest,'\n')if not L.dryrun then
@@ -762,8 +797,7 @@ local function publish_steps(L,env,substitute,worktree,copies)return compact(fla
 local dest=worktree..'/'..path
 local template=match(source,'%.in$')~=nil
 return compact(flatten(list(choose(optional or not template,function()return bind(run,{L,env,{copy_command(source,worktree,path,optional)}})end),choose(template,function()return bind(edit,{L,choose(optional,dest,source),bind(expand,{substitute}),(gsub(dest,'%.in$',''))})end))))end),copies.command and bind(run,{L,env,{'cd',worktree,'&&',copies.command}}))))end
-local function repository_checks(env,version,main)local branch,tag='release-v'..version,'v'..version
-local name=choose(main~=nil,main,'a branch')local checkout=format('git checkout --force %s',name)return{{'the working tree is clean',function()return git(env,'status --porcelain')==''end,checkout},{format('%s is checked out',name),function()return main~=nil and git(env,'symbolic-ref --short HEAD')==main
+local function repository_checks(env,tag,branch,main)local name=choose(main~=nil,main,'a branch')local checkout=format('git checkout --force %s',name)return{{'the working tree is clean',function()return git(env,'status --porcelain')==''end,checkout},{format('%s is checked out',name),function()return main~=nil and git(env,'symbolic-ref --short HEAD')==main
 end,checkout},{'origin can be fetched',function()return git(env,'fetch --quiet origin')~=nil
 end},{format('%s is up to date with origin',name),function()return git(env,'rev-parse refs/heads/'..main)==git(env,'rev-parse origin/'..main)end,format('git reset --hard origin/%s',name)},{format('branch %s is unused',branch),function()return git(env,'rev-parse --verify --quiet refs/heads/'..branch)==nil
 end,'git branch -D '..branch},{format('tag %s is unused',tag),function()return git(env,'rev-parse --verify --quiet refs/tags/'..tag)==nil
@@ -781,10 +815,10 @@ end}end)return{{format('%s is not ahead of origin',pages),function()local ref,or
 or git(env,'merge-base --is-ancestor',ref,origin)~=nil)end,format('git branch -f %s origin/%s',pages,pages)},{format('%s can be checked out in a new worktree',pages),function()local worktrees=git(env,'worktree list --porcelain')return worktrees~=nil
 and find('\n'..worktrees..'\n','\nbranch refs/heads/'..pages..'\n',1,true)==nil
 end},unpack(templates),}end)end
-local function rockspec_checks(env,release)return choose(release.rockspec~=nil,function()local rockspec=slurp(File(release.rockspec))return reject(list({format('%s is a development rockspec',release.rockspec),function()return match(release.rockspec,DEVROCKSPEC)~=nil
-end},{format('%s sets _MODREV on its first line',release.rockspec),function()return rockspec~=nil and match(rockspec,MODREV)~=nil
-end},choose(release.check_dependencies,{format('the dependencies of %s are installed',release.rockspec),function()return dependencies_installed(env,release.rockspec)end})),nil)end,{})end
-local function preconditions(env,release,version,main,substitute)return flatmap(list(repository_checks(env,version,main),news_checks(release,version),replacement_checks(release,substitute),branch_checks(env,release),rockspec_checks(env,release)),id)end
+local function rockspec_checks(env,release)return flatmap(rockspecs(release),function(name)local rockspec=slurp(File(name))return reject(list({format('%s is a development rockspec',name),function()return match(name,DEVROCKSPEC)~=nil
+end},{format('%s sets _MODREV on its first line',name),function()return rockspec~=nil and match(rockspec,MODREV)~=nil
+end},choose(release.check_dependencies,{format('the dependencies of %s are installed',name),function()return dependencies_installed(env,name)end})),nil)end)end
+local function preconditions(env,release,tag,branch,version,main,substitute)return flatmap(list(repository_checks(env,tag,branch,main),news_checks(release,version),replacement_checks(release,substitute),branch_checks(env,release),rockspec_checks(env,release)),id)end
 local function undo_commands(checks)return foldl(filter(checks,function(check)local _,predicate,undo=unpack(check)return undo~=nil and not predicate()end),{},function(r,check)choose(not contains(r,check[3]),bind(append,{r,check[3]}))end)end
 local function generated(luke)local templates=map(luke.modules or{},function(pair)local _,rules=destructure(pair)return map(filter(rules.sources or{},function(source)return match(source,'%.in$')~=nil
 end),function(source)return(gsub(source,'%.in$',''))end)end)return flatten(list(templates,map(ordered_keys(luke.files),function(name)return script_target(name,ordered_get(luke.files,name))end)))end
@@ -809,24 +843,28 @@ return description
 end
 end)end
 local function release_steps(L,env,build,plan)local version,rules=plan.version,plan.rules
-local news,rockspec,pages,worktrees=rules.news,rules.rockspec,plan.pages,plan.worktrees
-return compact(flatten(list(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=plan.today})}),bind(run,{L,env,{'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}}),},bind(run,{L,env,{'git checkout -b','release-v'..version}}),news and bind(edit,{L,news,remove_placeholder}),map(rules.replacements or{},function(entry)local path,pairs=destructure(entry)return bind(edit,{L,path,bind(replace,{[2]=plan.substitute,[3]=pairs})})end),build,rockspec and{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),plan.released}),bind(run,{L,env,{'git rm --quiet',rockspec}}),},not isempty(plan.added)and{bind(unignore,{L,env,plan.added}),bind(run,{L,env,{'git add -f',unpack(plan.added)}}),}or nil,bind(run,{L,env,{format("git commit -a -m 'Release v%s.'",version)}}),bind(tag,{L,env,version,plan.notes}),map(pages,function(branch)local worktree=worktrees[branch]return{git(env,'rev-parse refs/heads/'..branch)~=git(env,'rev-parse origin/'..branch)and bind(run,{L,env,{'git branch --quiet --force',branch,'origin/'..branch}})or{},bind(run,{L,env,{'git worktree add --quiet',worktree,branch}}),publish_steps(L,env,plan.substitute,worktree,rules[branch]),bind(run,{L,env,{'git -C',worktree,"add -A && git -C",worktree,format("commit -m '%s: update to $package %s.'",branch,version)}}),bind(run,{L,env,{'git worktree remove',worktree}}),}end),bind(run,{L,env,{'git checkout --quiet',plan.main}}))))end
+local news,pages,worktrees=rules.news,plan.pages,plan.worktrees
+local tagname,branch=plan.tag,plan.branch
+return compact(flatten(list(news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=plan.today})}),bind(run,{L,env,{'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}}),},bind(run,{L,env,{'git checkout -b',branch}}),news and bind(edit,{L,news,remove_placeholder}),map(rules.replacements or{},function(entry)local path,pairs=destructure(entry)return bind(edit,{L,path,bind(replace,{[2]=plan.substitute,[3]=pairs})})end),build,map(rockspecs(rules),function(rockspec)return{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),rockspec_name(rockspec,version)}),bind(run,{L,env,{'git rm --quiet',rockspec}}),}end),not isempty(plan.added)and{bind(unignore,{L,env,plan.added}),bind(run,{L,env,{'git add -f',unpack(plan.added)}}),}or nil,bind(run,{L,env,{format("git commit -a -m 'Release %s.'",tagname)}}),bind(tag,{L,env,tagname,plan.notes}),map(pages,function(branch)local worktree=worktrees[branch]return{git(env,'rev-parse refs/heads/'..branch)~=git(env,'rev-parse origin/'..branch)and bind(run,{L,env,{'git branch --quiet --force',branch,'origin/'..branch}})or{},bind(run,{L,env,{'git worktree add --quiet',worktree,branch}}),publish_steps(L,env,plan.substitute,worktree,rules[branch]),bind(run,{L,env,{'git -C',worktree,"add -A && git -C",worktree,format("commit -m '%s: update to $package %s.'",branch,version)}}),bind(run,{L,env,{'git worktree remove',worktree}}),}end),bind(run,{L,env,{'git checkout --quiet',plan.main}}))))end
 local function ready_message(L,env,plan,package)local version,main,released=plan.version,plan.main,plan.released
-local pushed=compact(flatten(list(main,'release-v'..version,'v'..version,plan.pages)))L.write(format('\nRelease v%s is ready.  To publish it:\n\n   git push origin %s\n',version,concat(pushed,' ')))local GH=env.GH or configure(L,env,{checkprog='GitHub CLI',progs={'gh','true'}})if GH~='true'then
-L.write(format("   %s release create v%s --verify-tag --latest --title '[ANN] %s v%s released' --notes-from-tag\n",GH,version,package,version))end
-if released~=nil then
-L.write(format('   git checkout release-v%s\n   luarocks upload %s\n   git checkout %s\n',version,released,main))end
+local pushed=compact(flatten(list(main,plan.branch,plan.tag,plan.pages)))L.write(format('\nRelease %s is ready.  To publish it:\n\n   git push origin %s\n',plan.tag,concat(pushed,' ')))local GH=env.GH or configure(L,env,{checkprog='GitHub CLI',progs={'gh','true'}})if GH~='true'then
+L.write(format("   %s release create %s --verify-tag --latest --title '[ANN] %s v%s released' --notes-from-tag\n",GH,plan.tag,package,version))end
+if not isempty(released)then
+L.write(format('   git checkout %s\n%s   git checkout %s\n',plan.branch,concat(map(released,function(rockspec)return format('   luarocks upload %s\n',rockspec)end)),main))end
 end
-local function failed_message(L,checks,version)local undo=undo_commands(checks)choose(not isempty(undo),function()L.write(format('\nRelease v%s failed.  To undo it before trying again:\n\n%s',version,concat(map(undo,function(command)return'   '..command..'\n'end))))end)end
-return{copy_command=copy_command,release=function(L,env,build)local version,main=L.release,git(env,'symbolic-ref --short HEAD')local substitute=mkenv({version=version},L.clidefs,L.luke.substitute,SHELLENV)local checks=preconditions(env,L.luke.release or{},version,main,substitute)local failed=failed_check(L,checks)if failed~=nil then
+local function failed_message(L,checks,tag)local undo=undo_commands(checks)choose(not isempty(undo),function()L.write(format('\nRelease %s failed.  To undo it before trying again:\n\n%s',tag,concat(map(undo,function(command)return'   '..command..'\n'end))))end)end
+return{copy_command=copy_command,release=function(L,env,build)local version,main=L.release,git(env,'symbolic-ref --short HEAD')local substitute=mkenv({version=version},L.clidefs,L.luke.substitute,SHELLENV)local package=interpolate(env,L.luke.package)local rock=(L.clidefs or{}).rock or package
+local release=L.luke.release or{}local rules=(release_tables(release)or{[package]=release})[rock]if rules==nil then
+fatal("cannot release %s: no rock '%s' in the release table of the lukefile",version,rock)return 1
+end
+local tag,branch=names(choose(rock~=package,rock),version)local checks=preconditions(env,rules,tag,branch,version,main,substitute)local failed=failed_check(L,checks)if failed~=nil then
 fatal('cannot release %s: expected that %s',version,failed)return 1
 end
-local rules=L.luke.release or{}local news,rockspec=rules.news,rules.rockspec
-local released=rockspec and rockspec_name(rockspec,version)local today=date'%Y-%m-%d'local package,notes=announcement((interpolate(env,L.luke.package)),version,news and release_news(add_release_header(slurp(File(news))or'',version,today),version),rockspec and slurp(File(rockspec)))local pages=branches(rules)local worktrees=tabulate(pages,function(branch)local worktree=tmpname()rm(worktree)return branch,worktree
-end)local plan={version=version,main=main,rules=rules,today=today,notes=notes,added=compact(flatten(list(rules.add,generated(L.luke),released))),released=released,pages=pages,worktrees=worktrees,substitute=substitute,}local status=firstof(release_steps(L,env,build,plan),isnonzero,call)or 0
+local news,rocks=rules.news,rockspecs(rules)local released=map(rocks,function(rockspec)return rockspec_name(rockspec,version)end)local main_rock=main_rockspec(rocks,rock)local today=date'%Y-%m-%d'local _,notes=announcement(rock,version,news and release_news(add_release_header(slurp(File(news))or'',version,today),version),main_rock and slurp(File(main_rock)),len(rocks)>1 and map(rocks,rockname)or nil)local pages=branches(rules)local worktrees=tabulate(pages,function(branch)local worktree=tmpname()rm(worktree)return branch,worktree
+end)local plan={version=version,tag=tag,branch=branch,main=main,rules=rules,today=today,notes=notes,added=compact(flatten(list(rules.add,generated(L.luke),released))),released=released,pages=pages,worktrees=worktrees,substitute=substitute,}local status=firstof(release_steps(L,env,build,plan),isnonzero,call)or 0
 choose(status~=0,function()each(filter(sorted(values(worktrees)),exists),function(worktree)run(L,env,{'git worktree remove --force',worktree})end)end)if status==0 then
-ready_message(L,env,plan,package)else
-failed_message(L,checks,version)end
+ready_message(L,env,plan,rock)else
+failed_message(L,checks,plan.tag)end
 return status
 end,}
 end
@@ -897,11 +935,11 @@ return nil
 end
 local r=ordered_map(copy_entry)(except(x,'command'),path)r.command=checkstring(x.command,index(path,'command'))local written=set(ordered_keys(r))each(r or{},function(pair)local dest,entry=destructure(pair)choose(fills_too(dest,entry.source),function()claim(written,filled(dest),true,path)end)end)return r
 end
-return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
+return{ORDERED=ORDERED,bad=bad,index=index,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 bundled['luke.version']=function()
-return{VERSION='gvv/9257ae7',versiontext=[[
-luke (Luke) gvv/9257ae7
+return{VERSION='gvv/02b5352',versiontext=[[
+luke (Luke) gvv/02b5352
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

@@ -20,8 +20,8 @@ dependencies = {
 }
 
 source = {
-   url = 'https://github.com/gvvaughan/luke/archive/v' .. _MODREV .. '.zip',
-   dir = 'luke-' .. _MODREV,
+   url = 'https://github.com/gvvaughan/luke/archive/' .. package .. '-v' .. _MODREV .. '.zip',
+   dir = 'luke-' .. package .. '-v' .. _MODREV,
 }
 
 if _MODREV == 'dev' then

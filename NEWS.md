@@ -15,6 +15,15 @@
     also bundles the modules that it finds in the Lua path, by name, and
     can write a module for the bundle to return, rather than a program.
 
+  - A repository can release more than one rock.  A `rockspec` that is a
+    list releases them together, at one version.  Otherwise, a `release`
+    table with a table, or just the name, for each development rockspec,
+    releases them separately, each with versions of its own: `luke release
+    rock=NAME version=X.Y` releases the rock NAME, to the branch
+    `release-NAME-vX.Y` and the tag `NAME-vX.Y`, so that releases of
+    rocks from one repository do not meet, where the `package` has
+    `release-vX.Y` and `vX.Y`.
+
   - `smush` also bundles `NAME=PATH`, a file as the module NAME, rather
     than the module that its path makes.
 

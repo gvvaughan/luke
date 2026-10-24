@@ -69,19 +69,25 @@ files = {
    }},
 }
 
--- `luke release version=X.Y` adds the release to NEWS.md, writes the
--- release rockspec, points the README badges at the release branch,
--- commits the man page, and publishes the manual to gh-pages.
+-- Luke and luarocks-build-luke are rocks of this repository with versions of
+-- their own, so each has its own release, and its own tags and branches.
+-- `luke release version=X.Y` releases luke: it adds the release to NEWS.md,
+-- writes the release rockspec, points the README badges at the release
+-- branch, commits the man page, and publishes the manual to gh-pages.
+-- `luke release rock=luarocks-build-luke version=X.Y` releases the backend,
+-- with the tag luarocks-build-luke-vX.Y.
 release = {
-   news         = 'NEWS.md',
-   rockspec     = 'luarocks-build-luke-dev-1.rockspec',
-   replacements = {
-      {['README.md'] = {
-         {['?branch=master'] = '?branch=release-v@version@'},
-      }},
-   },
-   ['gh-pages'] = {
-      {['index.md'] = 'doc/luke.md'},
-      '_config.yml.in',
+   'luarocks-build-luke-dev-1.rockspec',
+   ['luke-dev-1.rockspec'] = {
+      news         = 'NEWS.md',
+      replacements = {
+         {['README.md'] = {
+            {['?branch=master'] = '?branch=release-v@version@'},
+         }},
+      },
+      ['gh-pages'] = {
+         {['index.md'] = 'doc/luke.md'},
+         '_config.yml.in',
+      },
    },
 }

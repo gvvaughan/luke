@@ -194,6 +194,49 @@ specify luke:
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error "bad release.check_dependencies: boolean expected, got string"
+  - it diagnoses malformed release tables of rockspecs at their path: |
+      spit(fname, [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+         release = {['other-dev-1.rockspec'] = {check_dependencies = 'yes'}}
+      ]])
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "bad release['other-dev-1.rockspec'].check_dependencies: boolean expected, got string"
+  - it diagnoses a release of rockspecs with keys of its own: |
+      spit(fname, [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+         release = {news = 'NEWS.md', 'other-dev-1.rockspec'}
+      ]])
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "bad release: a release table with rockspecs has no other keys: put them in an entry of one"
+  - it diagnoses a bare name that is not a rockspec: |
+      spit(fname, [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+         release = {'other'}
+      ]])
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "bad release[1]: development rockspec name expected, got other"
+  - it accepts a bare rockspec name, and a table for another: |
+      spit(fname, [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+         release = {'other-dev-1.rockspec', ['example-dev-1.rockspec'] = {news = 'NEWS.md'}}
+      ]])
+      p = luke('--file=' .. fname, '--dry-run')
+      expect(p).to_succeed()
   - it diagnoses replacements written as a keyed table: |
       spit(fname, [[
          luke_format = 0
@@ -243,7 +286,7 @@ specify luke:
       expect(luke.ldocs.sources).to_equal {'build-aux/config.ld'}
       expect(luke.release.add).to_equal {'doc'}
       expect(luke.release.news).to_be 'NEWS.md'
-      expect(luke.release.rockspec).to_be 'example-dev-1.rockspec'
+      expect(luke.release.rockspec).to_equal {'example-dev-1.rockspec'}
       expect(luke.release.replacements).to_equal {
          {['README.md'] = {{['?branch=master'] = '?branch=release-v@version@'}}},
       }

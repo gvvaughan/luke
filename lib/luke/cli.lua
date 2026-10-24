@@ -39,7 +39,8 @@ Each TARGET can be one of the module table keys from lukefile, or:
 
   all           build all targets in lukefile
   install       copy all built targets to $PREFIX
-  release       cut a release of the version given by version=VERSION
+  release       cut a release of the rock=NAME at version=VERSION
+                (rock=@package@ if not specified)
 
 If no TARGET is given, 'all' is implied.
 

@@ -21,34 +21,43 @@ before: |
   end
 
   -- The git results for a release that passes every check, and runs
-  -- every command successfully, changing the repository as it goes.
-  function passing()
+  -- every command successfully, changing the repository as it goes, for
+  -- release 1.0 of *rock*, if given, rather than of the package, of the
+  -- development rockspecs *specs* and the release rockspecs *released*, as
+  -- lists, or else ROCKSPEC and RELEASED.
+  function passing(rock, specs, released)
+     local tag = (rock and rock .. '-' or '') .. 'v1.0'
+     local branch = 'release-' .. tag
+     specs, released = specs or {ROCKSPEC}, released or {RELEASED}
+     local RELEASED = table.concat(released, ' ')
      local r = {
         ['git status --porcelain'] = list(0, '', ''),
         ['git symbolic-ref --short HEAD'] = list(0, '', 'master\n'),
         ['git fetch --quiet origin'] = list(0, '', ''),
         ['git rev-parse refs/heads/master'] = list(0, '', 'abc123\n'),
         ['git rev-parse origin/master'] = list(0, '', 'abc123\n'),
-        ['git rev-parse --verify --quiet refs/heads/release-v1.0'] = list(1, '', ''),
-        ['git rev-parse --verify --quiet refs/tags/v1.0'] = list(1, '', ''),
+        ['git rev-parse --verify --quiet refs/heads/' .. branch] = list(1, '', ''),
+        ['git rev-parse --verify --quiet refs/tags/' .. tag] = list(1, '', ''),
         ["git commit -m 'maint: update NEWS.md for 1.0.' " .. NEWS] = list(0, '', ''),
-        ['git checkout -b release-v1.0'] = list(0, '', ''),
-        ['git rm --quiet ' .. ROCKSPEC] = list(0, '', ''),
+        ['git checkout -b ' .. branch] = list(0, '', ''),
         ['git add -f ' .. RELEASED] = list(0, '', ''),
         ['git add -f lib/demo.lua ' .. RELEASED] = list(0, '', ''),
         ['git ls-files --others --ignored --exclude-standard -- ' .. RELEASED] = list(0, '', ''),
         ['git ls-files --others --ignored --exclude-standard -- lib/demo.lua ' .. RELEASED] = list(0, '', ''),
-        ["git commit -a -m 'Release v1.0.'"] = list(0, '', ''),
-        ['git tag -a --cleanup=verbatim v1.0 -F NOTES'] = list(0, '', ''),
+        ["git commit -a -m 'Release " .. tag .. ".'"] = list(0, '', ''),
+        ['git tag -a --cleanup=verbatim ' .. tag .. ' -F NOTES'] = list(0, '', ''),
         ['git checkout --quiet master'] = list(0, '', ''),
      }
+     for _, spec in ipairs(specs) do
+        r['git rm --quiet ' .. spec] = list(0, '', '')
+     end
      changes(r, "git commit -m 'maint: update NEWS.md for 1.0.' " .. NEWS,
         'git rev-parse refs/heads/master', list(0, '', 'def456\n'))
-     changes(r, 'git checkout -b release-v1.0',
-        'git rev-parse --verify --quiet refs/heads/release-v1.0', list(0, '', 'bcd234\n'))
-     changes(r, 'git checkout -b release-v1.0',
-        'git symbolic-ref --short HEAD', list(0, '', 'release-v1.0\n'))
-     changes(r, 'git tag -a --cleanup=verbatim v1.0 -F NOTES', 'git rev-parse --verify --quiet refs/tags/v1.0', list(0, '', 'bcd234\n'))
+     changes(r, 'git checkout -b ' .. branch,
+        'git rev-parse --verify --quiet refs/heads/' .. branch, list(0, '', 'bcd234\n'))
+     changes(r, 'git checkout -b ' .. branch,
+        'git symbolic-ref --short HEAD', list(0, '', branch .. '\n'))
+     changes(r, 'git tag -a --cleanup=verbatim ' .. tag .. ' -F NOTES', 'git rev-parse --verify --quiet refs/tags/' .. tag, list(0, '', 'bcd234\n'))
      return r
   end
 
@@ -980,6 +989,136 @@ specify luke.release:
         expect(release(L, env, build)).to_be(0)
         expect(L.write[2]).to_be('git add -f ' .. ADDED)
         expect(slurp(IGNORE)).to_be '*~\n*.html\n/doc\n/lib/demo/version.lua\n!/demo-dev-*.rockspec\n'
+
+- describe rockspecs:
+  - before: |
+      dir = os.tmpname()
+      os.remove(dir)
+      assert(os.execute('mkdir ' .. dir))
+
+      -- The development rockspec of *name* in dir, with *summary* if given,
+      -- and the release rockspec made from it.
+      function rockspec_of(name, summary)
+         local h = assert(io.open(dir .. '/' .. name .. '-dev-1.rockspec', 'w'))
+         h:write("local _MODREV, _SPECREV = 'dev', '-1'\n")
+         if summary then
+            h:write(string.format("description = {summary = '%s'}\n", summary))
+         end
+         h:close()
+         return dir .. '/' .. name .. '-dev-1.rockspec', dir .. '/' .. name .. '-1.0-1.rockspec'
+      end
+
+      -- An `L` that releases 1.0 of *rock*, as `rock=` asks, or of the
+      -- package, `demo`, with no *rock*, by the release table *release*.
+      function mkrock(release, rock)
+         local L = mkL(release)
+         L.clidefs = {rock = rock}
+         return L
+      end
+  - after: |
+      os.execute('rm -rf ' .. dir)
+
+  - context with a release table for each rockspec:
+    - it releases the package, when no rock is named: |
+        spec, done = rockspec_of 'demo'
+        release, fatal = setup(passing(nil, {spec}, {done}))
+        L = mkrock {[spec] = {}, [dir .. '/demo-rock-dev-1.rockspec'] = {}}
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[1]).to_be 'git checkout -b release-v1.0'
+        expect(L.write[#L.write - 1]).to_contain 'git push origin master release-v1.0 v1.0\n'
+        expect(slurp(done)).to_be "local _MODREV, _SPECREV = '1.0', '-1'\n"
+    - it tags and branches with the name of a rock that is not the package: |
+        spec, done = rockspec_of 'demo-rock'
+        release, fatal = setup(passing('demo-rock', {spec}, {done}))
+        L = mkrock({[dir .. '/demo-dev-1.rockspec'] = {}, [spec] = {}}, 'demo-rock')
+        expect(release(L, env, build)).to_be(0)
+        expect(#fatal).to_be(0)
+        expect(L.write[1]).to_be 'git checkout -b release-demo-rock-v1.0'
+        expect(table.concat(L.write, '\n')).to_contain "git commit -a -m 'Release demo-rock-v1.0.'"
+        expect(L.write[#L.write - 1]).to_contain 'git push origin master release-demo-rock-v1.0 demo-rock-v1.0\n'
+        expect(L.write[#L.write]).to_contain('luarocks upload ' .. done .. '\n')
+    - it tags the package without its name, when it is named: |
+        spec, done = rockspec_of 'demo'
+        release, fatal = setup(passing(nil, {spec}, {done}))
+        L = mkrock({[spec] = {}, [dir .. '/demo-rock-dev-1.rockspec'] = {}}, 'demo')
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[#L.write - 1]).to_contain 'git push origin master release-v1.0 v1.0\n'
+    - it accepts the package as a rock of a release table with no rockspecs: |
+        spec, done = rockspec_of 'demo'
+        release, fatal = setup(passing(nil, {spec}, {done}))
+        L = mkrock({rockspec = {spec}}, 'demo')
+        expect(release(L, env, build)).to_be(0)
+    - it checks that the branch and tag of the rock are unused: |
+        spec, done = rockspec_of 'demo-rock'
+        spawned = passing('demo-rock', {spec}, {done})
+        spawned['git rev-parse --verify --quiet refs/tags/demo-rock-v1.0'] = list(0, '', 'abc123\n')
+        release, fatal = setup(spawned)
+        L = verbosely(mkrock({[spec] = {}}, 'demo-rock'))
+        expect(release(L, env, build)).to_be(1)
+        expect(fatal[1]).to_be 'cannot release %s: expected that %s'
+        expect(L.reported[#L.reported]).to_be 'checking whether tag demo-rock-v1.0 is unused... no\n'
+    - it is not stopped by a tag of the same version of another rock: |
+        spec, done = rockspec_of 'demo-rock'
+        spawned = passing('demo-rock', {spec}, {done})
+        spawned['git rev-parse --verify --quiet refs/tags/v1.0'] = list(0, '', 'abc123\n')
+        release, fatal = setup(spawned)
+        expect(release(mkrock({[spec] = {}}, 'demo-rock'), env, build)).to_be(0)
+    - it releases by the rules of the rock alone: |
+        -- The package has a gh-pages branch to publish to, that passing()
+        -- does not answer for, as the release of the rock does not.
+        spec, done = rockspec_of 'demo-rock'
+        release, fatal = setup(passing('demo-rock', {spec}, {done}))
+        L = mkrock({[dir .. '/demo-dev-1.rockspec'] = {['gh-pages'] = GHPAGES}, [spec] = {}}, 'demo-rock')
+        expect(release(L, env, build)).to_be(0)
+        expect(#fatal).to_be(0)
+    - it announces the rock: |
+        spec, done = rockspec_of('demo-rock', 'A rock')
+        release, fatal, tags = setup(passing('demo-rock', {spec}, {done}))
+        release(mkrock({[spec] = {}}, 'demo-rock'), env, build)
+        expect(tags[1]).to_contain 'A rock\n'
+        expect(tags[1]).to_contain 'luarocks install demo-rock 1.0'
+    - it diagnoses a rock that the release table does not have: |
+        spec = rockspec_of 'demo'
+        release, fatal = setup(passing())
+        expect(release(mkrock({[spec] = {}}, 'other'), env, build)).to_be(1)
+        expect(fatal[1]).to_be "cannot release %s: no rock '%s' in the release table of the lukefile"
+    - it diagnoses rockspecs without the package, when no rock is named: |
+        spec = rockspec_of 'demo-rock'
+        release, fatal = setup(passing())
+        expect(release(mkrock {[spec] = {}}, env, build)).to_be(1)
+        expect(fatal[1]).to_be "cannot release %s: no rock '%s' in the release table of the lukefile"
+
+  - context with a list of rockspecs:
+    - it releases them together, at one version: |
+        extra, extra_done = rockspec_of 'extra'
+        spec, done = rockspec_of 'demo'
+        release, fatal = setup(passing(nil, {extra, spec}, {extra_done, done}))
+        L = mkL {rockspec = {extra, spec}}
+        expect(release(L, env, build)).to_be(0)
+        expect(#fatal).to_be(0)
+        expect(L.write[1]).to_be 'git checkout -b release-v1.0'
+        expect(slurp(extra_done)).to_be "local _MODREV, _SPECREV = '1.0', '-1'\n"
+        expect(slurp(done)).to_be "local _MODREV, _SPECREV = '1.0', '-1'\n"
+        expect(L.write[#L.write]).to_contain('luarocks upload ' .. extra_done .. '\n   luarocks upload ' .. done .. '\n')
+    - it announces by the rockspec that starts with the package, and installs every rock: |
+        extra, extra_done = rockspec_of('extra', 'Extra summary')
+        spec, done = rockspec_of('demo', 'Demo summary')
+        release, fatal, tags = setup(passing(nil, {extra, spec}, {extra_done, done}))
+        release(mkL {rockspec = {extra, spec}}, env, build)
+        expect(tags[1]).to_contain 'Demo summary\n'
+        expect(tags[1]).not_to_contain 'Extra summary'
+        expect(tags[1]).to_contain 'luarocks install extra 1.0\n    luarocks install demo 1.0'
+    - it announces by the first rockspec, when none starts with the package: |
+        one, one_done = rockspec_of('one', 'One summary')
+        two, two_done = rockspec_of('two', 'Two summary')
+        release, fatal, tags = setup(passing(nil, {one, two}, {one_done, two_done}))
+        release(mkL {rockspec = {one, two}}, env, build)
+        expect(tags[1]).to_contain 'One summary\n'
+    - it checks that every rockspec is a development rockspec: |
+        spec, done = rockspec_of 'demo'
+        release, fatal = setup(passing(nil, {spec, dir .. '/demo-1.0-1.rockspec'}, {done}))
+        expect(release(mkL {rockspec = {spec, dir .. '/demo-1.0-1.rockspec'}}, env, build)).to_be(1)
+        expect(fatal[1]).to_be 'cannot release %s: expected that %s'
 
 - describe copy_command:
   - before: |
