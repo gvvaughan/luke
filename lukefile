@@ -49,14 +49,18 @@ local bundled = {
    'lib/type/context-manager.lua',
    'lib/type/dict.lua',
    'lib/type/path.lua',
+   -- From their rocks, found on the Lua path.
+   'std.functional._base',
+   'std.functional.init',
+   'std.normalize',
+   'std.normalize._core',
 }
 
 bin = {
    {['build-aux/luke'] = {
-      command = '$LUA build-aux/smush $sources > $target',
-      env = {
-         LUA_PATH = '$abs_top_srcdir/lib/?.lua;$abs_top_srcdir/lib/?/init.lua;;',
-      },
+      -- LuaRocks puts the rocks it installed for the build on LUA_PATH.
+      command = 'LUA_PATH="$abs_top_srcdir/lib/?.lua;$abs_top_srcdir/lib/?/init.lua;$LUA_PATH;;"' ..
+                ' $LUA build-aux/smush $sources > $target',
       sources = bundled,
    }},
 }

@@ -18,6 +18,13 @@ dependencies = {
    'lua >= 5.1, < 5.6',
 }
 
+-- Luke is one file with these bundled in, so installing it needs them
+-- only to build it.
+build_dependencies = {
+   'std.functional >= 2',
+   'std.normalize >= 4',
+}
+
 source = {
    url = 'https://github.com/gvvaughan/luke/archive/v' .. _MODREV .. '.zip',
    dir = 'luke-' .. _MODREV,

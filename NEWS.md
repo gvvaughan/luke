@@ -34,6 +34,13 @@
     `--external=NAME` says that the program that runs the bundle provides
     NAME.
 
+  - Luke now uses the functions of std.functional, from its own rock, in
+    place of its own copies, and bundles them into `build-aux/luke` and
+    `luarocks-build-luke`, which still need nothing else installed.
+    Building luke from its source, with `luarocks make` or luke itself,
+    needs std.functional and std.normalize, which `luarocks make`
+    installs as build dependencies.
+
   - What `smush` bundles is private to the file: it is found by its own
     `require`, and not in `package.preload` or `package.loaded`, and does
     not meet a module of the same name that the host program loads.

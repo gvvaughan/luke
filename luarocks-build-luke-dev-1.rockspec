@@ -19,6 +19,13 @@ dependencies = {
    'lua >= 5.1, < 5.6',
 }
 
+-- Luke is one file with these bundled in, so installing it needs them
+-- only to build it.
+build_dependencies = {
+   'std.functional >= 2',
+   'std.normalize >= 4',
+}
+
 source = {
    url = 'https://github.com/gvvaughan/luke/archive/' .. package .. '-v' .. _MODREV .. '.zip',
    dir = 'luke-' .. package .. '-v' .. _MODREV,
@@ -51,6 +58,11 @@ local sources = {
    'lib/type/dict.lua',
    'lib/type/path.lua',
    'luke.version=lib/luke/luarocks-build-luke-version.lua',
+   -- From their rocks, found on the Lua path.
+   'std.functional._base',
+   'std.functional.init',
+   'std.normalize',
+   'std.normalize._core',
 }
 
 local smushed = ''
@@ -65,7 +77,7 @@ build = {
    -- by LuaRocks itself.
    build_command =
       "sed 's/@version@/" .. _MODREV .. "/' lib/luke/version.lua.in > lib/luke/luarocks-build-luke-version.lua && " ..
-      'LUA_PATH="$PWD/lib/?.lua;$PWD/lib/?/init.lua;;" $(LUA) build-aux/smush' ..
+      'LUA_PATH="$PWD/lib/?.lua;$PWD/lib/?/init.lua;$LUA_PATH;;" $(LUA) build-aux/smush' ..
       ' --module=luarocks.build.luke --external=luarocks.path' .. smushed ..
       ' > build-aux/luarocks-build-luke.lua',
 

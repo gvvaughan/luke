@@ -277,70 +277,11 @@ found[varname]=firstof(tables,function(t)return t[varname]end)end
 return found[varname]end,})end,}
 end
 bundled['luke.functional']=function()
-local _ENV=require'luke.normalize'{destructure=next,error=error,isfile=function(x)return io.type(x)=='file'end,}local function call(fn,...)return fn(...)end
+local _ENV=require'luke.normalize'{'std.functional.init',sf=require'std.functional.init',destructure=next,isfile=function(x)return io.type(x)=='file'end,}local function call(fn,...)return fn(...)end
 local function apply(fn,argu)return fn(unpack(argu))end
 local function force(branch,...)if iscallable(branch)then
 return branch(...)end
 return branch
-end
-local function choose(test,consequent,alternative)local leg=alternative
-if test then
-leg=consequent
-end
-return force(leg,test)end
-local function walk(seq,visit)if type(seq)=='function'then
-local function loop(...)if...~=nil then
-if visit(...)then
-return true
-end
-return loop(seq())end
-end
-return loop(seq())end
-for i=1,int(seq.n)or len(seq)do
-if visit(seq[i])then
-return true
-end
-end
-end
-local function id(...)return...end
-local function default(x,d)if x==nil then
-return d
-end
-return x
-end
-local function given(d,...)if select('#',...)==0 then
-return d
-end
-return(...)end
-local function topredicate(x)if type(x)=='function'then
-return x
-end
-return function(y)return y==x
-end
-end
-local function keeper(passes)return function(seq,predicate)predicate=topredicate(predicate)local r=list()walk(seq,function(...)if choose(predicate(...),passes,not passes)then
-append(r,(...))end
-end)return r
-end
-end
-local filter,reject=keeper(true),keeper(false)local function each(seq,fn)walk(seq,function(...)fn(...)end)end
-local function flatten(t)local r,n={},0
-local function visit(x)if type(x)=='table'then
-walk(x,visit)else
-n=n+1
-r[n]=x
-end
-end
-walk(t,visit)r.n=n
-return r
-end
-local function compact(seq)local r,n={},0
-walk(seq,function(item)if item~=nil then
-n=n+1
-r[n]=item
-end
-end)r.n=n
-return r
 end
 local function keys(t)local r,n={},0
 for k in next,t do
@@ -350,133 +291,18 @@ end
 r.n=n
 return r
 end
-local function foldl(seq,acc,fn)if fn==nil then
-acc,fn={},acc
-end
-walk(seq,function(...)local r=fn(acc,...)if r~=nil then
-acc=r
-end
-end)return acc
-end
-local function firstof(seq,predicate,fn)if fn==nil then
-predicate,fn=id,predicate
-end
-predicate=topredicate(predicate)local found
-local function test(...)if predicate(...)then
-found=...return true
-end
-end
-walk(seq,function(...)return test(fn(...))end)return found
-end
-local function converge(x,limit,fn)if fn==nil then
-limit,fn=1000,limit
-end
-for _=1,limit do
-local r=fn(x)if r==x then
-return x
-end
-x=r
-end
-error(format('no convergence after %d calls',limit),2)end
-local function tabulate(seq,fn)local r={}walk(seq,function(...)local k,v=fn(...)if k~=nil then
-r[k]=v
-end
-end)return r
-end
-local function reversed(seq)local items,n={},0
-walk(seq,function(v)n=n+1
-items[n]=v
-end)local r={n=n}for i=1,n do
-r[n-i+1]=items[i]end
-return r
-end
-local function merged(...)local r,argu={},pack(...)for i=1,argu.n do
-for k,v in next,argu[i]or{}do
-r[k]=v
-end
-end
-return r
-end
 local function set(seq)local r={}each(seq,function(v)r[v]=true
 end)return r
 end
-local function isempty(x)if type(x)~='table'then
-return false
-end
-local k=next(x)return k==nil or(k=='n'and x.n==0 and next(x,k)==nil)end
-local function either(x,d)if x==nil or isempty(x)then
-return d
-end
-return x
-end
-local function indexof(seq,...)local predicate=topredicate(given(id,...))local i,found=0,nil
-walk(seq,function(...)i=i+1
-if predicate(...)then
-found=i
-return true
-end
-end)return found
-end
-local function flatmap(seq,fn)local r=list()walk(seq,function(...)local items=fn(...)if items~=nil then
-each(items,function(item)append(r,item)end)end
+local extras={apply=apply,call=call,destructure=destructure,force=force,get=function(dict,key)return(dict or{})[key]end,isfile=isfile,islistkey=function(t,k)return type(k)=='number'and int(k)==k and k>=1 and k<=len(t)end,isnonzero=function(x)return x~=0
+end,isstring=function(x)return type(x)=='string'end,istable=function(x)return type(x)=='table'end,keys=keys,ordered_get=function(om,key)local r
+each(om or{},function(pair)if pair[key]~=nil then
+r=pair[key]end
 end)return r
-end
-local function sorted(seq,cmp)cmp=default(cmp,function(a,b)return a<b
-end)local decorated={}walk(seq,function(v)decorated[#decorated+1]={v,#decorated+1}end)sort(decorated,function(a,b)if cmp(a[1],b[1])then
-return true
-elseif cmp(b[1],a[1])then
-return false
-end
-return a[2]<b[2]end)local r=list()for i=1,#decorated do
-append(r,decorated[i][1])end
-return r
-end
-return{any=function(...)local fns=list(...)return function(...)local r=list()for i=1,fns.n do
-r=list(fns[i](...))if r[1]~=nil then
-break
-end
-end
-return unpack(r,1,r.n)end
-end,apply=apply,bind=function(fn,bound)local n=bound.n or maxn(bound)return function(...)local argu,unbound=copy(bound),list(...)local i=1
-for j=1,unbound.n do
-while argu[i]~=nil do
-i=i+1
-end
-argu[i],i=unbound[j],i+1
-end
-argu.n=max(n,i-1)return apply(fn,argu)end
-end,call=call,case=function(s,branches)if branches[s]~=nil then
-return force(branches[s],s)end
-if type(s)=='string'then
-for i=1,len(branches)do
-local pattern,branch=unpack(branches[i],1,2)local captures=list(match(s,'^'..pattern..'$'))if captures[1]~=nil then
-return force(branch,unpack(captures,1,captures.n))end
-end
-end
-return force(branches.default,s)end,choose=choose,compact=compact,cond=function(...)local clauses=list(...)for i=1,clauses.n do
-local expr,consequence=unpack(clauses[i],1,2)if expr then
-return force(consequence,expr)end
-end
-end,contains=function(seq,predicate)return walk(seq,topredicate(predicate))==true
-end,converge=converge,default=default,destructure=destructure,each=each,either=either,except=function(t,predicate)predicate=topredicate(predicate)local r={}for k,v in next,t do
-if not predicate(k)then
-r[k]=v
-end
-end
-return r
-end,filter=filter,firstof=firstof,flatmap=flatmap,flatten=flatten,foldl=foldl,force=force,get=function(dict,key)return(dict or{})[key]end,id=id,indexof=indexof,isempty=isempty,isfile=isfile,islistkey=function(t,k)return type(k)=='number'and int(k)==k and k>=1 and k<=len(t)end,isnonzero=function(x)return x~=0
-end,isstring=function(x)return type(x)=='string'end,istable=function(x)return type(x)=='table'end,keys=keys,map=function(seq,block)local r=list()walk(seq,function(...)append(r,(block(...)))end)return r
-end,mapvalues=function(iterable,block)local r={}for k,v in next,iterable or{}do
-r[k]=block(v)end
-return r
-end,merged=merged,nop=function()end,ordered_get=function(om,key)return foldl(om or{},nil,function(_,pair)return pair[key]end)end,ordered_keys=function(om)return foldl(om or{},list(),function(r,pair)return append(r,(destructure(pair)))end)end,ordered_mapvalues=function(om,fn)return foldl(om or{},{},function(r,pair)local k,v=destructure(pair)r[#r+1]={[k]=fn(v)}end)end,ordered_merge=function(...)local at={}return foldl(compact(list(...)),{},function(r,pairs)foldl(pairs,r,function(r,pair)local k,v=destructure(pair)at[k]=at[k]or#r+1
-r[at[k]]={[k]=v}end)end)end,ordered_pluck=function(om,keylist)local wanted=set(keylist)return reject(om or{},function(pair)return not wanted[(destructure(pair))]end)end,reject=reject,reversed=reversed,set=set,some=function(seq,...)return walk(seq,topredicate(given(id,...)))==true
-end,sorted=sorted,sorted_keys=function(iterable)local rank={number=1,string=2}local r=keys(iterable or{})sort(r,function(a,b)local ra,rb=rank[type(a)]or 3,rank[type(b)]or 3
+end,ordered_keys=function(om)return foldl(om or{},list(),function(r,pair)return append(r,(destructure(pair)))end)end,ordered_mapvalues=function(om,fn)return foldl(om or{},{},function(r,pair)local k,v=destructure(pair)r[#r+1]={[k]=fn(v)}end)end,ordered_merge=function(...)local at={}return foldl(compact(list(...)),{},function(r,pairs)foldl(pairs,r,function(r,pair)local k,v=destructure(pair)at[k]=at[k]or#r+1
+r[at[k]]={[k]=v}end)end)end,ordered_pluck=function(om,keylist)local wanted=set(keylist)return reject(om or{},function(pair)return not wanted[(destructure(pair))]end)end,set=set,sorted_keys=function(iterable)local rank={number=1,string=2}local r=keys(iterable or{})sort(r,function(a,b)local ra,rb=rank[type(a)]or 3,rank[type(b)]or 3
 return ra<rb or ra==rb and(ra<3 and a<b or ra==3 and str(a)<str(b))end)return r
-end,tabulate=tabulate,values=function(iterable)local r=list()for _,v in next,iterable or{}do
-append(r,v)end
-return r
-end,}
+end,}return merged(sf,extras)
 end
 bundled['luke']=function()
 local _ENV=require'luke.normalize'{'luke.cli','luke.compile','luke.configure','luke.environment','luke.lukefile','luke.functional','luke.prepare','luke.release',}local function run_ldocs(L,env,ldocs)return run(L,env,compact(flatten(list('$LDOC -c',ldocs.sources,'.'))))end
@@ -944,8 +770,8 @@ end
 return{ORDERED=ORDERED,bad=bad,index=index,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 bundled['luke.version']=function()
-return{VERSION='gvv/210f50d',versiontext=[[
-luke (Luke) gvv/210f50d
+return{VERSION='gvv/3e2b497',versiontext=[[
+luke (Luke) gvv/3e2b497
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
@@ -999,6 +825,729 @@ return false
 end
 close(fh)return true
 end,}
+end
+bundled['std.functional._base']=function()
+local _ENV=require'std.normalize'{'string.format','table.concat','table.keys','table.sort',}local argscheck
+do
+local ok,typecheck=pcall(require,'typecheck')if ok then
+argscheck=typecheck.argscheck
+else
+argscheck=function(decl,fn)return fn
+end
+end
+end
+local function shallow_copy(t)local r={}for k,v in next,t do
+r[k]=v
+end
+return r
+end
+local function toqstring(x)if type(x)~='string'then
+return tostring(x)end
+return format('%q',x)end
+local function keycmp(a,b)if type(a)=='number'then
+return type(b)~='number'or a<b
+else
+return type(b)~='number'and tostring(a)<tostring(b)end
+end
+local function sortedkeys(t,cmp)local r=keys(t)sort(r,cmp)return r
+end
+local function serialize(x,roots)roots=roots or{}local function stop_roots(x)return roots[x]or serialize(x,shallow_copy(roots))end
+if type(x)~='table'or getmetamethod(x,'__tostring')then
+return toqstring(x)else
+local buf={'{'}roots[x]=toqstring(x)local kp
+local ks=sortedkeys(x,keycmp)for i=1,#ks do
+local k=ks[i]if kp~=nil then
+buf[#buf+1]=','end
+buf[#buf+1]=stop_roots(kp)..'='..stop_roots(x[k])kp=k
+end
+buf[#buf+1]='}'return concat(buf)end
+end
+return{argscheck=argscheck,serialize=serialize,toqstring=toqstring,}
+end
+bundled['std.functional.init']=function()
+local _ENV=require'std.normalize'{'coroutine.wrap','coroutine.yield','math.ceil','std.functional._base.argscheck','std.functional._base.serialize','string.format','table.concat','table.remove','table.sort',}local function walk(seq,visit)if type(seq)=='function'then
+local function loop(...)if...~=nil then
+if visit(...)then
+return true
+end
+return loop(seq())end
+end
+return loop(seq())end
+for i=1,seq.n or len(seq)do
+if visit(seq[i])then
+return true
+end
+end
+end
+local function topredicate(x)if type(x)=='function'then
+return x
+end
+return function(y)return y==x
+end
+end
+local function default(x,d)if x==nil then
+return d
+end
+return x
+end
+local function given(d,...)if select('#',...)==0 then
+return d
+end
+return(...)end
+local function any(...)local fns=pack(...)return function(...)local argt={n=0}for i=1,fns.n do
+argt=pack(fns[i](...))if argt[1]~=nil then
+return unpack(argt,1,argt.n)end
+end
+return unpack(argt,1,argt.n)end
+end
+local ceil=ceil
+local function bind(fn,bound)return function(...)local argt,unbound={},pack(...)local n=bound.n or 0
+for k,v in next,bound do
+if type(k)=='number'and ceil(k)==k then
+argt[k]=v
+n=k>n and k or n
+end
+end
+local i=1
+for j=1,unbound.n do
+while argt[i]~=nil do
+i=i+1
+end
+argt[i],i=unbound[j],i+1
+end
+if n>=i then
+return fn(unpack(argt,1,n))end
+return fn(unpack(argt,1,i-1))end
+end
+local function call(branch,...)if callable(branch)then
+return branch(...)end
+return branch
+end
+local function case(with,branches)if branches[with]~=nil then
+return call(branches[with],with)end
+if type(with)=='string'then
+for i=1,len(branches)do
+local clause=branches[i]if type(clause)=='table'and type(clause[1])=='string'then
+local captures=pack(with:match('^'..clause[1]..'$'))if captures[1]~=nil then
+return call(clause[2],unpack(captures,1,captures.n))end
+end
+end
+end
+return call(branches.default,with)end
+local function collect(seq)local r,n={},0
+walk(seq,function(item)n=n+1
+r[n]=item
+end)r.n=n
+return r
+end
+local function compact(seq)local r,n={},0
+walk(seq,function(item)if item~=nil then
+n=n+1
+r[n]=item
+end
+end)r.n=n
+return r
+end
+local function compose(...)local fns=pack(...)return function(...)local argt=pack(...)for i=1,fns.n do
+argt=pack(fns[i](unpack(argt,1,argt.n)))end
+return unpack(argt,1,argt.n)end
+end
+local function choose(test,consequent,alternative)local leg=alternative
+if test then
+leg=consequent
+end
+return call(leg,test)end
+local function cond(...)local clauses=pack(...)for i=1,clauses.n do
+local test,branch=unpack(clauses[i],1,2)if test then
+return call(branch,test)end
+end
+end
+local function contains(seq,x)return walk(seq,topredicate(x))==true
+end
+local function curry(fn,n)if n<=1 then
+return fn
+else
+return function(x)return curry(bind(fn,{x}),n-1)end
+end
+end
+local function keeper(passes)return function(seq,pred)pred=topredicate(pred)local r,n={},0
+walk(seq,function(...)if choose(pred(...),passes,not passes)then
+n=n+1
+r[n]=(...)end
+end)r.n=n
+return r
+end
+end
+local filter,reject=keeper(true),keeper(false)local function flatten(t)local r,n={},0
+local function visit(x)if type(x)=='table'then
+walk(x,visit)else
+n=n+1
+r[n]=x
+end
+end
+walk(t,visit)r.n=n
+return r
+end
+local function foldl(seq,acc,fn)if fn==nil then
+fn,acc=acc,{}end
+walk(seq,function(...)local r=fn(acc,...)if r~=nil then
+acc=r
+end
+end)return acc
+end
+local function partition(seq,pred)pred=topredicate(pred)local pass,fail,np,nf={},{},0,0
+walk(seq,function(...)if pred(...)then
+np=np+1
+pass[np]=(...)else
+nf=nf+1
+fail[nf]=(...)end
+end)pass.n,fail.n=np,nf
+return pass,fail
+end
+local function reversed(seq)local items=collect(seq)local n=items.n
+local r={n=n}for i=1,n do
+r[n-i+1]=items[i]end
+return r
+end
+local function foldr(seq,acc,fn)if fn==nil then
+fn,acc=acc,{}end
+local t=collect(seq)for i=t.n,1,-1 do
+local r=fn(t[i],acc)if r~=nil then
+acc=r
+end
+end
+return acc
+end
+local function id(...)return...end
+local function converge(x,limit,fn)if fn==nil then
+limit,fn=1000,limit
+end
+for _=1,limit do
+local r=fn(x)if r==x then
+return x
+end
+x=r
+end
+error(format('no convergence after %d calls',limit),2)end
+local function indexof(seq,...)local pred=topredicate(given(id,...))local i,found=0,nil
+walk(seq,function(...)i=i+1
+if pred(...)then
+found=i
+return true
+end
+end)return found
+end
+local function flatmap(seq,fn)local r,n={},0
+walk(seq,function(...)local items=fn(...)if items~=nil then
+walk(items,function(item)n=n+1
+r[n]=item
+end)end
+end)r.n=n
+return r
+end
+local function sorted(seq,cmp)cmp=default(cmp,function(a,b)return a<b
+end)local items=collect(seq)local decorated={}for i=1,items.n do
+decorated[i]={items[i],i}end
+sort(decorated,function(a,b)if cmp(a[1],b[1])then
+return true
+elseif cmp(b[1],a[1])then
+return false
+end
+return a[2]<b[2]end)local r={n=items.n}for i=1,items.n do
+r[i]=decorated[i][1]end
+return r
+end
+local function each(seq,fn)walk(seq,function(...)fn(...)end)end
+local function firstof(seq,pred,fn)if fn==nil then
+pred,fn=id,pred
+end
+pred=topredicate(pred)local found
+local function test(...)if pred(...)then
+found=...return true
+end
+end
+walk(seq,function(...)return test(fn(...))end)return found
+end
+local function detect(seq,...)return firstof(seq,given(id,...),id)end
+local function iter(f,s,c)local function step(...)c=...return...end
+return function()return step(f(s,c))end
+end
+local function multiserialize(...)local seq=pack(...)local buf={}for i=1,seq.n do
+buf[i]=serialize(seq[i])end
+return concat(buf,',')end
+local function memoize(fn,mnemonic)mnemonic=mnemonic or multiserialize
+return setmetatable({},{__call=function(self,...)local k=mnemonic(...)local t=self[k]if t==nil then
+t=pack(fn(...))self[k]=t
+end
+return unpack(t,1,t.n)end})end
+local lambda=memoize(function(s)local expr
+local args,body=s:match'^%s*|%s*([^|]*)|%s*(.+)%s*$'if args and body then
+expr='return function('..args..') return '..body..' end'end
+if not expr then
+body=s:match'^%s*(_.*)%s*$'or s:match'^=%s*(.+)%s*$'if body then
+expr=[[
+            return function(...)
+               local _1,_2,_3,_4,_5,_6,_7,_8,_9 = ...
+	       local _ = _1
+	       return ]]..body..[[
+            end
+         ]]end
+end
+local ok,fn
+if expr then
+ok,fn=pcall(load(expr))end
+if not ok then
+return nil,"invalid lambda string '"..s.."'"end
+return setmetatable({},{_type='Lambda',_fn=fn,__call=function(self,...)return fn(...)end,__tostring=function(self)return s end,})end,id)local function map(seq,fn)local r,n={},0
+walk(seq,function(...)n=n+1
+r[n]=(fn(...))end)r.n=n
+return r
+end
+local function mapvalues(t,fn)local r={}for k,v in next,t do
+r[k]=fn(v)end
+return r
+end
+local function merged(...)local r,argu={},pack(...)for i=1,argu.n do
+for k,v in next,argu[i]or{}do
+r[k]=v
+end
+end
+return r
+end
+local function map_with(tt,fn)local r={}for k,v in next,tt do
+r[k]=fn(unpack(v,1,len(v)))end
+return r
+end
+local function predicate(x)local mt=getmetatable(x)if type(mt)=='table'and mt._type=='Lambda'then
+return mt._fn
+elseif type(x)~='function'and callable(x)then
+return function(...)return x(...)end
+end
+return topredicate(x)end
+local function _product(x,l)local r={}for i=1,len(x)do
+for j=1,len(l)do
+r[#r+1]={x[i],unpack(l[j],1,len(l[j]))}end
+end
+r.n=#r
+return r
+end
+local function product(...)local argt={...}if not next(argt)then
+return{n=0}else
+local d=map(remove(argt),lambda'={_1}')return foldr(argt,d,_product)end
+end
+local function shape(t,dims)t=flatten(t)local size=1
+local zero
+for i=1,len(dims)do
+local v=dims[i]if v==0 then
+if zero then
+return nil
+else
+zero=i
+end
+else
+size=size*v
+end
+end
+if zero then
+dims[zero]=ceil(len(t)/size)end
+local function fill(i,d)if d>len(dims)then
+return t[i],i+1
+else
+local r={}for j=1,dims[d]do
+local e
+e,i=fill(i,d+1)r[#r+1]=e
+end
+return r,i
+end
+end
+return(fill(1,1))end
+local function some(seq,...)return walk(seq,topredicate(given(id,...)))==true
+end
+local function tabulate(seq,fn)local r={}walk(seq,function(...)local k,v=fn(...)if k~=nil then
+r[k]=v
+end
+end)return r
+end
+local function isempty(x)if type(x)~='table'then
+return false
+end
+local k=next(x)return k==nil or(k=='n'and x.n==0 and next(x,k)==nil)end
+local function either(x,default)if x==nil or isempty(x)then
+return default
+end
+return x
+end
+local function except(t,pred)pred=topredicate(pred)local r={}for k,v in next,t do
+if not pred(k)then
+r[k]=v
+end
+end
+return r
+end
+local function pluck(t,keys)local r={}walk(keys,function(k)local v=t[k]if v~=nil then
+r[k]=v
+end
+end)return r
+end
+local function mapkeys(t,fn)local r={}for k,v in next,t do
+local key=fn(k)if key~=nil then
+r[key]=v
+end
+end
+return r
+end
+local function values(t)local r,n={},0
+for _,v in next,t do
+n=n+1
+r[n]=v
+end
+r.n=n
+return r
+end
+local function invert(t)return tabulate(iter(next,t),function(k,v)return v,k
+end)end
+local function zip(tt)local r={}for outerk,inner in next,tt do
+for k,v in next,inner do
+r[k]=r[k]or{}r[k][outerk]=v
+end
+end
+return r
+end
+local function zip_with(tt,fn)return map_with(zip(tt),fn)end
+local function X(decl,fn)return argscheck('std.functional.'..decl,fn)end
+return{collect=X('collect(table|function)',collect),compact=X('compact(table|function)',compact),each=X('each(table|function, callable)',each),filter=X('filter(table|function, ?any)',filter),flatmap=X('flatmap(table|function, callable)',flatmap),flatten=X('flatten(table)',flatten),foldl=X('foldl(table|function, [any], callable)',foldl),foldr=X('foldr(table|function, [any], callable)',foldr),iter=X('iter(callable, <?any...>)',iter),map=X('map(table|function, callable)',map),map_with=X('map_with(table of tables, callable)',map_with),partition=X('partition(table|function, ?any)',partition),product=X('product(list...)',product),reject=X('reject(table|function, ?any)',reject),reversed=X('reversed(table|function)',reversed),shape=X('shape(table, table)',shape),sorted=X('sorted(table|function, <?callable>)',sorted),zip=X('zip(table of tables)',zip),zip_with=X('zip_with(table of tables, callable)',zip_with),contains=X('contains(table|function, ?any)',contains),detect=X('detect(table|function, <?any>)',detect),firstof=X('firstof(table|function, [?any], callable)',firstof),indexof=X('indexof(table|function, <?any>)',indexof),isempty=X('isempty(?any)',isempty),predicate=X('predicate(?any)',predicate),some=X('some(table|function, <?any>)',some),except=X('except(table, ?any)',except),invert=X('invert(table)',invert),mapkeys=X('mapkeys(table, callable)',mapkeys),mapvalues=X('mapvalues(table, callable)',mapvalues),merged=X('merged(<?table...>)',merged),pluck=X('pluck(table, table|function)',pluck),tabulate=X('tabulate(table|function, callable)',tabulate),values=X('values(table)',values),any=X('any(callable...)',any),bind=X('bind(callable, table)',bind),callable=X('callable(<?any>)',callable),compose=X('compose(callable...)',compose),converge=X('converge(?any, [int], callable)',converge),curry=X('curry(callable, int)',curry),id=id,iscallable=X('iscallable(<?any>)',iscallable),lambda=X('lambda(string)',lambda),memoize=X('memoize(callable, <?callable>)',memoize),nop=function()end,case=X('case(?any, table)',case),choose=X('choose(?any, ?any, <?any>)',choose),cond=X('cond(<table...>)',cond),default=X('default(?any, <?any>)',default),either=X('either(?any, <?any>)',either),}
+end
+bundled['std.normalize']=function()
+local _debug=(function()local ok,r=pcall(require,'std._debug')if not ok then
+r=setmetatable({argcheck=true,strict=true,},{__call=function(self,x)self.argscheck=(x~=false)end,})end
+return r
+end)()local strict=(function()local setfenv=rawget(_G,'setfenv')or function()end
+local r=function(env,level)setfenv(1+(level or 1),env)return env
+end
+if _debug.strict then
+local ok,m=pcall(require,'std.strict.init')if ok then
+r=m
+end
+end
+return r
+end)()local typecheck=(function()local format=string.format
+local ok,r=pcall(require,'typecheck')if ok then
+return r
+end
+return{ARGCHECK_FRAME=0,argscheck=function(decl,inner)return inner or setmetatable({},{__concat=function(_,inner)return inner
+end,})end,argerror=function(name,i,extramsg,level)level=level or 1
+local s=format("bad argument #%d to '%s'",i,name)if extramsg~=nil then
+s=s..' ('..extramsg..')'end
+error(s,level>0 and level+2 or 0)end,}end)()local _ENV=strict(_G)local ARGCHECK_FRAME=typecheck.ARGCHECK_FRAME
+local argerror=typecheck.argerror
+local argscheck=typecheck.argscheck
+local concat=table.concat
+local config=package.config
+local exit=os.exit
+local format=string.format
+local gmatch=string.gmatch
+local gsub=string.gsub
+local loadstring=rawget(_G,'loadstring')or load
+local match=string.match
+local open=io.open
+local remove=table.remove
+local searchpath=package.searchpath or false
+local sort=table.sort
+local unpack=table.unpack or unpack
+local upper=string.upper
+local core=require'std.normalize._core'local callable=core.callable
+local getmetafield=core.getmetafield
+local getmetamethod=core.getmetamethod
+local iscallable=core.iscallable
+local len=core.len
+local pack=core.pack
+local pairs=core.pairs
+local rawlen=core.rawlen
+local tointeger=core.tointeger
+local fenv=core.with_frames(ARGCHECK_FRAME)local normalize_getfenv=fenv.getfenv
+local normalize_setfenv=fenv.setfenv
+local dirsep,pathsep,pathmark,execdir,igmark=match(config,'^([^\n]+)\n([^\n]+)\n([^\n]+)\n([^\n]+)\n([^\n]+)')local _exit=exit
+local function exit(...)local n,status=select('#',...),...if tointeger(n)==0 or status==true then
+_exit(0)elseif status==false then
+_exit(1)end
+_exit(status)end
+local function ipairs(l)if getmetamethod(l,'__len')then
+local n=len(l)return function(l,i)i=i+1
+if i<=n then
+return i,l[i]end
+end,l,0
+end
+return function(l,i)i=i+1
+if l[i]~=nil then
+return i,l[i]end
+end,l,0
+end
+local load=(function(ok)if not ok then
+return function(...)if type(...)=='string'then
+return loadstring(...)end
+return _G.load(...)end
+end
+return _G.load
+end)(pcall(load,'_=1'))local function normalize_load(chunk,chunkname)local m=getmetamethod(chunk,'__call')if m then
+chunk=m
+elseif getmetamethod(chunk,'__tostring')then
+chunk=tostring(chunk)end
+if getmetamethod(chunkname,'__tostring')then
+chunkname=tostring(chunkname)end
+return load(chunk,chunkname)end
+local function merge(t,r)r=r or{}for k,v in next,t do
+r[k]=r[k]or v
+end
+return r
+end
+local function keys(t)local r={}for k in pairs(t)do
+r[#r+1]=k
+end
+return r
+end
+local pathmatch_patt='[^'..pathsep..']+'local searchpath=searchpath or function(name,path,sep,rep)name=gsub(name,sep or'%.',rep or dirsep)local errbuf={}for template in gmatch(path,pathmatch_patt)do
+local filename=gsub(template,pathmark,name)local fh=open(filename,'r')if fh then
+fh:close()return filename
+end
+errbuf[#errbuf+1]="\tno file '"..filename.."'"end
+return nil,concat(errbuf,'\n')end
+local shallow_copy=merge
+local function render(x,vfns,roots)if vfns.term(x)then
+return vfns.elem(x)end
+roots=roots or{}local function stop_roots(x)return roots[x]or render(x,vfns,shallow_copy(roots))end
+local buf,pair,sep={vfns.open(x)},vfns.pair,vfns.sep
+roots[x]=vfns.elem(x)local seqp,kp,vp
+local keylist=vfns.sort(keys(x))for i,k in ipairs(keylist)do
+local v=x[k]buf[#buf+1]=sep(x,kp,vp,k,v,seqp)if k==1 then
+seqp=true
+else
+seqp=seqp and type(kp)=='number'and k==kp+1
+end
+buf[#buf+1]=pair(x,kp,vp,k,v,stop_roots(k),stop_roots(v),seqp)kp,vp=k,v
+end
+buf[#buf+1]=sep(x,kp,vp)buf[#buf+1]=vfns.close(x)return concat(buf)end
+local function always(x)return function(...)return x end
+end
+local function keysort(a,b)if type(a)=='number'then
+return type(b)~='number'or a<b
+else
+return type(b)~='number'and tostring(a)<tostring(b)end
+end
+local strvtable={open=always'{',close=always'}',elem=setmetatable({['\a']=[[\a]],['\b']=[[\b]],['\t']=[[\t]],['\n']=[[\n]],['\v']=[[\v]],['\f']=[[\f]],['\r']=[[\r]],['\\']=[[\\]],},{__call=function(map,x)return(gsub(tostring(x),'[\a\b\t\n\v\f\r]',function(c)return map[c]end))end,}),pair=function(x,kp,vp,k,v,kstr,vstr,seqp)if seqp then
+return vstr
+end
+return kstr..'='..vstr
+end,sep=function(x,kp,vp,k,v,seqp)if kp==nil or k==nil then
+return''elseif seqp and type(kp)=='number'and k~=kp+1 then
+return'; 'end
+return', 'end,sort=function(keys)sort(keys,keysort)return keys
+end,term=function(x)return type(x)~='table'or getmetamethod(x,'__tostring')end,}local function str(x)return render(x,strvtable)end
+local function math_type(x)if type(x)~='number'then
+return nil
+end
+return tointeger(x)and'integer'or'float'end
+local _unpack=unpack
+local function unpack(t,i,j)return _unpack(t,tointeger(i)or 1,tointeger(j)or len(t))end
+do
+local have_xpcall_args=false
+local function catch(arg)have_xpcall_args=arg end
+xpcall(catch,function()end,true)if not have_xpcall_args then
+local _xpcall=xpcall
+xpcall=function(fn,errh,...)local argu=pack(...)return _xpcall(function()return fn(unpack(argu,1,argu.n))end,errh)end
+end
+end
+local F={_VERSION=_G._VERSION,arg=_G.arg,argerror=argerror,assert=_G.assert,callable=argscheck'callable(<?any>)'..callable,collectgarbage=_G.collectgarbage,dofile=_G.dofile,error=_G.error,getfenv=argscheck'getfenv([callable|integer])'..normalize_getfenv,getmetafield=argscheck'getmetafield(?any, string)'..getmetafield,getmetamethod=argscheck'getmetamethod(?any, string)'..getmetamethod,getmetatable=_G.getmetatable,ipairs=argscheck'ipairs(table)'..ipairs,iscallable=argscheck'iscallable(<?any>)'..iscallable,len=argscheck'len(string|table)'..len,load=argscheck'load(callable|string|table, [string|table])'..normalize_load,loadfile=_G.loadfile,next=_G.next,pack=pack,pairs=argscheck'pairs(table)'..pairs,pcall=_G.pcall,print=_G.print,rawequal=_G.rawequal,rawget=_G.rawget,rawlen=argscheck'rawlen(string|table)'..rawlen,rawset=_G.rawset,select=_G.select,setfenv=argscheck'setfenv(integer|callable, table)'..normalize_setfenv,setmetatable=_G.setmetatable,str=str,tonumber=_G.tonumber,tostring=_G.tostring,type=_G.type,unpack=argscheck'unpack(table, [?integer], [integer])'..unpack,xpcall=argscheck'xpcall(callable, callable, [?any...])'..xpcall,}local G={coroutine={create=_G.coroutine.create,resume=_G.coroutine.resume,running=_G.coroutine.running,status=_G.coroutine.status,wrap=_G.coroutine.wrap,yield=_G.coroutine.yield,},debug={debug=_G.debug.debug,gethook=_G.debug.gethook,getinfo=_G.debug.getinfo,getlocal=_G.debug.getlocal,getmetatable=_G.debug.getmetatable,getregistry=_G.debug.getregistry,getupvalue=_G.debug.getupvalue,getuservalue=_G.debug.getuservalue,sethook=_G.debug.sethook,setmetatable=_G.debug.setmetatable,setupvalue=_G.debug.setupvalue,setuservalue=_G.debug.setuservalue,traceback=_G.debug.traceback,upvalueid=_G.debug.upvalueid,upvaluejoin=_G.debug.upvaluejoin,},io={close=_G.io.close,flush=_G.io.flush,input=_G.io.input,lines=_G.io.lines,open=_G.io.open,output=_G.io.output,popen=_G.io.popen,read=_G.io.read,stderr=_G.io.stderr,stdin=_G.io.stdin,stdout=_G.io.stdout,tmpfile=_G.io.tmpfile,type=_G.io.type,write=_G.io.write,},math={abs=_G.math.abs,acos=_G.math.acos,asin=_G.math.asin,atan=_G.math.atan,ceil=_G.math.ceil,cos=_G.math.cos,deg=_G.math.deg,exp=_G.math.exp,floor=_G.math.floor,fmod=_G.math.fmod,huge=_G.math.huge,log=_G.math.log,max=_G.math.max,min=_G.math.min,modf=_G.math.modf,pi=_G.math.pi,rad=_G.math.rad,random=_G.math.random,randomseed=_G.math.randomseed,sin=_G.math.sin,sqrt=_G.math.sqrt,tan=_G.math.tan,tointeger=argscheck'math.tointeger(?any)'..tointeger,type=argscheck'math.type(?any)'..math_type,},os={clock=_G.os.clock,date=_G.os.date,difftime=_G.os.difftime,execute=_G.os.execute,exit=argscheck'os.exit([boolean|integer])'..exit,getenv=_G.os.getenv,remove=_G.os.remove,rename=_G.os.rename,setlocale=_G.os.setlocale,time=_G.os.time,tmpname=_G.os.tmpname,},package={dirsep=dirsep,execdir=execdir,igmark=igmark,pathmark=pathmark,pathsep=pathsep,searchers=not _G.package.searchers and _G.package.loaders or nil,searchpath=argscheck('package.searchpath(string, string, [?string], [string])')..searchpath,},string={byte=_G.string.byte,char=_G.string.char,dump=_G.string.dump,find=_G.string.find,format=_G.string.format,gmatch=_G.string.gmatch,gsub=_G.string.gsub,lower=_G.string.lower,match=_G.string.match,rep=_G.string.rep,render=argscheck'string.render(?any, table, [table])'..render,reverse=_G.string.reverse,sub=_G.string.sub,upper=_G.string.upper,},table={concat=_G.table.concat,insert=_G.table.insert,keys=argscheck'table.keys(table)'..keys,merge=argscheck'table.merge(table, [table])'..merge,remove=_G.table.remove,sort=_G.table.sort,},}F._G=G
+local function chainpairs(core)return function(t)local own=true
+return function(_,k)local v
+if own then
+k,v=next(t,k)if k~=nil then
+return k,v
+end
+own=false
+end
+repeat
+k,v=next(core,k)until k==nil or rawget(t,k)==nil
+return k,v
+end,t,nil
+end
+end
+local core_package=_G.package
+setmetatable(G.package,{__index=core_package,__newindex=core_package,__pairs=chainpairs(core_package),})local normalized={_G=G,coroutine=G.coroutine,debug=G.debug,io=G.io,math=G.math,os=G.os,package=G.package,string=G.string,table=G.table,}rawset(G.package,'loaded',setmetatable({},{__index=function(_,k)local v=normalized[k]if v==nil then
+v=core_package.loaded[k]end
+return v
+end,__newindex=core_package.loaded,__pairs=function(t)return function(_,k)local v
+k,v=next(core_package.loaded,k)if k~=nil and normalized[k]~=nil then
+v=normalized[k]end
+return k,v
+end,t,nil
+end,}))F.require=function(modname)return G.package.loaded[modname]or _G.require(modname)end
+for k,v in next,F do
+G[k]=G[k]or v
+end
+local function split(s,matching)local r={}gsub(s,matching,function(segment)r[#r+1]=segment
+end)return r
+end
+local function mksubtables(env,keylist)while#keylist>1 do
+local subkey=remove(keylist,1)env[subkey]=env[subkey]or{}env=env[subkey]end
+keylist=remove(keylist,1)return env,keylist
+end
+local function slice(t,i,j)return concat({unpack(t,i,j)},'.')end
+local function stringimport(spec,level)local v=split(spec,'[^%.]+')local vlen,err=#v,{}for i=vlen,1,-1 do
+local module,j=slice(v,1,i),i+1
+local ok,pkg=pcall(G.require,module)if not ok then
+err[#err+1]=pkg
+else
+while pkg~=nil and j<=vlen do
+local subkey=v[j]pkg,j=pkg[subkey],j+1
+end
+if pkg==nil then
+err[#err+1]=format("\tno entry for '%s' in module '%s'",slice(v,i+1,vlen),module)else
+return pkg
+end
+end
+end
+error(concat(err,'\n'),level+1)end
+local function import(env,name,value,level)local i=tointeger(name)if i and type(value)=='string'then
+name=match(value,'[^%.]+$')if name==nil then
+error("could not infer name from module '"..value.."' at #"..i,level+1)end
+end
+local dst,k=mksubtables(env,split(name,'[^%.]+'))if type(value)=='string'and(i or upper(name)~=name)then
+value=stringimport(value,level+1)end
+dst[k]=value
+return env
+end
+local function normalize(userenv,level)local env=shallow_copy(F)for name,value in next,userenv do
+env=import(env,name,value,level+1)end
+return env
+end
+return setmetatable(G,{__call=function(_,env,level)level=1+(level or 1)return(strict(normalize(env,level),level))end,__index=function(self,name)local ok,t=pcall(require,'std.normalize.'..name)if ok then
+rawset(self,name,t)return t
+end
+end,})
+end
+bundled['std.normalize._core']=function()
+local debug_getinfo=debug.getinfo
+local debug_getupvalue=debug.getupvalue
+local debug_setupvalue=debug.setupvalue
+local debug_upvaluejoin=debug.upvaluejoin
+local debug_getfenv=debug.getfenv
+local debug_setfenv=debug.setfenv
+local host_getfenv=rawget(_G,'getfenv')or false
+local host_setfenv=rawget(_G,'setfenv')or false
+local function getmetafield(x,n)local mt=getmetatable(x)if type(mt)=='table'then
+return mt[n]end
+end
+local function callable(x)if type(x)=='function'then
+return x
+end
+if getmetafield(x,'__call')then
+return x
+end
+end
+local function iscallable(x)return callable(x)~=nil
+end
+local function getmetamethod(x,n)return callable(getmetafield(x,n))end
+local function rawlen(x)if type(x)~='table'then
+return#x
+end
+local n=#x
+for i=1,n do
+if x[i]==nil then
+return i-1
+end
+end
+return n
+end
+local function len(x)return(getmetamethod(x,'__len')or rawlen)(x)end
+local tointeger=(function(f)if f==nil then
+local floor=math.floor
+return function(x)if type(x)=='number'and x-floor(x)==0.0 then
+return x
+end
+end
+elseif f'1'~=nil then
+return function(x)if type(x)=='number'then
+return f(x)end
+end
+end
+return f
+end)(math.tointeger)local pack=(function(f)local pack_mt={__len=function(self)return self.n
+end,}local pack_fn=f or function(...)return{n=select('#',...),...}end
+return function(...)return setmetatable(pack_fn(...),pack_mt)end
+end)(rawget(_G,"pack"))local pairs=(function(b)if b then
+return function(t)return(getmetamethod(t,'__pairs')or pairs)(t)end
+end
+return _G.pairs
+end)(not not pairs(setmetatable({},{__pairs=function()return false end})))local function unwrap(fn)local call=type(fn)=='table'and rawget(fn,'call')if type(call)=='function'then
+return call
+end
+return getmetafield(fn,'__call')or fn
+end
+local function make_getfenv(extra)if _VERSION=='Lua 5.1'then
+return function(fn)local n=tointeger(fn or 1)if n then
+if n==0 then
+return _G
+end
+if n>0 then
+n=n+1+extra
+if debug_getfenv then
+return(debug_getfenv(debug_getinfo(n,'f').func))end
+end
+return(host_getfenv(n))end
+if type(fn)~='function'then
+fn=unwrap(fn)end
+return(debug_getfenv or host_getfenv)(fn)end
+end
+return function(fn)if fn==0 then
+return _G
+end
+local n=tointeger(fn or 1)if n then
+fn=debug_getinfo(n+1+extra,'f').func
+elseif type(fn)~='function'then
+fn=unwrap(fn)end
+local name,env
+local up=0
+repeat
+up=up+1
+name,env=debug_getupvalue(fn,up)until name=='_ENV'or name==nil
+return env
+end
+end
+local function make_setfenv(extra)if _VERSION=='Lua 5.1'then
+return function(fn,env)local n=tointeger(fn or 1)if n then
+if n==0 then
+error('cannot set the global environment',2)end
+if n>0 then
+n=n+1+extra
+if debug_setfenv then
+local f=debug_getinfo(n,'f').func
+debug_setfenv(f,env)return f
+end
+end
+return(host_setfenv(n,env))end
+if type(fn)~='function'then
+fn=unwrap(fn)end
+return(debug_setfenv or host_setfenv)(fn,env)end
+end
+return function(fn,env)local n=tointeger(fn or 1)if n then
+if n==0 then
+error('cannot set the global environment',2)end
+if n>0 then
+n=n+1+extra
+end
+fn=debug_getinfo(n,'f').func
+elseif type(fn)~='function'then
+fn=unwrap(fn)end
+local up,name=0
+repeat
+up=up+1
+name=debug_getupvalue(fn,up)until name=='_ENV'or name==nil
+if name then
+debug_upvaluejoin(fn,up,function()return name end,1)debug_setupvalue(fn,up,env)end
+return fn
+end
+end
+return{callable=callable,getfenv=make_getfenv(0),getmetafield=getmetafield,getmetamethod=getmetamethod,iscallable=iscallable,len=len,pack=pack,pairs=pairs,rawlen=rawlen,setfenv=make_setfenv(0),tointeger=tointeger,with_frames=function(extra)return{getfenv=make_getfenv(extra),setfenv=make_setfenv(extra)}end,}
 end
 if _VERSION=='Lua 5.1'then for _,f in next,bundled do setfenv(f,env)end end
 os.exit(require'luke'.main(arg))
