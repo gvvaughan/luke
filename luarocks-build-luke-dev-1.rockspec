@@ -47,10 +47,10 @@ local sources = {
    'lib/luke/release.lua',
    'lib/luke/rockspec.lua',
    'lib/luke/schema.lua',
-   'lib/luke/version.lua',
    'lib/type/context-manager.lua',
    'lib/type/dict.lua',
    'lib/type/path.lua',
+   'luke.version=lib/luke/luarocks-build-luke-version.lua',
 }
 
 local smushed = ''
@@ -64,7 +64,7 @@ build = {
    -- luarocks.path is referenced from luarocks-build-luke.lua, but provided
    -- by LuaRocks itself.
    build_command =
-      "sed 's/@version@/" .. _MODREV .. "/' lib/luke/version.lua.in > lib/luke/version.lua && " ..
+      "sed 's/@version@/" .. _MODREV .. "/' lib/luke/version.lua.in > lib/luke/luarocks-build-luke-version.lua && " ..
       'LUA_PATH="$PWD/lib/?.lua;$PWD/lib/?/init.lua;;" $(LUA) build-aux/smush' ..
       ' --module=luarocks.build.luke --external=luarocks.path' .. smushed ..
       ' > build-aux/luarocks-build-luke.lua',
