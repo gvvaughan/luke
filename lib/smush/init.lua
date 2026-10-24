@@ -5,6 +5,7 @@
 
 local _ENV = require 'luke.normalize' {
    'luke.functional',
+   'package',
    'type.context-manager',
    Charset = require 'type.charset',
    Scanner = require 'type.scanner',
@@ -21,9 +22,11 @@ local isident = Charset(IDENT)
 local isidnum = Charset(IDENT .. DIGIT)
 local isspace = Charset(SPACE)
 
+
 local function tointeger(x)
    return int(tonumber(x))
 end
+
 
 local function comment(scanner, c)
    local l = scanner.l
@@ -52,6 +55,7 @@ local function comment(scanner, c)
    return {'COMMENT', str(buf .. eos), l}
 end
 
+
 local function identifier(scanner, c)
    local buf, l = StrBuf(), scanner.l
    while isidnum(c) do
@@ -59,6 +63,7 @@ local function identifier(scanner, c)
    end
    return {'IDENTIFIER', str(buf), l}
 end
+
 
 local function longstring(scanner, c)
    local l = scanner.l
@@ -83,6 +88,7 @@ local function longstring(scanner, c)
    return {'STRING', str(buf .. eos), l}
 end
 
+
 local function number(scanner, c)
    local buf, l = StrBuf(), scanner.l
    while isdigit(c) do
@@ -91,11 +97,13 @@ local function number(scanner, c)
    return {'INTEGER', tointeger(str(buf)), l}
 end
 
+
 local function punctuation(scanner, c)
    local l = scanner.l
    scanner:advance()
    return {'PUNCTUATION', c, l}
 end
+
 
 local function shortstring(scanner, c)
    local buf, upto, l = StrBuf(c), c, scanner.l
@@ -111,6 +119,7 @@ local function shortstring(scanner, c)
    return {'STRING', str(buf .. upto), l}
 end
 
+
 local function whitespace(scanner, c)
    local buf, l = StrBuf(), scanner.l
    while isspace(c) do
@@ -118,6 +127,7 @@ local function whitespace(scanner, c)
    end
    return {'WHITESPACE', str(buf), l}
 end
+
 
 local function State(...)
    local r, argu = {}, pack(...)
@@ -146,7 +156,8 @@ local start = State(
    {punctuation}
 )
 
-local tokenize = function(fname)
+
+local function tokenize(fname)
    local r, scanner = {}, Scanner(slurp(File(fname)))
    while not scanner:eof() do
       local c = scanner:peek()
@@ -154,6 +165,7 @@ local tokenize = function(fname)
    end
    return r
 end
+
 
 local function needspace(a, b)
    if a ~= 'INTEGER' and a ~= 'IDENTIFIER' then
@@ -164,44 +176,119 @@ local function needspace(a, b)
    return true
 end
 
+
+-- A module name from the path of the file that holds it.
+local function modname(fname)
+   return (gsub(fname, '/', '.'):gsub('lib%.', ''):gsub('%.lua$', ''):gsub('%.init$', ''))
+end
+
+
+-- The file for an argument that is a module name rather than a path: find
+-- it in the Lua path, as `require` would.
+local function modfile(name)
+   local fname, err = searchpath(name, path)
+   if fname == nil then
+      stderr:write('smush: module ', name, ' not found:', err, '\n')
+      exit(1)
+   end
+   return fname
+end
+
+
+-- Each argument is a path, or the name of a module to find in the Lua
+-- path, which is bundled under the name it was asked for.
+local function source(arg)
+   if find(arg, '/', 1, true) or find(arg, '%.lua') then
+      return modname(arg), arg
+   end
+   return arg, modfile(arg)
+end
+
+
+-- The script or module that smush writes, runs bundled packages in a private
+-- environment of its own with a copy of the globals, require` and a
+-- `package.loaded` so that nothing leaks into the host's `package` module.
+local function header(script)
+   return (script and '#!/usr/bin/env lua\n' or '') .. concat({
+      '--[[ minified code follows, see --help text for source location! ]]',
+      'local host=package',
+      'local env={}for k,v in next,_G do env[k]=v end env._G=env',
+      'local bundled,loaded={},{}',
+      'env.package=setmetatable({preload={},loaded=setmetatable(loaded,{__index=function(_,k)',
+      'if bundled[k]==nil then return host.loaded[k]end end})},{__index=host})',
+      'local require=function(modname)local m=loaded[modname]if m==nil then',
+      'if bundled[modname]==nil then',
+      [=[error("module '" .. modname .. "' not found:\n   no bundled module '" .. modname .. "'",2)]=],
+      'end',
+      'm=bundled[modname](modname)if m==nil then m=true end loaded[modname]=m end',
+      'return m end',
+      'env.require=require',
+      'local _ENV=env',
+   }, '\n')
+end
+
+
+-- What follows the bundled modules: run them in their environment.
+local function footer(script, entry)
+   return concat({
+      "if _VERSION=='Lua 5.1'then for _,f in next,bundled do setfenv(f,env)end end",
+      script and "os.exit(require'" .. entry .. "'.main(arg))"
+              or "return require'" .. entry .. "'",
+   }, '\n')
+end
+
+
+-- Write one source file with its comments and whitespace squeezed out.
+local function minify(fname)
+   -- Filter out all comment and whitespace tokens.
+   local tokens = reject(tokenize(fname), function(token)
+      return token[1] == 'COMMENT' or token[1] == 'WHITESPACE'
+   end)
+
+   -- strategically inject whitespace tokens back into the stream
+   local l, prev = 1
+   each(tokens, function(token)
+      if needspace(prev, token[1]) then
+         write(l < token[3] and '\n' or ' ')
+      end
+      write(str(token[2]))
+      prev, l = token[1], token[3]
+   end)
+end
+
+
+--- Write a single file that bundles *sources*.
+-- A source is a path, or the name of a module in the Lua path.
+-- With `--module=NAME` the file is a module that returns the bundled
+-- module NAME, otherwise it is a script that exits with what the main
+-- function of the bundled module `luke` returns (or of `--main=NAME`).
+local function main(args)
+   local script, entry, sources = true, 'luke', {}
+   each(args, function(a)
+      local k, v = match(a, '^%-%-(%w+)=(.*)$')
+      if k == 'module' then
+         script, entry = false, v
+      elseif k == 'main' then
+         entry = v
+      else
+         append(sources, a)
+      end
+   end)
+
+   print(header(script))
+
+   each(sources, function(a)
+      local name, fname = source(a)
+      print("bundled['" .. name .. "']=function()")
+      minify(fname)
+      print '\nend'
+   end)
+
+   print(footer(script, entry))
+end
+
 return {
-   main = function()
-      each({
-         '#!/usr/bin/env lua',
-         '--[[ minified code follows, see --help text for source location! ]]',
-         'local require=function(modname)if package.loaded[modname]==nil then',
-         'if type(package.preload[modname])~="function"then',
-         [=[io.stderr:write("module '" .. modname .. "' not found:\n   no valid field package.preload['" .. modname .. "']\n")]=],
-         'return nil',
-         'end',
-         'package.loaded[modname]=package.preload[modname](modname,"package.preload")end',
-         'return package.loaded[modname]end',
-      }, print)
-
-      each(arg, function(fname)
-         print("package.preload['"
-           .. gsub(fname, '/', '.'):gsub('lib%.', ''):gsub('%.lua$', ''):gsub('%.init', '')
-           .. "']=function()"
-         )
-
-         -- Filter out all comment and whitespace tokens.
-         local tokens = reject(tokenize(fname), function(token)
-            return token[1] == 'COMMENT' or token[1] == 'WHITESPACE'
-         end)
-
-         -- strategically inject whitespace tokens back into the stream
-         local l, prev = 1
-         each(tokens, function(token)
-            if needspace(prev, token[1]) then
-               write(l < token[3] and '\n' or ' ')
-            end
-            write(str(token[2]))
-            prev, l = token[1], token[3]
-         end)
-
-         print '\nend'
-      end)
-
-      print "os.exit(require'luke'.main(arg))"
+   main = function(args)
+      return main(args or arg)
    end,
 }

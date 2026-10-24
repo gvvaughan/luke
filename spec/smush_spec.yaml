@@ -1,0 +1,70 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before: |
+  function spit(filename, content)
+     local h = assert(io.open(filename, 'w'))
+     h:write(content)
+     h:close()
+  end
+
+  -- What `smush` writes for *args*, given the modules beneath *tmpdir*
+  -- to find, as a specl Process.
+  function smush(tmpdir, ...)
+     return capture(function(tmpdir, ...)
+        package.path = tmpdir .. '/?.lua;' .. package.path
+        return require 'smush'.main {...}
+     end, tmpdir, ...)
+  end
+
+specify smush:
+- describe a bundle of modules:
+  - before: |
+      tmpdir = os.tmpname()
+      os.remove(tmpdir)
+      assert(os.execute('mkdir ' .. tmpdir))
+      spit(tmpdir .. '/one.lua', "return {name = 'one', two = require 'two'}\n")
+      spit(tmpdir .. '/two.lua', "-- a comment\nreturn   'two'  -- another\n")
+      spit(tmpdir .. '/three.lua', "return 'three'\n")
+      spit(tmpdir .. '/four.lua', "return {three = require 'three'}\n")
+  - after: |
+      os.execute('rm -rf ' .. tmpdir)
+
+  - it finds the modules by name in the Lua path: |
+      p = smush(tmpdir, '--module=one', 'one', 'two')
+      expect(p).to_succeed_while_containing "bundled['one']=function()"
+      expect(p).to_succeed_while_containing "bundled['two']=function()"
+  - it squeezes the comments out: |
+      p = smush(tmpdir, '--module=one', 'one', 'two')
+      expect(p.output).not_to_contain 'comment'
+  - it returns the module that was asked for: |
+      p = smush(tmpdir, '--module=one', 'one', 'two')
+      m = load(p.output)()
+      expect(m).to_equal {name = 'one', two = 'two'}
+  - it bundles a file that it is given by path: |
+      p = smush(tmpdir, '--module=x', tmpdir .. '/two.lua')
+      expect(p).to_succeed_while_containing "two']=function()"
+  - it keeps what it bundles out of package: |
+      p = smush(tmpdir, '--module=one', 'one', 'two')
+      load(p.output)()
+      expect(package.loaded.one).to_be(nil)
+      expect(package.loaded.two).to_be(nil)
+      expect(package.preload.one).to_be(nil)
+  - it only finds the modules that it bundles: |
+      p = smush(tmpdir, '--module=four', 'four')
+      expect(p.output).to_contain "return require'four'"
+      expect(load(p.output)()).to_raise "no bundled module 'three'"
+  - it is not fooled by a module of the same name that the host has loaded: |
+      package.loaded.two = 'the host two'
+      p = smush(tmpdir, '--module=one', 'one', 'two')
+      expect(load(p.output)().two).to_be 'two'
+  - it exits for a module that is not in the Lua path: |
+      p = smush(tmpdir, '--module=one', 'one', 'missing')
+      expect(p).to_fail_while_matching 'module missing not found'
+  - it writes a script that exits with the main function of a module: |
+      p = smush(tmpdir, 'one', 'two')
+      expect(p.output).to_match '^#!/usr/bin/env lua\n'
+      expect(p.output).to_contain "os.exit(require'luke'.main(arg))"
+  - it writes a script for the main function of any module: |
+      p = smush(tmpdir, '--main=one', 'one', 'two')
+      expect(p.output).to_contain "os.exit(require'one'.main(arg))"

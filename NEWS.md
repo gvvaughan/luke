@@ -4,6 +4,14 @@
 
 ### New features:
 
+  - `smush`, which bundles luke into the single file `build-aux/luke`,
+    also bundles the modules that it finds in the Lua path, by name, and
+    can write a module for the bundle to return, rather than a program.
+
+  - What `smush` bundles is private to the file: it is found by its own
+    `require`, and not in `package.preload` or `package.loaded`, and does
+    not meet a module of the same name that the host program loads.
+
   - Templates can fill in `@LUA_VERSION@`, the version of the Lua running
     Luke, such as `5.4`, to find the directories of the modules for it.
 

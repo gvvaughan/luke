@@ -1,13 +1,19 @@
 #!/usr/bin/env lua
 --[[ minified code follows, see --help text for source location! ]]
-local require=function(modname)if package.loaded[modname]==nil then
-if type(package.preload[modname])~="function"then
-io.stderr:write("module '" .. modname .. "' not found:\n   no valid field package.preload['" .. modname .. "']\n")
-return nil
+local host=package
+local env={}for k,v in next,_G do env[k]=v end env._G=env
+local bundled,loaded={},{}
+env.package=setmetatable({preload={},loaded=setmetatable(loaded,{__index=function(_,k)
+if bundled[k]==nil then return host.loaded[k]end end})},{__index=host})
+local require=function(modname)local m=loaded[modname]if m==nil then
+if bundled[modname]==nil then
+error("module '" .. modname .. "' not found:\n   no bundled module '" .. modname .. "'",2)
 end
-package.loaded[modname]=package.preload[modname](modname,"package.preload")end
-return package.loaded[modname]end
-package.preload['luke._base']=function()
+m=bundled[modname](modname)if m==nil then m=true end loaded[modname]=m end
+return m end
+env.require=require
+local _ENV=env
+bundled['luke._base']=function()
 local _ENV=require'luke.normalize'{error=error,}local function message(...)if select('#',...)>1 then
 return format(...)end
 return(...)end
@@ -30,7 +36,7 @@ end
 error(r[2],0)end
 return M
 end
-package.preload['luke.cli']=function()
+bundled['luke.cli']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.environment','luke.lukefile','luke.functional','luke.prepare','luke.version','type.context-manager',}local function version()print(versiontext)exit(0)end
 local function help()print[[
 Usage: luke [OPTION]... [VAR=VALUE]... [TARGET]
@@ -74,7 +80,7 @@ opterr("unrecognized option '%s'",opt)end
 append(r.targets,opt)end,})end)return mkrequest(r)end
 return{commandline=function(args)local parsed=parse_arguments(args)return check_lukefile(parsed),merged(parsed,{release=release_version(parsed)})end,parse_arguments=parse_arguments,validate_arguments=function(parsed)local luke=check_lukefile(parsed)return prepare(luke,merged(parsed,{release=release_version(parsed)}))end,}
 end
-package.preload['luke.compile']=function()
+bundled['luke.compile']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.environment','luke.functional','type.context-manager','type.path',}local function spawn(env,...)local command=interpolate(env,concat({...},' '))return with(TmpFile(),TmpFile(),function(out,err)local pipe=concat{'{ ',command,'\n} >',out.filename,' 2>',err.filename,'; printf $?'}return tonumber(slurp(Pipe(pipe))),slurp(File(err.filename)),slurp(File(out.filename))end)end
 local function write_error(err)if err~=''then
 stderr:write(err,match(err,'\n$')and''or'\n')end
@@ -119,7 +125,7 @@ return 0
 end
 return sequence(compact(flatten(list(bind(install_dir,{L,env,'$INST_BINDIR'}),map(names,function(name)return bind(install_script,{L,env,luke,name})end)))))end,libdirs=libdirs,make_executable=function(L,env,path)return run(L,env,{'$CHMOD','+x',path})end,run=run,sequence=sequence,script_target=script_target,spawn=spawn,}
 end
-package.preload['luke.configure']=function()
+bundled['luke.configure']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.environment','luke.functional','type.context-manager','type.dict',CCPROGS={'cc','gcc','clang'},}local function logspawn(L,env,filename,...)local status,err=spawn(env,...)if status~=0 and err~=''then
 with(File(filename,'r'),function(h)L.log(h.filename..':')L.log(slurp(h))end)L.log(err)end
 return status
@@ -259,7 +265,7 @@ LDOC=configure(L,env,{checkprog='LDocs generator',progs={'ldoc','true'}})env=mke
 return env
 end,configure=configure,isprobe=isprobe,}
 end
-package.preload['luke.environment']=function()
+bundled['luke.environment']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.platforms','luke.functional',LUA_VERSION=string.gsub(_VERSION,'[^0-9%.]+',''),SHELLMETACHARS='[%s%$"\'&;|<>()*?`\\]',}local function interpolate_with(pattern,env,s)local ok,result=pcall(converge,s,function(text)return(gsub(text,pattern,function(varname)return env[varname]or''end))end)return diagnose(ok and result,"cannot expand '%s': its names refer to each other",s)end
 local function quoted(s)return"'"..gsub(s,"'",[['\'']]).."'"end
 return{CONFIGENV={compile='$CC -c $CFLAGS $CPPFLAGS',libs='',link='$CC $CFLAGS $CPPFLAGS $LDFLAGS',},DEFAULTENV=filter_platforms{LUA='lua',LUA_VERSION=LUA_VERSION,LUAVERSION='$LUA_VERSION',PREFIX='/usr/local',INST_BINDIR='$PREFIX/bin',INST_LIBDIR='$PREFIX/lib/lua/$LUA_VERSION',INST_LUADIR='$PREFIX/share/lua/$LUA_VERSION',LIB_EXTENSION='so',OBJ_EXTENSION='o',CHMOD='chmod',INSTALL='cp',MAKEDIRS='mkdir -p',CFLAGS='-O2',platforms={macosx={LIBFLAG='-fPIC -bundle -undefined dynamic_lookup -all_load',},LIBFLAG='-shared -fPIC',},},SHELLENV=setmetatable({},{__index=function(_,v)return getenv(v)end,}),expand=bind(interpolate_with,{'@([%w_]+)@'}),interpolate=bind(interpolate_with,{'%$([%w_]+)'}),shellword=function(s)if match(s,SHELLMETACHARS)then
@@ -269,7 +275,7 @@ end,mkenv=function(...)local tables,found=reject(list(...),nil),{}return setmeta
 found[varname]=firstof(tables,function(t)return t[varname]end)end
 return found[varname]end,})end,}
 end
-package.preload['luke.functional']=function()
+bundled['luke.functional']=function()
 local _ENV=require'luke.normalize'{destructure=next,error=error,isfile=function(x)return io.type(x)=='file'end,}local function call(fn,...)return fn(...)end
 local function apply(fn,argu)return fn(unpack(argu))end
 local function force(branch,...)if iscallable(branch)then
@@ -471,7 +477,7 @@ append(r,v)end
 return r
 end,}
 end
-package.preload['luke']=function()
+bundled['luke']=function()
 local _ENV=require'luke.normalize'{'luke.cli','luke.compile','luke.configure','luke.environment','luke.lukefile','luke.functional','luke.prepare','luke.release',}local function run_ldocs(L,env,ldocs)return run(L,env,compact(flatten(list('$LDOC -c',ldocs.sources,'.'))))end
 local function script_rules(L,entry)return ordered_get(script_sections(L.luke)[entry.section],entry.name)end
 local function build_script(L,env,substitute,entry)local rules=script_rules(L,entry)local target=script_target(entry.name,rules,L.luke.variables.objdir,entry.section=='install')return sequence{function()if isstring(rules)then
@@ -498,7 +504,7 @@ return release(L,env,bind(build,{L,env}))end
 return sequence{function()local wanted=not isempty(L.luke.modules or{})or not isempty(L.scripts.build)return choose(wanted,bind(build,{L,env}),0)end,bind(install_modules,{L,env,L.luke,L.install}),bind(install_scripts,{L,env,L.luke,L.scripts.install}),}end
 return{main=function(args)return make(commandline(args))end,make=make,}
 end
-package.preload['luke.lukefile']=function()
+bundled['luke.lukefile']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.environment','luke.platforms','luke.functional','luke.schema','type.context-manager','type.path',}local str,t=mkcheck'string',mkcheck'table'local RELEASE=fields({add=listof(pathname),check_dependencies=mkcheck'boolean',news=pathname,replacements=ordered_map(pairof(ordered_map(pairof(str)),pathname)),rockspec=pathname,},copies)local LUKEFILE=fields({luke_format=luke_format,package=str,version=str,defines=defines,external_dependencies=dependencies,incdirs=listof(pathname),ldocs=rules,libdirs=listof(pathname),libraries=listof(id),modules=ordered_map(pairof(rules)),substitute=t,variables=t,bin=scripts,files=files,install=fields{bin=scripts,},release=RELEASE,},true)local function collect_configs(luke,modulename,sectionname)return flatmap(sorted_keys(luke),function(k)local v=luke[k]return cond({isprobe(v),{{t=luke,k=k,module=modulename,section=sectionname}}},{istable(v)and(k=='modules'or k=='external_dependencies'),function()return flatmap(v,function(pair)local name,rules=destructure(pair)return collect_configs(rules,name,k)end)end},{istable(v),function()return collect_configs(v,modulename,sectionname)end})end)end
 local function deepcopy(tree)return mapvalues(tree,function(v)if istable(v)then
 return deepcopy(v)end
@@ -549,7 +555,7 @@ r.ldocs=rewritten(r.ldocs)end
 return r
 end,}
 end
-package.preload['luke.normalize']=function()
+bundled['luke.normalize']=function()
 local ceil=math.ceil
 local concat=table.concat
 local config=package.config
@@ -667,7 +673,7 @@ end
 setfenv(level+1,userenv)return userenv
 end,})
 end
-package.preload['luke.platforms']=function()
+bundled['luke.platforms']=function()
 local _ENV=require'luke.normalize'{'luke.functional',}local CANON={['AIX']=list('aix','unix'),['FreeBSD']=list('freebsd','bsd','unix'),['OpenBSD']=list('openbsd','bsd','unix'),['NetBSD']=list('netbsd','bsd','unix'),['Darwin']=list('macosx','bsd','unix'),['Linux']=list('linux','unix'),['SunOS']=list('solaris','unix'),['^CYGWIN']=list('cygwin','unix'),['^MSYS']=list('msys','cygwin','unix'),['^Windows']=list('win32','windows'),['^MINGW']=list('mingw32','win32','windows'),['^procnto']=list('qnx'),['QNX']=list('qnx'),['Haiku']=list('haiku','unix'),}local ALLPLATFORMS=set(flatten(values(CANON)))local function by_name(canon,uname)return canon[uname]end
 local function ispatternkey(k)return sub(k,1,1)=='^'end
 local function by_pattern(canon,uname)return firstof(filter(keys(canon),ispatternkey),function(k)return match(uname,k)and canon[k]end)end
@@ -690,7 +696,7 @@ local function filter_platforms(t,using,predicate,opaque)return narrow_for(t,def
 local function narrow_platforms(t,opaque)return narrow_for(t,supported,isplatform,opaque)end
 return{filter_platforms=filter_platforms,isplatform=isplatform,layers=layers,narrow_platforms=narrow_platforms,platforms=supported,toplatforms=toplatforms,}
 end
-package.preload['luke.prepare']=function()
+bundled['luke.prepare']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.environment','luke.functional','luke.lukefile','luke.platforms','type.context-manager',}local function display(...)return stdout:write(concat{...})end
 local function dump(...)local s=concat(map(list(...),str))if len(s)>0 then
 each(gmatch(match(s,'^(.-)\n*$')..'\n','(.-)\n'),function(line)stderr:write('   DEBUG: '..line..'\n')end)end
@@ -716,7 +722,7 @@ local rulesets={luke.modules,sections.bin,sections.files,installbin}local target
 local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merged({abs_top_srcdir=srcdir,gitref=ref,LUA_VERSION=DEFAULTENV.LUA_VERSION,package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),},luke.substitute)luke.variables=merged({LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUA_VERSION',LUA_LIBDIR='$LUA_DIR/lib',abs_top_srcdir=srcdir,gitref=ref,objdir=platforms[1],package=luke.package,version=luke.version,},collect_variables(luke),luke.variables)return{clidefs=request.clidefs,debug=request.debug,dryrun=request.dryrun,filled={},install=install,log=request.log,luke=luke,quiet=request.quiet,release=release,scripts=scripts,spawn=request.spawn,valreqs=request.valreqs,verbose=request.verbose,write=request.write,}end
 return{mkrequest=mkrequest,prepare=prepare,}
 end
-package.preload['luke.release']=function()
+bundled['luke.release']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.compile','luke.configure','luke.environment','luke.functional','luke.lukefile','type.context-manager','type.path',date=os.date,}local PLACEHOLDER='\n(## [^\n]*%?%.%?[^\n]*\n)'local MODREV="^(local _MODREV, _SPECREV = ')[^']*(')"local DEVROCKSPEC='^(.-%-)dev(%-%d+%.rockspec)$'local function git(env,...)local status,err,out=spawn(env,'git',...)if status==0 then
 return(gsub(out,'\n$',''))end
 end
@@ -824,7 +830,7 @@ failed_message(L,checks,version)end
 return status
 end,}
 end
-package.preload['luke.schema']=function()
+bundled['luke.schema']=function()
 local _ENV=require'luke.normalize'{'luke._base','luke.configure','luke.functional','luke.platforms','type.path',}local FORMAT=0
 local MACRO='^[%a_][%w_]*$'local ORDERED=set{'bin','defines','external_dependencies','files','modules'}local function bad(path,...)fatal('bad %s: %s',path,format(...))end
 local function index(path,k)if isstring(k)and match(k,'^[%a_][%w_]*$')then
@@ -893,9 +899,9 @@ local r=ordered_map(copy_entry)(except(x,'command'),path)r.command=checkstring(x
 end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
-package.preload['luke.version']=function()
-return{VERSION='gvv/a4784e7',versiontext=[[
-luke (Luke) gvv/a4784e7
+bundled['luke.version']=function()
+return{VERSION='gvv/9257ae7',versiontext=[[
+luke (Luke) gvv/9257ae7
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
@@ -905,7 +911,7 @@ it may be used for any purpose at absolutely no cost, without permission.
 See <https://mit-license.org> for details.
 ]],}
 end
-package.preload['type.context-manager']=function()
+bundled['type.context-manager']=function()
 local _ENV=require'luke.normalize'{'luke.functional',}local contextmanager_mt={__index=function(self,key)if iscallable(self.context[key])then
 return function(_,...)return self.context[key](self.context,...)end
 end
@@ -935,14 +941,14 @@ end,open,fname or tmpname(),mode or'w')end,slurp=function(cm,...)if not cm then
 return cm,...end
 return with(cm,function(h)return h:read'*a'end)end,with=with,}
 end
-package.preload['type.dict']=function()
+bundled['type.dict']=function()
 local _ENV=require'luke.normalize'{destructure=next,}return{OrderedDict=function(...)local r,argu={},list(...)for i=1,argu.n do
 local k,v=destructure(argu[i])append(r,k)r[k]=v
 end
 return r
 end,}
 end
-package.preload['type.path']=function()
+bundled['type.path']=function()
 local _ENV=require'luke.normalize'{}local BASENAMEPAT='.*'..dirsep
 local DIRNAMEPAT=dirsep..'[^'..dirsep..']*$'return{basename=function(path)return(gsub(path,BASENAMEPAT,''))end,dirname=function(path)return(gsub(path,DIRNAMEPAT,'',1))end,exists=function(path)local fh=open(path)if fh==nil then
 return false
@@ -950,4 +956,5 @@ end
 close(fh)return true
 end,}
 end
+if _VERSION=='Lua 5.1'then for _,f in next,bundled do setfenv(f,env)end end
 os.exit(require'luke'.main(arg))
