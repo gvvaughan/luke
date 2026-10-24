@@ -10,6 +10,7 @@ local _ENV = require 'luke.normalize' {
    'luke.environment',
    'luke.lukefile',
    'luke.functional',
+   'luke.prepare',
    'luke.release',
 }
 
@@ -19,7 +20,7 @@ local function run_ldocs(L, env, ldocs)
 end
 
 
--- The rules for script *entry*, as selected by `validate_arguments`.
+-- The rules for script *entry*, as selected by `prepare`.
 local function script_rules(L, entry)
    return ordered_get(script_sections(L.luke)[entry.section], entry.name)
 end
@@ -127,26 +128,37 @@ local function print_values(L, env)
 end
 
 
+-- Make *recipe*, as *request* asks, and return the exit status.  Every
+-- front end calls this, with the normalized table of what to build and
+-- what was asked for it, as `mkrequest` makes.
+local function make(recipe, request)
+   local L = prepare(recipe, request)
+   local env = mkenv(L.clidefs, L.luke.variables, DEFAULTENV, SHELLENV)
+
+   if not isempty(L.valreqs) then
+      print_values(L, env)
+   end
+
+   if L.release ~= nil then
+      return release(L, env, bind(build, {L, env}))
+   end
+
+   return sequence{
+      function()
+         local wanted = not isempty(L.luke.modules or {}) or not isempty(L.scripts.build)
+         return choose(wanted, bind(build, {L, env}), 0)
+      end,
+      bind(install_modules, {L, env, L.luke, L.install}),
+      bind(install_scripts, {L, env, L.luke, L.scripts.install}),
+   }
+end
+
+
 return {
+   -- Make the recipe that the lukefile on the command line *args* gives.
    main = function(args)
-      local L = validate_arguments(parse_arguments(args))
-      local env = mkenv(L.clidefs, L.luke.variables, DEFAULTENV, SHELLENV)
-
-      if not isempty(L.valreqs) then
-         print_values(L, env)
-      end
-
-      if L.release ~= nil then
-         return release(L, env, bind(build, {L, env}))
-      end
-
-      return sequence{
-         function()
-            local wanted = not isempty(L.luke.modules or {}) or not isempty(L.scripts.build)
-            return choose(wanted, bind(build, {L, env}), 0)
-         end,
-         bind(install_modules, {L, env, L.luke, L.install}),
-         bind(install_scripts, {L, env, L.luke, L.scripts.install}),
-      }
+      return make(commandline(args))
    end,
+
+   make = make,
 }

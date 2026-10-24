@@ -381,6 +381,69 @@ specify luke:
       expect(p).to_exit(1)
       expect(p).to_contain_error 'release cannot be combined with other targets'
 
+- describe make:
+  - before: |
+      tmpdir = os.tmpname()
+      os.remove(tmpdir)
+      assert(os.execute('mkdir ' .. tmpdir))
+      spit(tmpdir .. '/example.lua.in', "return '@package@ @version@'\n")
+      spit(tmpdir .. '/other.lua', "return 'other'\n")
+      installed = tmpdir .. '/share/lua/' .. _VERSION:match '%d+%.%d+' .. '/'
+
+      -- Make the *recipe* of a lukefile's settings as the *request* asks,
+      -- in luke's own environment, as a front end does.
+      function make(settings, options)
+         return capture(function(settings, options)
+            local luke = require 'luke'
+            local recipe = require 'luke.lukefile'.normalize(settings)
+            return luke.make(recipe, require 'luke.prepare'.mkrequest(options))
+         end, settings, options)
+      end
+
+      settings = {
+         luke_format = 0, package = 'example', version = '1.0',
+         modules = {
+            {example = tmpdir .. '/example.lua.in'},
+            {other = tmpdir .. '/other.lua'},
+         },
+      }
+  - after: |
+      os.execute('rm -rf ' .. tmpdir)
+
+  - it builds and installs a recipe that is not read from a lukefile: |
+      p = make(settings, {targets = {'all', 'install'}, clidefs = {PREFIX = tmpdir}})
+      expect(p).to_succeed()
+      expect(slurp(installed .. 'example.lua')).to_be "return 'example 1.0'\n"
+      expect(slurp(installed .. 'other.lua')).to_be "return 'other'\n"
+  - it makes only what the request names: |
+      p = make(settings, {targets = {'other', 'install'}, clidefs = {PREFIX = tmpdir}})
+      expect(p).to_succeed()
+      expect(slurp(installed .. 'other.lua')).to_be "return 'other'\n"
+      expect(slurp(installed .. 'example.lua')).to_be(nil)
+  - it only prints the commands when it is a dry run: |
+      p = make(settings, {targets = {'install'}, dryrun = true, clidefs = {PREFIX = tmpdir}})
+      expect(p).to_succeed_while_containing('cp ' .. tmpdir .. '/other.lua')
+      expect(slurp(installed .. 'other.lua')).to_be(nil)
+  - it says nothing when it is quiet: |
+      p = make(settings, {targets = {'all', 'install'}, quiet = true, clidefs = {PREFIX = tmpdir}})
+      expect(p).to_succeed_with ''
+  - it uses the variables of the request: |
+      settings.variables = {PREFIX = '/nowhere'}
+      p = make(settings, {targets = {'all', 'install'}, clidefs = {PREFIX = tmpdir}})
+      expect(p).to_succeed()
+      expect(slurp(installed .. 'other.lua')).to_be "return 'other'\n"
+  - it diagnoses a recipe that has nothing to build, as the command line does: |
+      p = make({luke_format = 0, package = 'example', version = '1.0'}, {fname = 'my.lukefile'})
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "luke: fatal: no modules table in 'my.lukefile', nothing to build"
+  - it lets a front end keep a fatal error from exiting: |
+      r, err = require 'luke._base'.protected(function()
+         return require 'luke'.make({package = 'example', version = '1.0'},
+            require 'luke.prepare'.mkrequest {source = 'the rockspec'})
+      end)
+      expect(r).to_be(nil)
+      expect(err).to_be "no modules table in 'the rockspec', nothing to build"
+
 - describe install:
   - before: |
       tmpdir = os.tmpname()

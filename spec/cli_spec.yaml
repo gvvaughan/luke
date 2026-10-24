@@ -47,6 +47,43 @@ specify luke.cli:
          require 'luke.cli'.parse_arguments({'--debug'}).log('one\ntwo\n\n\n')
       end)).to_output_error '   DEBUG: one\n   DEBUG: two\n'
 
+- describe commandline:
+  - before: |
+      function spit(content)
+         local filename = os.tmpname()
+         local h = assert(io.open(filename, 'w'))
+         h:write(content)
+         h:close()
+         return filename
+      end
+      fname = spit [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+      ]]
+  - after: |
+      os.remove(fname)
+
+  - it reads the recipe from the lukefile that it names: |
+      recipe = cli.commandline {'--file=' .. fname}
+      expect(recipe).to_equal(require 'luke.lukefile'.normalize {
+         luke_format = 0, package = 'example', version = '1.0',
+         modules = {{example = 'example.lua'}},
+      })
+  - it asks for what the command line says: |
+      _, request = cli.commandline {'--file=' .. fname, '--quiet', 'PREFIX=/opt', 'example'}
+      expect(request.quiet).to_be(true)
+      expect(request.clidefs).to_equal {PREFIX = '/opt'}
+      expect(request.targets).to_equal(list('example'))
+      expect(request.source).to_be(fname)
+  - it asks to release the version that the command line gives: |
+      _, request = cli.commandline {'--file=' .. fname, 'release', 'version=2.1'}
+      expect(request.release).to_be '2.1'
+  - it does not ask to release without the target: |
+      _, request = cli.commandline {'--file=' .. fname, 'version=2.1'}
+      expect(request.release).to_be(nil)
+
 - describe validate_arguments:
   - before:
       function spit(content)

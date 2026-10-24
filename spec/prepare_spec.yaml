@@ -1,0 +1,123 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before: |
+  prepare = require 'luke.prepare'
+  nop = require 'luke.functional'.nop
+  protected = require 'luke._base'.protected
+
+  -- A normalized recipe of two modules, as any front end makes one.
+  function recipe(more)
+     local t = {
+        luke_format = 0, package = 'example', version = '1.0',
+        modules = {{a = 'a.lua'}, {b = 'b.lua'}},
+     }
+     for k, v in next, more or {} do
+        t[k] = v
+     end
+     return require 'luke.lukefile'.normalize(t)
+  end
+
+  -- The names of the modules that *L* will build, in order.
+  function names(L)
+     return require 'luke.functional'.map(L.luke.modules, function(entry)
+        return (require 'luke.functional'.destructure(entry))
+     end)
+  end
+
+specify luke.prepare:
+- describe mkrequest:
+  - before:
+      mkrequest = prepare.mkrequest
+
+  - it asks for nothing by default:
+      r = mkrequest {}
+      expect(r.clidefs).to_equal {}
+      expect(r.targets).to_equal {}
+      expect(r.valreqs).to_equal {}
+      expect(r.dryrun).to_be(false)
+      expect(r.quiet).to_be(false)
+      expect(r.release).to_be(nil)
+  - it keeps what it is asked for:
+      r = mkrequest {clidefs = {A = 'b'}, targets = {'x', 'y'}, valreqs = {'V'}, release = '2.0'}
+      expect(r.clidefs).to_equal {A = 'b'}
+      expect(r.targets).to_equal {'x', 'y'}
+      expect(r.valreqs).to_equal {'V'}
+      expect(r.release).to_be '2.0'
+  - it leaves the options it is given as they were:
+      options = {quiet = true}
+      mkrequest(options)
+      expect(options).to_equal {quiet = true}
+  - it names the recipe for diagnoses after the lukefile it was read from:
+      expect(mkrequest {}.source).to_be 'lukefile'
+      expect(mkrequest {fname = 'other.lua'}.source).to_be 'other.lua'
+      expect(mkrequest {fname = 'other.lua', source = 'a rockspec'}.source).to_be 'a rockspec'
+  - it spawns commands:
+      expect(mkrequest {}.spawn).to_be(require 'luke.compile'.spawn)
+  - it only pretends to spawn commands when it is a dry run:
+      r = mkrequest {dryrun = true}
+      expect(list(r.spawn({}, 'exit 1'))).to_equal(list(0, '', ''))
+  - it writes what luke does, unless it is quiet:
+      expect(mkrequest {}.write).not_to_be(nop)
+      expect(mkrequest {quiet = true}.write).to_be(nop)
+  - it says nothing more, unless it is verbose:
+      expect(mkrequest {}.verbose).to_be(nop)
+      expect(mkrequest {verbose = true}.verbose).not_to_be(nop)
+  - it logs nothing, unless it is debugging:
+      expect(mkrequest {}.log).to_be(nop)
+      expect(mkrequest {debug = true}.log).not_to_be(nop)
+
+- describe prepare:
+  - before: |
+      mkrequest = prepare.mkrequest
+
+  - it makes the substitutions and variables that the recipe is without: |
+      L = prepare.prepare(recipe(), mkrequest {})
+      expect(L.luke.substitute.package).to_be 'example'
+      expect(L.luke.substitute.version).to_be '1.0'
+      expect(L.luke.substitute.LUA_VERSION).to_match '^%d%.%d$'
+      expect(L.luke.variables.package).to_be 'example'
+      expect(L.luke.variables.objdir).to_be(require 'luke.platforms'.platforms[1])
+  - it prefers the substitutions of the recipe to the ones that luke makes up: |
+      L = prepare.prepare(recipe {substitute = {gitref = 'mine'}}, mkrequest {})
+      expect(L.luke.substitute.gitref).to_be 'mine'
+  - it leaves the recipe as it was: |
+      r = recipe()
+      prepare.prepare(r, mkrequest {targets = {'a'}})
+      expect(r).to_equal(recipe())
+  - it passes on what the request asks of it: |
+      request = mkrequest {quiet = true, dryrun = true, clidefs = {A = 'b'}, valreqs = {'V'}}
+      L = prepare.prepare(recipe(), request)
+      expect(L.quiet).to_be(true)
+      expect(L.dryrun).to_be(true)
+      expect(L.clidefs).to_equal {A = 'b'}
+      expect(L.valreqs).to_equal {'V'}
+      expect(L.write).to_be(request.write)
+      expect(L.spawn).to_be(request.spawn)
+  - it selects every module without targets, or for all: |
+      expect(names(prepare.prepare(recipe(), mkrequest {}))).to_equal(list('a', 'b'))
+      expect(names(prepare.prepare(recipe(), mkrequest {targets = {'all'}}))).to_equal(list('a', 'b'))
+  - it selects the modules that the targets name: |
+      expect(names(prepare.prepare(recipe(), mkrequest {targets = {'b'}}))).to_equal(list('b'))
+  - it installs the selected modules, or all of them for install alone: |
+      expect(#prepare.prepare(recipe(), mkrequest {targets = {'a', 'install'}}).install).to_be(1)
+      expect(#prepare.prepare(recipe(), mkrequest {targets = {'install'}}).install).to_be(2)
+  - it builds everything for a release, whatever the targets: |
+      L = prepare.prepare(recipe(), mkrequest {targets = {'release'}, release = '2.0'})
+      expect(names(L)).to_equal(list('a', 'b'))
+      expect(L.release).to_be '2.0'
+  - it diagnoses a target that it has no rule for: |
+      r, err = protected(prepare.prepare, recipe(), mkrequest {targets = {'zzz'}})
+      expect(r).to_be(nil)
+      expect(err).to_be "no rule to make target 'zzz'"
+  - it diagnoses a recipe without modules, naming where it came from: |
+      r, err = protected(prepare.prepare, {package = 'p', version = '1'}, mkrequest {fname = 'my.lukefile'})
+      expect(r).to_be(nil)
+      expect(err).to_be "no modules table in 'my.lukefile', nothing to build"
+      r, err = protected(prepare.prepare, {package = 'p', version = '1'}, mkrequest {source = 'the rockspec'})
+      expect(err).to_be "no modules table in 'the rockspec', nothing to build"
+  - it diagnoses a recipe without a package or a version: |
+      r = recipe(); r.package = nil
+      expect(select(2, protected(prepare.prepare, r, mkrequest {}))).to_be "no package in 'lukefile'"
+      r = recipe(); r.version = nil
+      expect(select(2, protected(prepare.prepare, r, mkrequest {}))).to_be "no version in 'lukefile'"
