@@ -78,3 +78,18 @@ specify luke.normalize:
       expect(stack).to_equal {n=0}
       expect(pop(stack)).to_be(nil)
       expect(stack).to_equal {n=0}
+
+- describe searchpath:
+  - before:
+      searchpath = normalize.searchpath
+
+  - it returns the first file that exists, searching the templates in order:
+      expect(searchpath('spec_helper', 'nonesuch/?.lua;spec/?.lua;lib/?.lua')).
+         to_be 'spec/spec_helper.lua'
+  - it replaces dots in the module name with the directory separator:
+      expect(searchpath('luke.normalize', 'lib/?.lua')).to_be 'lib/luke/normalize.lua'
+  - it returns nil and a line for each file tried when nothing exists: |
+      local file, err = searchpath('nonesuch', 'spec/?.lua;lib/?.lua')
+      expect(file).to_be(nil)
+      expect(err).to_match "no file 'spec/nonesuch.lua'"
+      expect(err).to_match "no file 'lib/nonesuch.lua'"

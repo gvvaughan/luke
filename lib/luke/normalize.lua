@@ -65,6 +65,24 @@ local dirsep, pathsep, pathmark, execdir, igmark =
    match(config, '^([^\n]+)\n([^\n]+)\n([^\n]+)\n([^\n]+)\n([^\n]+)')
 
 
+-- Lua 5.1 has no `package.searchpath`.
+local searchpath = package.searchpath or function(name, path)
+   name = string.gsub(name, '%.', dirsep)
+
+   local errbuf = {}
+   for template in gmatch(path, '[^' .. pathsep .. ']+') do
+      local filename = string.gsub(template, pathmark, name)
+      local fh = io.open(filename, 'r')
+      if fh then
+         fh:close()
+         return filename
+      end
+      errbuf[#errbuf + 1] = "\tno file '" .. filename .. "'"
+   end
+   return nil, concat(errbuf, '\n')
+end
+
+
 local function copy(iterable)
    local r = {}
    for k, v in next, iterable or {} do
@@ -286,6 +304,7 @@ return setmetatable({
    rawset        = rawset,
    rep           = string.rep,
    rm            = os.remove,
+   searchpath    = searchpath,
    select        = select,
    setmetatable  = setmetatable,
    sort          = sort,

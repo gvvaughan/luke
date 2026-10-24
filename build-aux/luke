@@ -589,7 +589,13 @@ local tonumber=tonumber
 local tostring=tostring
 local type=type
 local unpack=table.unpack or unpack
-local dirsep,pathsep,pathmark,execdir,igmark=match(config,'^([^\n]+)\n([^\n]+)\n([^\n]+)\n([^\n]+)\n([^\n]+)')local function copy(iterable)local r={}for k,v in next,iterable or{}do
+local dirsep,pathsep,pathmark,execdir,igmark=match(config,'^([^\n]+)\n([^\n]+)\n([^\n]+)\n([^\n]+)\n([^\n]+)')local searchpath=package.searchpath or function(name,path)name=string.gsub(name,'%.',dirsep)local errbuf={}for template in gmatch(path,'[^'..pathsep..']+')do
+local filename=string.gsub(template,pathmark,name)local fh=io.open(filename,'r')if fh then
+fh:close()return filename
+end
+errbuf[#errbuf+1]="\tno file '"..filename.."'"end
+return nil,concat(errbuf,'\n')end
+local function copy(iterable)local r={}for k,v in next,iterable or{}do
 r[k]=v
 end
 return r
@@ -678,7 +684,7 @@ end,next=next,open=io.open,pack=pack,pcall=pcall,pop=function(seq)local n,r=seq.
 seq.n=seq.n-1
 end
 return r
-end,popen=io.popen,print=print,rawget=rawget,rawset=rawset,rep=string.rep,rm=os.remove,select=select,setmetatable=setmetatable,sort=sort,stderr=io.stderr,stdout=io.stdout,str=str,sub=string.sub,tmpname=os.tmpname,tonumber=tonumber,type=type,unpack=function(seq,i,j)return unpack(seq,int(i)or 1,int(j)or int(seq.n)or len(seq))end,write=io.write,},{__call=function(self,env,level)local userenv,level=copy(self),level or 1
+end,popen=io.popen,print=print,rawget=rawget,rawset=rawset,rep=string.rep,rm=os.remove,searchpath=searchpath,select=select,setmetatable=setmetatable,sort=sort,stderr=io.stderr,stdout=io.stdout,str=str,sub=string.sub,tmpname=os.tmpname,tonumber=tonumber,type=type,unpack=function(seq,i,j)return unpack(seq,int(i)or 1,int(j)or int(seq.n)or len(seq))end,write=io.write,},{__call=function(self,env,level)local userenv,level=copy(self),level or 1
 for name,value in next,env do
 if int(name)and type(value)=='string'then
 for k,v in next,(require(value))do
@@ -938,8 +944,8 @@ end
 return{ORDERED=ORDERED,bad=bad,index=index,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 bundled['luke.version']=function()
-return{VERSION='gvv/02b5352',versiontext=[[
-luke (Luke) gvv/02b5352
+return{VERSION='gvv/210f50d',versiontext=[[
+luke (Luke) gvv/210f50d
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
