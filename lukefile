@@ -21,6 +21,7 @@ modules  = {
    {['luke.platforms']       = 'lib/luke/platforms.lua'},
    {['luke.prepare']         = 'lib/luke/prepare.lua'},
    {['luke.release']         = 'lib/luke/release.lua'},
+   {['luke.rockspec']        = 'lib/luke/rockspec.lua'},
    {['luke.schema']          = 'lib/luke/schema.lua'},
    {['luke.version']         = 'lib/luke/version.lua.in'},
    {['type.context-manager'] = 'lib/type/context-manager.lua'},

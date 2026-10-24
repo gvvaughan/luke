@@ -1,0 +1,127 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before: |
+  fromrockspec = require 'luke.rockspec'.fromrockspec
+
+  -- A rockspec, as LuaRocks gives it to a build backend.
+  function rockspec(more)
+     local t = {
+        package = 'example',
+        version = '1.2-3',
+        build = {
+           type = 'luke',
+           modules = {{example = 'lib/example.lua'}},
+        },
+        variables = {
+           LUA = '/usr/bin/lua', LUA_VERSION = '5.4', CC = 'gcc', CFLAGS = '-O2',
+           LUADIR = '/stage/lua', LIBDIR = '/stage/lib', BINDIR = '/stage/bin',
+        },
+     }
+     for k, v in next, more or {} do
+        t[k] = v
+     end
+     return t
+  end
+
+specify luke.rockspec:
+- describe fromrockspec:
+  - describe the recipe:
+    - it is the build table, as luke normalizes a lukefile: |
+        recipe = fromrockspec(rockspec())
+        expect(recipe).to_equal(require 'luke.lukefile'.normalize {
+           luke_format = 0, package = 'example', version = '1.2',
+           modules = {{example = 'lib/example.lua'}},
+        })
+    - it takes the version of the rock, without the revision of its rockspec: |
+        expect(fromrockspec(rockspec {version = 'dev-1'}).version).to_be 'dev'
+        expect(fromrockspec(rockspec {version = '1.2.3-12'}).version).to_be '1.2.3'
+        expect(fromrockspec(rockspec {version = '2'}).version).to_be '2'
+    - it leaves out what LuaRocks keeps for itself: |
+        r = rockspec()
+        r.build.copy_directories = {'doc'}
+        r.build.install = {bin = {'x'}}
+        recipe = fromrockspec(r)
+        expect(recipe.type).to_be(nil)
+        expect(recipe.copy_directories).to_be(nil)
+        expect(recipe.install).to_be(nil)
+    - it keeps the other settings of luke: |
+        r = rockspec()
+        r.build.defines = {'NDEBUG'}
+        r.build.incdirs = {'ext/include'}
+        r.build.variables = {LDOC = 'true'}
+        recipe = fromrockspec(r)
+        expect(recipe.defines).to_equal {{NDEBUG = 1}}
+        expect(recipe.incdirs).to_equal {'ext/include'}
+        expect(recipe.variables).to_equal {LDOC = 'true'}
+    - it leaves the rockspec as it was: |
+        r, copy = rockspec(), rockspec()
+        r.external_dependencies = {YAML = {library = 'yaml'}}
+        r.build.external_dependencies = {{YAML = {library = {checksymbol = 'yaml_document_initialize'}}}}
+        copy.external_dependencies = {YAML = {library = 'yaml'}}
+        copy.build.external_dependencies = {{YAML = {library = {checksymbol = 'yaml_document_initialize'}}}}
+        fromrockspec(r)
+        expect(r).to_equal(copy)
+
+  - describe the probe of an external dependency:
+    - before: |
+        function probed(library, native)
+           local r = rockspec()
+           r.external_dependencies = native
+           r.build.external_dependencies = {{YAML = {library = library}}}
+           return fromrockspec(r).external_dependencies
+        end
+    - it takes the library that LuaRocks looks for, when the probe leaves it out: |
+        expect(probed({checksymbol = 'yaml_document_initialize'}, {YAML = {library = 'yaml'}})).
+           to_equal {{YAML = {library = {checksymbol = 'yaml_document_initialize', libraries = list('yaml')}}}}
+    - it keeps the library that the probe names: |
+        expect(probed({checksymbol = 'f', library = 'other'}, {YAML = {library = 'yaml'}})).
+           to_equal {{YAML = {library = {checksymbol = 'f', libraries = list('other')}}}}
+    - it keeps a library that is not a probe: |
+        expect(probed('yaml', {YAML = {library = 'yaml'}})).
+           to_equal {{YAML = {library = 'yaml'}}}
+    - it leaves a probe alone for a library that LuaRocks does not look for: |
+        expect(probed({checksymbol = 'f'}, {})).
+           to_equal {{YAML = {library = {checksymbol = 'f'}}}}
+    - it has no external dependencies without any: |
+        expect(fromrockspec(rockspec()).external_dependencies).to_be(nil)
+
+  - describe the request:
+    - it makes everything, and installs it: |
+        _, request = fromrockspec(rockspec())
+        expect(request.targets).to_equal(list('all', 'install'))
+    - it only makes it, when LuaRocks asked for no install: |
+        _, request = fromrockspec(rockspec(), true)
+        expect(request.targets).to_equal(list('all'))
+    - it names the rock for diagnoses: |
+        _, request = fromrockspec(rockspec())
+        expect(request.source).to_be 'example-1.2-3.rockspec'
+    - it passes the variables of LuaRocks that luke has by the same name: |
+        _, request = fromrockspec(rockspec())
+        expect(request.clidefs.CC).to_be 'gcc'
+        expect(request.clidefs.CFLAGS).to_be '-O2'
+        expect(request.clidefs.LUA).to_be '/usr/bin/lua'
+        expect(request.clidefs.LUA_VERSION).to_be '5.4'
+    - it installs beneath the directories that LuaRocks makes the rock in: |
+        _, request = fromrockspec(rockspec())
+        expect(request.clidefs.INST_LUADIR).to_be '/stage/lua'
+        expect(request.clidefs.INST_LIBDIR).to_be '/stage/lib'
+        expect(request.clidefs.INST_BINDIR).to_be '/stage/bin'
+    - it passes the directories that LuaRocks found for each external dependency: |
+        r = rockspec()
+        r.external_dependencies = {YAML = {library = 'yaml'}, OTHER = {header = 'x.h'}}
+        r.variables.YAML_DIR, r.variables.YAML_INCDIR, r.variables.YAML_LIBDIR = '/y', '/y/include', '/y/lib'
+        r.variables.OTHER_DIR = '/o'
+        _, request = fromrockspec(r)
+        expect(request.clidefs.YAML_DIR).to_be '/y'
+        expect(request.clidefs.YAML_INCDIR).to_be '/y/include'
+        expect(request.clidefs.YAML_LIBDIR).to_be '/y/lib'
+        expect(request.clidefs.OTHER_DIR).to_be '/o'
+        expect(request.clidefs.OTHER_INCDIR).to_be(nil)
+    - it passes nothing that luke does not know, or that LuaRocks does not give: |
+        r = rockspec()
+        r.variables.MKDIR, r.variables.YAML_DIR = 'mkdir', '/y'
+        _, request = fromrockspec(r)
+        expect(request.clidefs.MKDIR).to_be(nil)
+        expect(request.clidefs.YAML_DIR).to_be(nil)
+        expect(request.clidefs.LUA_LIBDIR).to_be(nil)
