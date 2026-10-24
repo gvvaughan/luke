@@ -8,6 +8,13 @@
     also bundles the modules that it finds in the Lua path, by name, and
     can write a module for the bundle to return, rather than a program.
 
+  - `smush` warns of a module that a bundled module names, which is in
+    the Lua path but is not bundled, such as a dependency left off the
+    list, rather than leaving it to fail when the bundle runs.  A module
+    that is only asked for with `pcall(require, 'name')` is optional, and
+    `--external=NAME` says that the program that runs the bundle provides
+    NAME.
+
   - What `smush` bundles is private to the file: it is found by its own
     `require`, and not in `package.preload` or `package.loaded`, and does
     not meet a module of the same name that the host program loads.

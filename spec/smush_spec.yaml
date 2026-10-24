@@ -27,6 +27,8 @@ specify smush:
       spit(tmpdir .. '/two.lua', "-- a comment\nreturn   'two'  -- another\n")
       spit(tmpdir .. '/three.lua', "return 'three'\n")
       spit(tmpdir .. '/four.lua', "return {three = require 'three'}\n")
+      spit(tmpdir .. '/five.lua', "return {pcall(require, 'three')}\n")
+      spit(tmpdir .. '/six.lua', "local _ENV = require 'two' {'two.sub.name'}\nreturn 6\n")
   - after: |
       os.execute('rm -rf ' .. tmpdir)
 
@@ -68,3 +70,20 @@ specify smush:
   - it writes a script for the main function of any module: |
       p = smush(tmpdir, '--main=one', 'one', 'two')
       expect(p.output).to_contain "os.exit(require'one'.main(arg))"
+  - it warns of a module that is in the Lua path, but is not bundled: |
+      p = smush(tmpdir, '--module=four', 'four')
+      expect(p.errout).to_contain "smush: warning: four names the module 'three', which is in the Lua path, but is not bundled\n"
+  - it does not warn when every module is bundled: |
+      p = smush(tmpdir, '--module=four', 'four', 'three')
+      expect(p.errout).to_be ''
+  - it does not warn of an optional module: |
+      p = smush(tmpdir, '--module=five', 'five')
+      expect(p.errout).to_be ''
+  - it finds the module that a dotted name starts with: |
+      p = smush(tmpdir, '--module=six', 'six', 'two')
+      expect(p.errout).to_be ''
+      p = smush(tmpdir, '--module=six', 'six')
+      expect(p.errout).to_contain "smush: warning: six names the module 'two',"
+  - it does not warn of a module that is external: |
+      p = smush(tmpdir, '--module=four', '--external=three', 'four')
+      expect(p.errout).to_be ''

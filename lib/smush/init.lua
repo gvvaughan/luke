@@ -237,15 +237,16 @@ local function footer(script, entry)
    }, '\n')
 end
 
-
--- Write one source file with its comments and whitespace squeezed out.
-local function minify(fname)
-   -- Filter out all comment and whitespace tokens.
-   local tokens = reject(tokenize(fname), function(token)
+-- The tokens of *fname* that matter to the program, without its comments
+-- and whitespace.
+local function significant(fname)
+   return reject(tokenize(fname), function(token)
       return token[1] == 'COMMENT' or token[1] == 'WHITESPACE'
    end)
+end
 
-   -- strategically inject whitespace tokens back into the stream
+-- Write *tokens* with whitespace strategically injected back into the stream.
+local function minify(tokens)
    local l, prev = 1
    each(tokens, function(token)
       if needspace(prev, token[1]) then
@@ -257,31 +258,72 @@ local function minify(fname)
 end
 
 
+-- The modules that are in the Lua path and not bundled, but which  a
+-- string in *tokens* names.  A string such as 'std.functional._base.argscheck'
+-- implies the modules std.functional._base, or std.functional or std , so look
+-- for the longest of them that is already bundled, or else the longest in the
+-- path.  A module that is only asked for as `pcall(require, 'name')` is not
+-- flagged as missing.
+local function unbundled(tokens, known)
+   local r = {}
+   for i = 1, len(tokens) do
+      local token = tokens[i]
+      local name = token[1] == 'STRING' and match(token[2], '^["\']([%w_][%w_.%-]*[%w_])["\']$')
+      local optional = i > 2 and tokens[i - 1][2] == ',' and tokens[i - 2][2] == 'require'
+      if name and not optional then
+         local found
+         while name ~= nil and not known[name] do
+            found = found or (searchpath(name, path) and name)
+            name = match(name, '^(.+)%.[^.]*$')
+         end
+         if name == nil and found then
+            r[found] = true
+         end
+      end
+   end
+   return keys(r)
+end
+
+
 --- Write a single file that bundles *sources*.
 -- A source is a path, or the name of a module in the Lua path.
 -- With `--module=NAME` the file is a module that returns the bundled
 -- module NAME, otherwise it is a script that exits with what the main
 -- function of the bundled module `luke` returns (or of `--main=NAME`).
+-- Warn of a module in the Lua path that a bundled module names, but is not
+-- bundled, unless it is an `--external=NAME` that the host is to provide.
 local function main(args)
-   local script, entry, sources = true, 'luke', {}
+   local script, entry, sources, known = true, 'luke', {}, {}
    each(args, function(a)
       local k, v = match(a, '^%-%-(%w+)=(.*)$')
       if k == 'module' then
          script, entry = false, v
       elseif k == 'main' then
          entry = v
+      elseif k == 'external' then
+         known[v] = true
       else
          append(sources, a)
       end
    end)
 
+   local tokens = {}
+   each(sources, function(a)
+      local name, fname = source(a)
+      known[name], tokens[name] = true, significant(fname)
+   end)
+
    print(header(script))
 
    each(sources, function(a)
-      local name, fname = source(a)
+      local name = source(a)
       print("bundled['" .. name .. "']=function()")
-      minify(fname)
+      minify(tokens[name])
       print '\nend'
+      each(sorted(unbundled(tokens[name], known)), function(missing)
+         stderr:write('smush: warning: ', name, " names the module '", missing,
+            "', which is in the Lua path, but is not bundled\n")
+      end)
    end)
 
    print(footer(script, entry))
