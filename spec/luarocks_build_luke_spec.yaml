@@ -70,6 +70,20 @@ specify luarocks.build.luke:
       expect(p).to_succeed_while_containing 'true nil\n'
       expect(slurp(tmpdir .. '/stage/lua/example.lua')).to_be(nil)
       expect(slurp(tmpdir .. '/example.lua')).to_be "return 'example 1.0'\n"
+  - it installs where LuaRocks stages the rock now, whatever its variables say: |
+      p = capture(function(rockspec, packdir)
+         package.loaded['luarocks.path'] = {
+            bin_dir = function() return packdir .. '/bin' end,
+            lib_dir = function() return packdir .. '/lib' end,
+            lua_dir = function() return packdir .. '/lua' end,
+         }
+         local ok, err = require 'luarocks.build.luke'.run(rockspec)
+         io.stdout:write(tostring(ok), ' ', tostring(err), '\n')
+         return 0
+      end, rockspec(tmpdir), tmpdir .. '/packed')
+      expect(p).to_succeed_while_containing 'true nil\n'
+      expect(slurp(tmpdir .. '/packed/lua/other.lua')).to_be "return 'other'\n"
+      expect(slurp(tmpdir .. '/stage/lua/other.lua')).to_be(nil)
   - it gives back nil and a message for a rock it cannot build, instead of exiting: |
       p = run(rockspec(tmpdir, {type = 'luke'}))
       expect(p).to_succeed_while_containing "nil no modules table in 'example-1.0-1.rockspec', nothing to build\n"
