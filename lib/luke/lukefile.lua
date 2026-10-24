@@ -232,11 +232,23 @@ local function unwrap_external_dependencies(luke)
 end
 
 
+-- Normalize the table *r* of the settings of a lukefile, however they were
+-- written, such as the globals of a lukefile or the `build` table of a
+-- rockspec, to fully specified values, one time only, so the rest of the
+-- code can safely operate on the normalized table contents.
+local function normalize(r)
+   -- A lukefile for a newer luke is diagnosed before any syntax that
+   -- this luke doesn't know.
+   luke_format(r.luke_format, 'luke_format')
+   -- Each ordered map resolves its own platforms, to diagnose its
+   -- entries for every platform, not only this one.
+   return LUKEFILE(normalize_configs(narrow_platforms(r, ORDERED)), '')
+end
+
+
 return {
-   -- Load `lukefile` into a nested Lua table, normalizing valid shorthands
-   -- from the file to fully specified values in the returned table one
-   -- time only while we're loading, so the rest of the code can safely
-   -- operate on the normalized table contents.
+   -- Load `lukefile` into a nested Lua table, normalized, so that the
+   -- rest of the code can safely operate on the table contents.
    loadluke = function(filename)
       local content, err = slurp(File(filename))
       if content == nil then
@@ -251,13 +263,10 @@ return {
       if not ok then
          return nil, "Error running file: " .. err
       end
-      -- A lukefile for a newer luke is diagnosed before any syntax that
-      -- this luke doesn't know.
-      luke_format(r.luke_format, 'luke_format')
-      -- Each ordered map resolves its own platforms, to diagnose its
-      -- entries for every platform, not only this one.
-      return LUKEFILE(normalize_configs(narrow_platforms(r, ORDERED)), '')
+      return normalize(r)
    end,
+
+   normalize = normalize,
 
    collect_variables = collect_variables,
 

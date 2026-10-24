@@ -29,6 +29,36 @@ specify luke.lukefile:
 - after:
     restore()
 
+- describe normalize:
+  - it fully specifies the shorthand of a table of settings:
+      lukefile = setup()
+      expect(lukefile.normalize {
+         luke_format = 0, package = 'p', version = '1',
+         modules = {{m = 'm.lua'}, {['x.y'] = {'a.c', 'b.c'}}},
+      }).to_equal {
+         luke_format = 0, package = 'p', version = '1',
+         modules = {{m = {sources = {'m.lua'}}}, {['x.y'] = {sources = {'a.c', 'b.c'}}}},
+      }
+  - it leaves the table it is given as it was:
+      lukefile = setup()
+      settings = {luke_format = 0, modules = {{m = 'm.lua'}}}
+      lukefile.normalize(settings)
+      expect(settings).to_equal {luke_format = 0, modules = {{m = 'm.lua'}}}
+  - it diagnoses a luke_format that this luke does not read: |
+      r, err = require 'luke._base'.protected(require 'luke.lukefile'.normalize,
+         {luke_format = 99, modules = {{m = 'm.lua'}}})
+      expect(r).to_be(nil)
+      expect(err).to_match 'bad luke_format: lukefile format 99 needs a newer luke'
+  - it is what loadluke does after reading a lukefile: |
+      lukefile = setup()
+      fname = os.tmpname()
+      f = io.open(fname, 'w')
+      f:write("luke_format = 0\npackage = 'p'\nmodules = {{m = 'm.lua'}}\n")
+      f:close()
+      loaded = lukefile.loadluke(fname)
+      os.remove(fname)
+      expect(loaded).to_equal(lukefile.normalize {luke_format = 0, package = 'p', modules = {{m = 'm.lua'}}})
+
 - describe run_templates:
   - it leaves the table it is given as it was:
       lukefile, L = setup()

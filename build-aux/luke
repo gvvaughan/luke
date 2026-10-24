@@ -552,6 +552,7 @@ end))luke.external_dependencies=nil
 end
 return luke
 end
+local function normalize(r)luke_format(r.luke_format,'luke_format')return LUKEFILE(normalize_configs(narrow_platforms(r,ORDERED)),'')end
 return{loadluke=function(filename)local content,err=slurp(File(filename))if content==nil then
 return nil,err
 end
@@ -561,7 +562,7 @@ end
 local ok,err=pcall(chunk)if not ok then
 return nil,"Error running file: "..err
 end
-luke_format(r.luke_format,'luke_format')return LUKEFILE(normalize_configs(narrow_platforms(r,ORDERED)),'')end,collect_variables=collect_variables,branches=function(release)return filter(sorted(keys(release or{})),function(k)return RELEASE.schema[k]==nil
+return normalize(r)end,normalize=normalize,collect_variables=collect_variables,branches=function(release)return filter(sorted(keys(release or{})),function(k)return RELEASE.schema[k]==nil
 end)end,keypaths=function()return keypaths(LUKEFILE)end,SCRIPT_SECTIONS={'bin','install','files'},script_sections=function(luke)return{bin=luke.bin or{},files=luke.files or{},install=(luke.install or{}).bin or{},}end,fill_template=rewrite_template_files,run_configs=function(L,env,luke)local r=deepcopy(luke)each(sorted(collect_configs(r),config_cmp),function(config)local prefix=case(config.section,{external_dependencies=function()return config.module end,})config.t[config.k]=configure(L,env,config.t[config.k],prefix)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local rewrite=bind(rewrite_template_files,{L,env})local function rewritten(rules)return merged(rules,{sources=map(rules.sources,rewrite)})end
 local r=copy(luke)r.modules=ordered_mapvalues(r.modules,rewritten)if r.ldocs then
 r.ldocs=rewritten(r.ldocs)end
@@ -887,8 +888,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/ed7f30f',versiontext=[[
-luke (Luke) gvv/ed7f30f
+return{VERSION='gvv/c523f4b',versiontext=[[
+luke (Luke) gvv/c523f4b
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan
