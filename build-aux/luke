@@ -8,16 +8,26 @@ end
 package.loaded[modname]=package.preload[modname](modname,"package.preload")end
 return package.loaded[modname]end
 package.preload['luke._base']=function()
-local _ENV=require'luke.normalize'{}local function message(...)if select('#',...)>1 then
+local _ENV=require'luke.normalize'{error=error,}local function message(...)if select('#',...)>1 then
 return format(...)end
 return(...)end
-local function fatal(...)stdout:flush()stderr:write('luke: fatal: '..message(...)..'\n')exit(1)end
-local M={}M.fatal=fatal
+local M={}function M.failure(msg)stdout:flush()stderr:write('luke: fatal: '..msg..'\n')exit(1)end
+local function fatal(...)M.failure(message(...))end
+M.fatal=fatal
 M.message=message
 function M.diagnose(predicate,...)if not predicate then
 M.fatal(...)end
 return predicate
 end
+local FATAL={}function M.protected(fn,...)local outer=M.failure
+M.failure=function(msg)error(setmetatable({message=msg},FATAL),0)end
+local r=pack(pcall(fn,...))M.failure=outer
+if r[1]then
+return unpack(r,2,r.n)end
+if getmetatable(r[2])==FATAL then
+return nil,r[2].message
+end
+error(r[2],0)end
 return M
 end
 package.preload['luke.cli']=function()
@@ -877,8 +887,8 @@ end
 return{ORDERED=ORDERED,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 package.preload['luke.version']=function()
-return{VERSION='gvv/4b2367b',versiontext=[[
-luke (Luke) gvv/4b2367b
+return{VERSION='gvv/ed7f30f',versiontext=[[
+luke (Luke) gvv/ed7f30f
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

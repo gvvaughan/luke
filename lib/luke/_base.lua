@@ -3,7 +3,9 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {}
+local _ENV = require 'luke.normalize' {
+   error = error,
+}
 
 -- The message *...*, formatted if it has more than the format.
 local function message(...)
@@ -14,14 +16,21 @@ local function message(...)
 end
 
 
-local function fatal(...)
+local M = {}
+
+
+-- What to do with the message of a fatal error: the command line writes
+-- it, and exits.  `protected` replaces this while it runs a function.
+function M.failure(msg)
    stdout:flush()
-   stderr:write('luke: fatal: ' .. message(...) .. '\n')
+   stderr:write('luke: fatal: ' .. msg .. '\n')
    exit(1)
 end
 
 
-local M = {}
+local function fatal(...)
+   M.failure(message(...))
+end
 
 
 M.fatal = fatal
@@ -37,6 +46,30 @@ function M.diagnose(predicate, ...)
       M.fatal(...)
    end
    return predicate
+end
+
+
+-- The marker of an error that `protected` raises for a fatal one.
+local FATAL = {}
+
+
+-- Call *fn* with *...* and give back its results, or, for a fatal error
+-- that it raises, nil and the message, instead of exiting the process.
+-- Any other error is raised as it is.
+function M.protected(fn, ...)
+   local outer = M.failure
+   M.failure = function(msg)
+      error(setmetatable({message = msg}, FATAL), 0)
+   end
+   local r = pack(pcall(fn, ...))
+   M.failure = outer
+   if r[1] then
+      return unpack(r, 2, r.n)
+   end
+   if getmetatable(r[2]) == FATAL then
+      return nil, r[2].message
+   end
+   error(r[2], 0)
 end
 
 

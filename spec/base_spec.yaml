@@ -29,6 +29,44 @@ specify luke._base:
       expect(fatal("no rule for '%s'", 'foo')).
          to_fail_with "luke: fatal: no rule for 'foo'\n"
 
+- describe protected:
+  - before:
+      protected = require 'luke._base'.protected
+
+  - it gives back the results of the function:
+      expect(list(protected(function(a, b) return b, a, nil end, 1, 2))).
+         to_equal(list(2, 1, nil))
+  - it gives back nil and the message of a fatal error: |
+      expect(list(protected(function()
+         require 'luke._base'.fatal("no rule for '%s'", 'foo')
+         return 'not reached'
+      end))).to_equal(list(nil, "no rule for 'foo'"))
+  - it gives back nil and the message of a failed diagnosis: |
+      expect(list(protected(function()
+         return require 'luke._base'.diagnose(false, 'bad %s', 'lukefile')
+      end))).to_equal(list(nil, 'bad lukefile'))
+  - it writes nothing, and does not exit: |
+      p = capture(function()
+         local r = require 'luke._base'.protected(require 'luke._base'.fatal, 'oops')
+         return r == nil and 0 or 1
+      end)
+      expect(p).to_succeed_with ''
+      expect(p).to_output_error ''
+  - it raises any other error as it is:
+      expect(protected(function() error('oops', 0) end)).to_raise 'oops'
+  - it restores what a fatal error does: |
+      expect(fatal 'oops').to_fail_with 'luke: fatal: oops\n'
+      protected(function() end)
+      expect(fatal 'oops again').to_fail_with 'luke: fatal: oops again\n'
+  - it restores what a fatal error does after an error:
+      pcall(protected, function() error('oops', 0) end)
+      expect(require 'luke._base'.failure).not_to_be(nil)
+  - it can be nested: |
+      expect(list(protected(function()
+         local inner = list(protected(require 'luke._base'.fatal, 'inner'))
+         require 'luke._base'.fatal('outer after ' .. inner[2])
+      end))).to_equal(list(nil, 'outer after inner'))
+
 - describe diagnose:
   - it does nothing when the predicate holds: |
       p = diagnose(true, 'oops')
