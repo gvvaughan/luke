@@ -3,8 +3,7 @@
 local host=package
 local env={}for k,v in next,_G do env[k]=v end env._G=env
 local bundled,loaded={},{}
-env.package=setmetatable({preload={},loaded=setmetatable(loaded,{__index=function(_,k)
-if bundled[k]==nil then return host.loaded[k]end end})},{__index=host})
+env.package=setmetatable({preload={},loaded=loaded},{__index=host})
 local require=function(modname)local m=loaded[modname]if m==nil then
 if bundled[modname]==nil then
 error("module '" .. modname .. "' not found:\n   no bundled module '" .. modname .. "'",2)
@@ -770,8 +769,8 @@ end
 return{ORDERED=ORDERED,bad=bad,index=index,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 bundled['luke.version']=function()
-return{VERSION='gvv/3e2b497',versiontext=[[
-luke (Luke) gvv/3e2b497
+return{VERSION='gvv/653e789',versiontext=[[
+luke (Luke) gvv/653e789
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

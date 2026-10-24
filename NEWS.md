@@ -44,6 +44,10 @@
   - What `smush` bundles is private to the file: it is found by its own
     `require`, and not in `package.preload` or `package.loaded`, and does
     not meet a module of the same name that the host program loads.
+    Nor does the file see any other module that the host program loaded,
+    such as typecheck or std.strict, which change what std.normalize and
+    std.functional do, so that it behaves the same wherever it runs, but
+    for the modules that `--external` says the host is to provide.
 
   - Templates can fill in `@LUA_VERSION@`, the version of the Lua running
     Luke, such as `5.4`, to find the directories of the modules for it.

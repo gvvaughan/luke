@@ -211,15 +211,21 @@ end
 
 -- The script or module that smush writes, runs bundled packages in a private
 -- environment of its own with a copy of the globals, require` and a
--- `package.loaded` so that nothing leaks into the host's `package` module.
-local function header(script)
+-- `package.loaded` so that nothing leaks into the host's `package` module,
+-- and nothing leaks out of it, except for the modules that the host is to
+-- provide, named by `--external`, which the host has loaded already.  Any
+-- other module that the host happens to have loaded, such as typecheck or
+-- std.strict, which std.normalize and std.functional behave differently
+-- with, is not there for the bundle.
+local function header(script, externals)
    return (script and '#!/usr/bin/env lua\n' or '') .. concat({
       '--[[ minified code follows, see --help text for source location! ]]',
       'local host=package',
       'local env={}for k,v in next,_G do env[k]=v end env._G=env',
-      'local bundled,loaded={},{}',
-      'env.package=setmetatable({preload={},loaded=setmetatable(loaded,{__index=function(_,k)',
-      'if bundled[k]==nil then return host.loaded[k]end end})},{__index=host})',
+      'local bundled,loaded={},{}' .. concat(map(externals, function(name)
+         return format(' loaded[%q]=host.loaded[%q]', name, name)
+      end)),
+      'env.package=setmetatable({preload={},loaded=loaded},{__index=host})',
       'local require=function(modname)local m=loaded[modname]if m==nil then',
       'if bundled[modname]==nil then',
       [=[error("module '" .. modname .. "' not found:\n   no bundled module '" .. modname .. "'",2)]=],
@@ -297,7 +303,7 @@ end
 -- Warn of a module in the Lua path that a bundled module names, but is not
 -- bundled, unless it is an `--external=NAME` that the host is to provide.
 local function main(args)
-   local script, entry, sources, known = true, 'luke', {}, {}
+   local script, entry, sources, known, externals = true, 'luke', {}, {}, {}
    each(args, function(a)
       local k, v = match(a, '^%-%-(%w+)=(.*)$')
       if k == 'module' then
@@ -306,6 +312,7 @@ local function main(args)
          entry = v
       elseif k == 'external' then
          known[v] = true
+         append(externals, v)
       else
          append(sources, a)
       end
@@ -317,7 +324,7 @@ local function main(args)
       known[name], tokens[name] = true, significant(fname)
    end)
 
-   print(header(script))
+   print(header(script, sorted(externals)))
 
    each(sources, function(a)
       local name = source(a)

@@ -63,6 +63,12 @@ specify smush:
       package.loaded.two = 'the host two'
       p = smush(tmpdir, '--module=one', 'one', 'two')
       expect(load(p.output)().two).to_be 'two'
+  - it does not see a module that the host has loaded, unless it is external: |
+      package.loaded.three = 'the host three'
+      p = smush(tmpdir, '--module=five', 'five')
+      expect(load(p.output)()[1]).to_be(false)
+      p = smush(tmpdir, '--module=five', '--external=three', 'five')
+      expect(load(p.output)()).to_equal {true, 'the host three'}
   - it exits for a module that is not in the Lua path: |
       p = smush(tmpdir, '--module=one', 'one', 'missing')
       expect(p).to_fail_while_matching 'module missing not found'
