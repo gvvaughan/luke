@@ -4,6 +4,13 @@
 
 ### New features:
 
+  - `luarocks-build-luke` is a LuaRocks build backend for luke, released
+    as a rock of its own, so that a rockspec with `build = {type = 'luke',
+    ...}` builds from the recipe in its `build` table: the modules, the
+    probes of `external_dependencies` and the rest of what a lukefile
+    says, and the rock needs no `lukefile` or `build-aux/luke` of its own.
+    The backend is one file that needs nothing else installed.
+
   - `smush`, which bundles luke into the single file `build-aux/luke`,
     also bundles the modules that it finds in the Lua path, by name, and
     can write a module for the bundle to return, rather than a program.

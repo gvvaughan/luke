@@ -74,7 +74,7 @@ files = {
 -- commits the man page, and publishes the manual to gh-pages.
 release = {
    news         = 'NEWS.md',
-   rockspec     = 'luke-dev-1.rockspec',
+   rockspec     = 'luarocks-build-luke-dev-1.rockspec',
    replacements = {
       {['README.md'] = {
          {['?branch=master'] = '?branch=release-v@version@'},
