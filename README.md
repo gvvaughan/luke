@@ -16,17 +16,44 @@ itself).  There is no warranty.
 
 ## Installation
 
-To avoid unnecessary dependencies, simply copy `build-aux/luke`
-directly into your project.  [LuaRocks][] installs the same file as
-the `luke` command, from which you can also copy it:
+[LuaRocks][] builds a rock from its rockspec with Luke when the rockspec
+says `build = {type = 'luke'}`, by installing the `luarocks-build-luke`
+build backend for the build, so there is nothing for you to install.
+
+To use the `luke` command, such as `luke release`, install it:
 
     luarocks install luke
+
+To avoid unnecessary dependencies, you can instead copy `build-aux/luke`
+directly into your project, from a clone, or from the rock, which
+installs the same file:
+
     cp "$(luarocks show --rock-dir luke)/bin/luke" build-aux/luke
 
 Note that this is an uglified version of the formatted sources
-combined into a single file for ease of use and minimal size.  If
-you edit the sources locally, run `./luke` to regenerate
-`build-aux/luke` with your changes.
+combined into a single file for ease of use and minimal size.
+
+
+## Building from a clone
+
+LuaRocks builds Luke too, with the backend, which builds from this
+source tree.  Install the backend from the clone first, and again
+whenever you pull or change its sources, because LuaRocks takes a
+`-dev` backend that is installed already for any version, even one
+that is too old to build Luke, and then build `luke`, which also
+regenerates `build-aux/luke`, `doc/luke.1` and `lib/luke/version.lua`,
+where the specs look for it, without installing it:
+
+    luarocks make luarocks-build-luke-dev-1.rockspec
+    luarocks make --no-install luke-dev-1.rockspec
+
+If you edit the sources locally, run both commands again to regenerate
+`build-aux/luke` with your changes.  LuaRocks installs the
+`std.normalize` and `std.functional` rocks that Luke bundles into it,
+to build it.  Then run the specs, after `luarocks test --prepare`
+installs their dependencies, once:
+
+    luarocks test
 
 
 ## Documentation
