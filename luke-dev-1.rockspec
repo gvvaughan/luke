@@ -74,7 +74,8 @@ build = {
 
    bin = {
       {['build-aux/luke'] = {
-         -- LuaRocks puts the rocks it installed for the build on LUA_PATH.
+         -- smush finds std.normalize and std.functional on LUA_PATH, as
+         -- `luarocks path` sets it, or else on the default path.
          command = 'LUA_PATH="$abs_top_srcdir/lib/?.lua;$abs_top_srcdir/lib/?/init.lua;$LUA_PATH;;"' ..
                    ' $LUA build-aux/smush $sources > $target',
          sources = bundled,
