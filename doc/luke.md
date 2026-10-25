@@ -117,8 +117,8 @@ rockspec.  A minimal one for a pure Lua project is:
 
 `package` and `version` name the project, and are available to
 templates as `@package@` and `@version@` (see
-[Templates](#43-templates)).  `luke_format`, `package`, `version` and a
-`modules` table are required.
+[Templates](#43-templates)).  `luke_format`, `package`, `version` and
+something to build, in `modules`, `bin`, `files` or `ldocs`, are required.
 
 `luke_format`, like a rockspec's `rockspec_format`, names the syntax
 the lukefile is written in.  It is a whole number, which goes up by
@@ -310,7 +310,9 @@ finds:
 ### 3.6. LDocs
 
 An `ldocs` entry names an [LDoc] configuration file, which may be a
-template, and Luke runs it after building every module:
+template, and Luke runs it after building every module.  A lukefile that
+has `ldocs` but no modules, such as one that is only for `luke release`
+when LuaRocks builds the project, builds just the documentation:
 
 {% highlight lua %}
     ldocs = 'build-aux/config.ld.in'

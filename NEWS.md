@@ -24,6 +24,10 @@
     rocks from one repository do not meet, where the `package` has
     `release-vX.Y` and `vX.Y`.
 
+  - A lukefile needs something to build: `modules`, `ldocs`, `bin` or
+    `files` is fine. A project that LuaRocks builds with
+    `luarocks-build-luke` can keep a lukefile for `luke release`.
+
   - `smush` also bundles `NAME=PATH`, a file as the module NAME, rather
     than the module that its path makes.
 

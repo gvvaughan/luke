@@ -310,13 +310,13 @@ local function build_script(L,env,substitute,entry)local rules=script_rules(L,en
 fill_template(L,substitute,rules)return 0
 end
 local sources=map(rules.sources,function(source)return fill_template(L,substitute,source)end)return build_program(L,env,L.luke,rules,target,sources)end,function()return choose(entry.section=='files',0,bind(make_executable,{L,env,target}))end,}end
-local function configured(L,env)local modules=not isempty(L.luke.modules or{})local conf=mkenv(CONFIGENV,env)if modules and not isempty(L.luke.ldocs or{})then
+local function configured(L,env)local conf=mkenv(CONFIGENV,env)if not isempty(L.luke.ldocs or{})then
 conf=config_ldoc(L,conf)env=mkenv(env,{LDOC=conf.LDOC})end
 local c_names=c_modules(L.luke.modules or{})local c_programs=filter(L.scripts.build,function(entry)return c_program(script_rules(L,entry))end)if not isempty(c_names)or not isempty(c_programs)then
 conf=config_compiler(L,conf)env=mkenv(env,{CC=conf.CC})end
 L.luke=run_configs(L,conf,L.luke)env=mkenv(L.clidefs,L.luke.variables,env)return env,mkenv(L.clidefs,L.luke.substitute,SHELLENV),c_names
 end
-local function build_modules(L,env,substitute,c_names)if isempty(L.luke.modules or{})then
+local function build_modules(L,env,substitute,c_names)if isempty(L.luke.modules or{})and isempty(L.luke.ldocs or{})then
 return 0
 end
 L.luke=run_templates(L,substitute,L.luke)return sequence(compact(flatten(list(map(c_names,function(name)return bind(build_c_module,{L,env,L.luke,name})end),choose(not isempty(L.luke.ldocs or{}),function()return bind(run_ldocs,{L,env,L.luke.ldocs})end)))))end
@@ -327,7 +327,8 @@ local function make(recipe,request)local L=prepare(recipe,request)local env=mken
 print_values(L,env)end
 if L.release~=nil then
 return release(L,env,bind(build,{L,env}))end
-return sequence{function()local wanted=not isempty(L.luke.modules or{})or not isempty(L.scripts.build)return choose(wanted,bind(build,{L,env}),0)end,bind(install_modules,{L,env,L.luke,L.install}),bind(install_scripts,{L,env,L.luke,L.scripts.install}),}end
+return sequence{function()local wanted=not isempty(L.luke.modules or{})or not isempty(L.scripts.build)or
+not isempty(L.luke.ldocs or{})return choose(wanted,bind(build,{L,env}),0)end,bind(install_modules,{L,env,L.luke,L.install}),bind(install_scripts,{L,env,L.luke,L.scripts.install}),}end
 return{main=function(args)return make(commandline(args))end,make=make,}
 end
 bundled['luke.lukefile']=function()
@@ -564,8 +565,9 @@ return nil,{}end
 local everything=isempty(named)return choose(everything,luke.modules,build),choose(everything,ordered_keys(installbin),ordered_keys(ordered_pluck(installbin,named)))end
 local function mkrequest(options)local o=merged({clidefs={},debug=false,dryrun=false,quiet=false,targets={},valreqs={},verbose=false,},options)return merged(o,{log=choose(o.debug,function()return dump end,function()return nop end),source=o.source or o.fname or'lukefile',spawn=choose(o.dryrun,function()return function()return 0,'',''end
 end,function()return spawn end),verbose=choose(o.verbose,function()return display end,function()return nop end),write=choose(o.quiet,function()return nop end,function()return display end),})end
+local function nothing_to_build(recipe)local sections=script_sections(recipe)return not some(list(recipe.modules,recipe.ldocs,sections.bin,sections.files,sections.install),function(rules)return not isempty(rules or{})end)end
 local function prepare(recipe,request)local source=request.source
-diagnose(not isempty(recipe.modules or{}),"no modules table in '%s', nothing to build",source)each({'package','version'},function(key)diagnose(recipe[key]~=nil,"no %s in '%s'",key,source)end)local luke,release=merged(recipe),request.release
+diagnose(not nothing_to_build(recipe),"nothing to build in '%s': it has no modules, scripts, files or ldocs",source)each({'package','version'},function(key)diagnose(recipe[key]~=nil,"no %s in '%s'",key,source)end)local luke,release=merged(recipe),request.release
 local sections=script_sections(luke)local installbin=sections.install
 local rulesets={luke.modules,sections.bin,sections.files,installbin}local targets=selected_targets(choose(release,{},request.targets),rulesets)local named=reject(targets,'install')local build=ordered_pluck(luke.modules,named)local install,install_scripts=installs(luke,installbin,build,named,targets)local scripts={build=script_entries(sections,named),install=install_scripts}luke.modules=build
 local ref,srcdir=gitref(),abs_top_srcdir()luke.substitute=merged({abs_top_srcdir=srcdir,gitref=ref,LUA_VERSION=DEFAULTENV.LUA_VERSION,package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),},luke.substitute)luke.variables=merged({LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUA_VERSION',LUA_LIBDIR='$LUA_DIR/lib',abs_top_srcdir=srcdir,gitref=ref,objdir=platforms[1],package=luke.package,version=luke.version,},collect_variables(luke),luke.variables)return{clidefs=request.clidefs,debug=request.debug,dryrun=request.dryrun,filled={},install=install,log=request.log,luke=luke,quiet=request.quiet,release=release,scripts=scripts,spawn=request.spawn,valreqs=request.valreqs,verbose=request.verbose,write=request.write,}end
@@ -769,8 +771,8 @@ end
 return{ORDERED=ORDERED,bad=bad,index=index,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 bundled['luke.version']=function()
-return{VERSION='gvv/653e789',versiontext=[[
-luke (Luke) gvv/653e789
+return{VERSION='gvv/c9bda0d',versiontext=[[
+luke (Luke) gvv/c9bda0d
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

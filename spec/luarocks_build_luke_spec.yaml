@@ -86,7 +86,7 @@ specify luarocks.build.luke:
       expect(slurp(tmpdir .. '/stage/lua/other.lua')).to_be(nil)
   - it gives back nil and a message for a rock it cannot build, instead of exiting: |
       p = run(rockspec(tmpdir, {type = 'luke'}))
-      expect(p).to_succeed_while_containing "nil no modules table in 'example-1.0-1.rockspec', nothing to build\n"
+      expect(p).to_succeed_while_containing "nil nothing to build in 'example-1.0-1.rockspec': it has no modules, scripts, files or ldocs\n"
   - it gives back nil and a message when a command fails: |
       p = run(rockspec(tmpdir, {type = 'luke', modules = {{missing = tmpdir .. '/missing.lua'}}}))
       expect(p).to_succeed_while_containing 'nil luke failed\n'

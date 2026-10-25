@@ -137,11 +137,20 @@ local function mkrequest(options)
 end
 
 
+-- Whether *recipe* has no rule for anything to make.
+local function nothing_to_build(recipe)
+   local sections = script_sections(recipe)
+   return not some(list(recipe.modules, recipe.ldocs, sections.bin, sections.files, sections.install), function(rules)
+      return not isempty(rules or {})
+   end)
+end
+
+
 -- What to make of *recipe*, as *request* asks, with the settings that
 -- luke makes up for it, and what the rest of luke needs of that.
 local function prepare(recipe, request)
    local source = request.source
-   diagnose(not isempty(recipe.modules or {}), "no modules table in '%s', nothing to build", source)
+   diagnose(not nothing_to_build(recipe), "nothing to build in '%s': it has no modules, scripts, files or ldocs", source)
    each({'package', 'version'}, function(key)
       diagnose(recipe[key] ~= nil, "no %s in '%s'", key, source)
    end)

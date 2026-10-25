@@ -73,11 +73,11 @@ specify luke:
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error 'Error running file'
-  - it diagnoses a missing modules table: |
+  - it diagnoses a lukefile that has nothing to build: |
       spit(fname, "luke_format = 0\npackage = 'example'")
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
-      expect(p).to_contain_error("no modules table in '" .. fname .. "'")
+      expect(p).to_contain_error("nothing to build in '" .. fname .. "'")
   - it diagnoses a missing package or version: |
       spit(fname, "luke_format = 0\nversion = '1.0'\nmodules = {{example = 'example.lua'}}")
       p = luke('--file=' .. fname)
@@ -463,6 +463,11 @@ specify luke:
       expect(p).to_succeed()
       expect(slurp(installed .. 'other.lua')).to_be "return 'other'\n"
       expect(slurp(installed .. 'example.lua')).to_be(nil)
+  - it builds the ldocs of a recipe that has no modules: |
+      spit(tmpdir .. '/c.ld', "title = 'example'\n")
+      p = make({luke_format = 0, package = 'example', version = '1.0', ldocs = tmpdir .. '/c.ld'},
+               {dryrun = true, clidefs = {LDOC = 'ldoc'}})
+      expect(p).to_succeed_while_containing('ldoc -c ' .. tmpdir .. '/c.ld .')
   - it only prints the commands when it is a dry run: |
       p = make(settings, {targets = {'install'}, dryrun = true, clidefs = {PREFIX = tmpdir}})
       expect(p).to_succeed_while_containing('cp ' .. tmpdir .. '/other.lua')
@@ -478,14 +483,14 @@ specify luke:
   - it diagnoses a recipe that has nothing to build, as the command line does: |
       p = make({luke_format = 0, package = 'example', version = '1.0'}, {fname = 'my.lukefile'})
       expect(p).to_exit(1)
-      expect(p).to_contain_error "luke: fatal: no modules table in 'my.lukefile', nothing to build"
+      expect(p).to_contain_error "luke: fatal: nothing to build in 'my.lukefile': it has no modules, scripts, files or ldocs"
   - it lets a front end keep a fatal error from exiting: |
       r, err = require 'luke._base'.protected(function()
          return require 'luke'.make({package = 'example', version = '1.0'},
             require 'luke.prepare'.mkrequest {source = 'the rockspec'})
       end)
       expect(r).to_be(nil)
-      expect(err).to_be "no modules table in 'the rockspec', nothing to build"
+      expect(err).to_be "nothing to build in 'the rockspec': it has no modules, scripts, files or ldocs"
 
 - describe install:
   - before: |

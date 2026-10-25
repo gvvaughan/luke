@@ -54,10 +54,9 @@ end
 -- environment for commands, the substitutions for templates, and the
 -- names of the C modules, as they are before templates are filled.
 local function configured(L, env)
-   local modules = not isempty(L.luke.modules or {})
    local conf = mkenv(CONFIGENV, env)
 
-   if modules and not isempty(L.luke.ldocs or {}) then
+   if not isempty(L.luke.ldocs or {}) then
       conf = config_ldoc(L, conf)
       env = mkenv(env, {LDOC=conf.LDOC})
    end
@@ -82,9 +81,9 @@ end
 
 
 -- Fill the templates of the modules, build the C modules *c_names*, and
--- run ldocs, if there are modules to build.
+-- run ldocs, if there are any.
 local function build_modules(L, env, substitute, c_names)
-   if isempty(L.luke.modules or {}) then
+   if isempty(L.luke.modules or {}) and isempty(L.luke.ldocs or {}) then
       return 0
    end
    L.luke = run_templates(L, substitute, L.luke)
@@ -145,7 +144,8 @@ local function make(recipe, request)
 
    return sequence{
       function()
-         local wanted = not isempty(L.luke.modules or {}) or not isempty(L.scripts.build)
+         local wanted = not isempty(L.luke.modules or {}) or not isempty(L.scripts.build) or
+                        not isempty(L.luke.ldocs or {})
          return choose(wanted, bind(build, {L, env}), 0)
       end,
       bind(install_modules, {L, env, L.luke, L.install}),

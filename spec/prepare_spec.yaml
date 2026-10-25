@@ -113,9 +113,20 @@ specify luke.prepare:
   - it diagnoses a recipe without modules, naming where it came from: |
       r, err = protected(prepare.prepare, {package = 'p', version = '1'}, mkrequest {fname = 'my.lukefile'})
       expect(r).to_be(nil)
-      expect(err).to_be "no modules table in 'my.lukefile', nothing to build"
+      expect(err).to_be "nothing to build in 'my.lukefile': it has no modules, scripts, files or ldocs"
       r, err = protected(prepare.prepare, {package = 'p', version = '1'}, mkrequest {source = 'the rockspec'})
-      expect(err).to_be "no modules table in 'the rockspec', nothing to build"
+      expect(err).to_be "nothing to build in 'the rockspec': it has no modules, scripts, files or ldocs"
+  - it accepts a recipe with ldocs, or scripts, or files, but no modules: |
+      for _, extra in ipairs{
+         {ldocs = 'config.ld.in'},
+         {bin = {{['bin/x'] = {command = 'true', sources = 'x.in'}}}},
+         {files = {{['x.txt'] = {command = 'true', sources = 'x.in'}}}},
+      } do
+         local t = {luke_format = 0, package = 'p', version = '1'}
+         for k, v in next, extra do t[k] = v end
+         r, err = protected(prepare.prepare, require 'luke.lukefile'.normalize(t), mkrequest {})
+         expect(err).to_be(nil)
+      end
   - it diagnoses a recipe without a package or a version: |
       r = recipe(); r.package = nil
       expect(select(2, protected(prepare.prepare, r, mkrequest {}))).to_be "no package in 'lukefile'"
