@@ -25,8 +25,8 @@ To use the `luke` command, such as `luke release`, install it:
     luarocks install luke
 
 To avoid unnecessary dependencies, you can instead copy `build-aux/luke`
-directly into your project, from a clone, or from the rock, which
-installs the same file:
+directly into your project, from the rock, which installs the same file,
+or from the release branch of a release:
 
     cp "$(luarocks show --rock-dir luke)/bin/luke" build-aux/luke
 
@@ -36,24 +36,29 @@ combined into a single file for ease of use and minimal size.
 
 ## Building from a clone
 
-LuaRocks builds Luke too, with the backend, which builds from this
-source tree.  Install the backend from the clone first, and again
-whenever you pull or change its sources, because LuaRocks takes a
-`-dev` backend that is installed already for any version, even one
-that is too old to build Luke, and then build `luke`, which also
-regenerates `build-aux/luke`, `doc/luke.1` and `lib/luke/version.lua`,
-where the specs look for it, without installing it:
+LuaRocks builds Luke too, with the `luarocks-build-luke` backend, which it
+installs.  To build `luke` in a clone, which regenerates `build-aux/luke`,
+`doc/luke.1` and `lib/luke/version.lua`, without installing it:
 
-    luarocks make luarocks-build-luke-dev-1.rockspec
     luarocks make --no-install luke-dev-1.rockspec
 
-If you edit the sources locally, run both commands again to regenerate
-`build-aux/luke` with your changes.  LuaRocks installs the
-`std.normalize` and `std.functional` rocks that Luke bundles into it,
-to build it.  Then run the specs, after `luarocks test --prepare`
-installs their dependencies, once:
+`build-aux/luke` is not tracked, except in a release, so a clone does not
+have one until it is built, and when you edit the sources, run that
+command again to regenerate it.  LuaRocks installs the `std.normalize` and
+`std.functional` rocks that Luke bundles into it, to build it.
+
+To run Luke from the sources of the clone, once that has made
+`lib/luke/version.lua`, use the `./luke` wrapper.  To run the specs, after
+`luarocks test --prepare` installs their dependencies, once:
 
     luarocks test
+
+To build with changes that you have made to the backend, install it from
+the clone first, and again whenever you change it, because LuaRocks takes
+a `-dev` backend that is installed already for any version, even one that
+is too old:
+
+    luarocks make luarocks-build-luke-dev-1.rockspec
 
 
 ## Documentation

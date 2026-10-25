@@ -32,7 +32,7 @@ specify type.path:
       exists = path.exists
 
   - it returns true for an existing file:
-      expect(exists 'build-aux/luke').to_be(true)
+      expect(exists 'build-aux/smush').to_be(true)
 
   - it returns false for a missing file:
       expect(exists 'this/file/does/not/exist').to_be(false)
