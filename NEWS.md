@@ -37,8 +37,12 @@
     release, whose rockspec has everything to build, needs only the `ldocs`
     and the `release`.  Luke and `luarocks-build-luke` are built that
     way now, so `build-aux/luke` is `luarocks make --no-install
-    luke-dev-1.rockspec`, and its version in a development build is
-    `dev`.
+    luke-dev-1.rockspec`.
+
+  - A rockspec can say the version of its build, which luke makes
+    available to templates and defines as `@version@` and `$version`, in
+    `build.version`, in place of the version of the rock, as a lukefile
+    does with `version`, such as `$USER/$gitref` for a development build.
 
   - `smush` also bundles `NAME=PATH`, a file as the module NAME, rather
     than the module that its path makes.

@@ -776,8 +776,8 @@ end
 return{ORDERED=ORDERED,bad=bad,index=index,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
 end
 bundled['luke.version']=function()
-return{VERSION='dev',versiontext=[[
-luke (Luke) dev
+return{VERSION='gvv/8d091d1',versiontext=[[
+luke (Luke) gvv/8d091d1
 Written by Gary V. Vaughan <gary@gnu.org>, 2014
 
 Copyright (C) 2026, Gary V. Vaughan

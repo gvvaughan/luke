@@ -94,6 +94,11 @@ build = {
    },
 }
 
+if _MODREV == 'dev' then
+   -- Stamp a development build with who made it, and from which commit.
+   build.version = '$USER/$gitref'
+end
+
 test_dependencies = {
    'ansicolors',
    'luacov',

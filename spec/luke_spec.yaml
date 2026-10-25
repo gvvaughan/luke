@@ -33,9 +33,9 @@ before: |
 specify luke:
 - describe command line:
   - it prints its version: |
-      -- `dev` in a development build, or the version a release rockspec gives.
+      -- USER/GITREF in a source tree, or the version a rockspec gives.
       expect(luke '--version').to_succeed_while_matching.any_of {
-         '^luke %(Luke%) dev\n',
+         '^luke %(Luke%) [^/%s]*/%x%x%x%x%x%x%x+\n',
          '^luke %(Luke%) %d+%.%d+[%.%d]*\n',
       }
   - it prints help: |
