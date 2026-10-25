@@ -39,6 +39,11 @@
     way now, so `build-aux/luke` is `luarocks make --no-install
     luke-dev-1.rockspec`.
 
+  - `luke release` checks that there is an LDocs generator, `ldoc`, or
+    the program that `LDOC` names, before it changes anything, if the
+    lukefile has `ldocs`, rather than quietly committing a release
+    without them, as a build skips them.
+
   - A rockspec can say the version of its build, which luke makes
     available to templates and defines as `@version@` and `$version`, in
     `build.version`, in place of the version of the rock, as a lukefile

@@ -388,13 +388,25 @@ end
 -- *main*, the branch checked out, as a description, a predicate, and
 -- the command that undoes what a failed release did to make it fail,
 -- if any.  Replacements are filled from *substitute*.
-local function preconditions(env, release, tag, branch, version, main, substitute)
+-- The check that there is an LDocs generator to build the *ldocs* with,
+-- as a release commits them, and Luke otherwise skips them quietly.
+local function ldoc_checks(env, ldocs)
+   return choose(isempty(ldocs or {}), {}, function()
+      return {{'an LDocs generator is installed', function()
+         return spawn(env, 'command -v', shellword(match(env.LDOC or 'ldoc', '^%S+'))) == 0
+      end}}
+   end)
+end
+
+
+local function preconditions(env, release, tag, branch, version, main, substitute, ldocs)
    return flatmap(list(
       repository_checks(env, tag, branch, main),
       news_checks(release, version),
       replacement_checks(release, substitute),
       branch_checks(env, release),
-      rockspec_checks(env, release)
+      rockspec_checks(env, release),
+      ldoc_checks(env, ldocs)
    ), id)
 end
 
@@ -630,7 +642,7 @@ return {
       end
 
       local tag, branch = names(choose(rock ~= package, rock), version)
-      local checks = preconditions(env, rules, tag, branch, version, main, substitute)
+      local checks = preconditions(env, rules, tag, branch, version, main, substitute, L.luke.ldocs)
       local failed = failed_check(L, checks)
       if failed ~= nil then
          fatal('cannot release %s: expected that %s', version, failed)

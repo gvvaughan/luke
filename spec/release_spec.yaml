@@ -254,6 +254,29 @@ specify luke.release:
       release, fatal = setup(passing())
       expect(release(mkL(), env, build)).to_be(0)
       expect(#fatal).to_be(0)
+  - it checks for an LDocs generator, if there are ldocs: |
+      spawned = passing()
+      spawned['command -v ldoc'] = list(0, '', '/usr/bin/ldoc\n')
+      release, fatal = setup(spawned)
+      L = mkL()
+      L.luke.ldocs = {sources = {'config.ld'}}
+      expect(release(L, env, build)).to_be(0)
+  - it checks for the program that LDOC names, without its options: |
+      spawned = passing()
+      spawned['command -v /opt/bin/ldoc'] = list(0, '', '')
+      release, fatal = setup(spawned)
+      L = mkL()
+      L.luke.ldocs = {sources = {'config.ld'}}
+      expect(release(L, E.mkenv({LDOC = '/opt/bin/ldoc --fatalwarnings'}, env), build)).to_be(0)
+  - it will not release ldocs without a generator, which Luke would skip: |
+      spawned = passing()
+      spawned['command -v ldoc'] = list(1, '', '')
+      release, fatal = setup(spawned)
+      L = verbosely(mkL())
+      L.luke.ldocs = {sources = {'config.ld'}}
+      expect(release(L, env, build)).to_be(1)
+      expect(fatal[1]).to_be 'cannot release %s: expected that %s'
+      expect(L.reported).to_contain('checking whether an LDocs generator is installed... no\n')
   - it reports each check as it goes: |
       release, fatal = setup(passing())
       L = mkL()
