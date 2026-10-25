@@ -127,6 +127,16 @@ specify luke.prepare:
          r, err = protected(prepare.prepare, require 'luke.lukefile'.normalize(t), mkrequest {})
          expect(err).to_be(nil)
       end
+  - it selects the scripts and files of a recipe that has no modules: |
+      L = prepare.prepare(require 'luke.lukefile'.normalize {
+         luke_format = 0, package = 'p', version = '1',
+         bin = {{['bin/x'] = {command = 'true', sources = 'x.in'}}},
+         files = {{['x.txt'] = {command = 'true', sources = 'x.in'}}},
+      }, mkrequest {targets = {'all', 'install'}})
+      expect(#L.scripts.build).to_be(2)
+  - it accepts a recipe with nothing to build for a release: |
+      r, err = protected(prepare.prepare, {package = 'p', version = '1'}, mkrequest {targets = {'release'}, release = '2.0'})
+      expect(err).to_be(nil)
   - it diagnoses a recipe without a package or a version: |
       r = recipe(); r.package = nil
       expect(select(2, protected(prepare.prepare, r, mkrequest {}))).to_be "no package in 'lukefile'"

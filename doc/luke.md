@@ -43,9 +43,10 @@ repository:
     luarocks install luke
     cp "$(luarocks show --rock-dir luke)/bin/luke" build-aux/luke
 
-Luke builds that file from its own sources, with its own `lukefile`.
-If you change those sources, run `./luke` in the Luke source tree to
-regenerate `build-aux/luke`.
+LuaRocks builds that file from Luke's own sources, with the
+`luarocks-build-luke` build backend.  If you change those sources, run
+`luarocks make --no-install luke-dev-1.rockspec` in the Luke source
+tree to regenerate `build-aux/luke`.
 
 
 ## 2. Command Line
@@ -541,8 +542,31 @@ Because of that ordering, this module:
 
 ## 7. Rockspecs
 
-To build with Luke from a rockspec, use the `command` backend, and pass
-along the settings LuaRocks has chosen.  [luaposix] does it like this:
+The `luarocks-build-luke` rock is a LuaRocks build backend that builds a
+rock from a lukefile's syntax in the `build` table of its rockspec, and
+installs it, with the settings that LuaRocks has chosen.  LuaRocks
+installs the backend for a rockspec with `build = {type = 'luke'}`.  A
+rock that says what to build there needs no lukefile, or `build-aux/luke`,
+to be built, only to be released:
+
+{% highlight lua %}
+    build_dependencies = {'luarocks-build-luke >= 0.2'}
+
+    build = {
+       type = 'luke',
+       modules = {
+          {['demo']      = 'lib/demo/init.lua'},
+          {['demo.util'] = 'lib/demo/util.lua'},
+       },
+    }
+{% endhighlight %}
+
+`copy_directories`, `install` and `type` are LuaRocks's own; the rest of
+`build` is what a lukefile says.
+
+Otherwise, to build with Luke from a rockspec, use the `command` backend,
+and pass along the settings LuaRocks has chosen.  [luaposix] does it
+like this:
 
 {% highlight lua %}
     build = {
@@ -668,10 +692,18 @@ Then Luke:
 
 2. checks out a new `release-vX.Y` branch, removes the placeholder
    from `news` there, and makes the `replacements`;
-3. builds everything with `version=X.Y`;
-4. writes the release rockspec, such as `luke-X.Y-1.rockspec`, with
+3. writes the release rockspec, such as `luke-X.Y-1.rockspec`, with
    `_MODREV` set to X.Y, in place of `rockspec`;
-5. commits every path in the `add` list, every module filled from a
+4. builds the release as LuaRocks builds it, by running `luarocks make
+   --no-install` on each release rockspec, so that what the release
+   commits is made by its own rockspec, with the release version, and
+   passes along the uppercase `NAME=VALUE` settings from the command
+   line, such as `YAML_DIR`, but not `GH` or `LUAROCKS`, which are
+   Luke's; and then builds the LDocs, which a rock does not build.  A
+   release table without a rockspec builds as the lukefile says,
+   with `version=X.Y`;
+5. commits every path in the `add` list, such as the files that the
+   rockspec makes, every module filled from a
    [template](#43-templates), every [generated
    file](#34-generated-files) and the release rockspec, even if git
    ignores them, so that the release can be used, or its files copied

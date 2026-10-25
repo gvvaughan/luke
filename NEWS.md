@@ -28,6 +28,18 @@
     `files` is fine. A project that LuaRocks builds with
     `luarocks-build-luke` can keep a lukefile for `luke release`.
 
+  - `luke release` builds the release with LuaRocks, by running `luarocks
+    make --no-install` on each release rockspec, with the uppercase
+    `NAME=VALUE` settings from the command line, such as `YAML_DIR`,
+    and then builds just the LDocs, so that what a release commits is
+    what its rockspec makes, with the release version.  A release table
+    with no rockspec builds as the lukefile says.  A lukefile for a
+    release, whose rockspec has everything to build, needs only the `ldocs`
+    and the `release`.  Luke and `luarocks-build-luke` are built that
+    way now, so `build-aux/luke` is `luarocks make --no-install
+    luke-dev-1.rockspec`, and its version in a development build is
+    `dev`.
+
   - `smush` also bundles `NAME=PATH`, a file as the module NAME, rather
     than the module that its path makes.
 

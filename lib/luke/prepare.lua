@@ -150,7 +150,9 @@ end
 -- luke makes up for it, and what the rest of luke needs of that.
 local function prepare(recipe, request)
    local source = request.source
-   diagnose(not nothing_to_build(recipe), "nothing to build in '%s': it has no modules, scripts, files or ldocs", source)
+   -- A release builds with LuaRocks, from the release rockspecs.
+   diagnose(request.release ~= nil or not nothing_to_build(recipe),
+      "nothing to build in '%s': it has no modules, scripts, files or ldocs", source)
    each({'package', 'version'}, function(key)
       diagnose(recipe[key] ~= nil, "no %s in '%s'", key, source)
    end)
@@ -158,7 +160,7 @@ local function prepare(recipe, request)
 
    local sections = script_sections(luke)
    local installbin = sections.install
-   local rulesets = {luke.modules, sections.bin, sections.files, installbin}
+   local rulesets = {luke.modules or {}, sections.bin, sections.files, installbin}
    local targets = selected_targets(choose(release, {}, request.targets), rulesets)
 
    local named = reject(targets, 'install')

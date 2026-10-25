@@ -115,6 +115,17 @@ local function build(L, env)
 end
 
 
+-- Build just the ldocs, as a release does after LuaRocks builds the rest.
+local function build_ldocs(L, env)
+   if isempty(L.luke.ldocs or {}) then
+      return 0
+   end
+   local env, substitute = configured(L, env)
+   L.luke = run_templates(L, substitute, L.luke)
+   return run_ldocs(L, env, L.luke.ldocs)
+end
+
+
 -- Print the value of each variable that the command line asks for, and
 -- exit.  Only the probes in `variables` can set a value to print.
 local function print_values(L, env)
@@ -139,7 +150,7 @@ local function make(recipe, request)
    end
 
    if L.release ~= nil then
-      return release(L, env, bind(build, {L, env}))
+      return release(L, env, bind(build, {L, env}), bind(build_ldocs, {L, env}))
    end
 
    return sequence{

@@ -51,6 +51,9 @@ before: |
      for _, spec in ipairs(specs) do
         r['git rm --quiet ' .. spec] = list(0, '', '')
      end
+     for _, rockspec in ipairs(released) do
+        r['luarocks make --no-install ' .. rockspec] = list(0, '', '')
+     end
      changes(r, "git commit -m 'maint: update NEWS.md for 1.0.' " .. NEWS,
         'git rev-parse refs/heads/master', list(0, '', 'def456\n'))
      changes(r, 'git checkout -b ' .. branch,
@@ -478,6 +481,7 @@ specify luke.release:
       - it runs LuaRocks as LUAROCKS when set: |
           spawned = passing()
           spawned[deps_command '/opt/bin/luarocks'] = list(0, '', '')
+          spawned['/opt/bin/luarocks make --no-install ' .. RELEASED] = list(0, '', '')
           release, fatal = setup(spawned)
           expect(release(mkL {rockspec = ROCKSPEC, check_dependencies = true},
              E.mkenv({LUAROCKS = '/opt/bin/luarocks'}, env), build)).to_be(0)
@@ -789,7 +793,8 @@ specify luke.release:
         expect(release(L, env, build)).to_be(0)
         expect(L.write[2]).to_be('creating ' .. RELEASED)
         expect(L.write[3]).to_be('git rm --quiet ' .. ROCKSPEC)
-        expect(L.write[4]).to_be('git add -f lib/demo.lua ' .. RELEASED)
+        expect(L.write[4]).to_be('luarocks make --no-install ' .. RELEASED)
+        expect(L.write[5]).to_be('git add -f lib/demo.lua ' .. RELEASED)
     - it adds every generated file, in the order written: |
         spawned = passing()
         spawned['git ls-files --others --ignored --exclude-standard -- lib/demo.lua doc/demo.md doc/demo.1 ' .. RELEASED] = list(0, '', '')
@@ -801,7 +806,7 @@ specify luke.release:
            {['doc/demo.1'] = {command = 'true', sources = {'demo.in'}}},
         }
         expect(release(L, env, build)).to_be(0)
-        expect(L.write[4]).to_be('git add -f lib/demo.lua doc/demo.md doc/demo.1 ' .. RELEASED)
+        expect(L.write[5]).to_be('git add -f lib/demo.lua doc/demo.md doc/demo.1 ' .. RELEASED)
     - it adds each filled module template, before generated files: |
         spawned = passing()
         spawned['git ls-files --others --ignored --exclude-standard -- lib/demo.lua lib/demo/version.lua doc/demo.1 ' .. RELEASED] = list(0, '', '')
@@ -814,7 +819,29 @@ specify luke.release:
         }
         L.luke.files = {{['doc/demo.1'] = {command = 'true', sources = {'demo.in'}}}}
         expect(release(L, env, build)).to_be(0)
-        expect(L.write[4]).to_be('git add -f lib/demo.lua lib/demo/version.lua doc/demo.1 ' .. RELEASED)
+        expect(L.write[5]).to_be('git add -f lib/demo.lua lib/demo/version.lua doc/demo.1 ' .. RELEASED)
+    - it builds with LuaRocks from the release rockspec, and then makes the docs, not the project: |
+        release = setup(passing())
+        built, documented = 0, 0
+        L = mkL {rockspec = ROCKSPEC}
+        expect(release(L, env, function() built = built + 1 return 0 end,
+           function() documented = documented + 1 return 0 end)).to_be(0)
+        expect(L.write[3]).to_be('git rm --quiet ' .. ROCKSPEC)
+        expect(L.write[4]).to_be('luarocks make --no-install ' .. RELEASED)
+        expect({built, documented}).to_equal {0, 1}
+    - it passes the variables of the command line to LuaRocks, but not luke's own settings: |
+        spawned = passing()
+        spawned['luarocks make --no-install ' .. RELEASED .. ' LUA_INCDIR=/opt/include YAML_DIR=/opt'] = list(0, '', '')
+        release = setup(spawned)
+        L = mkL {rockspec = ROCKSPEC}
+        L.clidefs = {YAML_DIR = '/opt', LUA_INCDIR = '/opt/include', rock = 'demo', version = '1.0', GH = 'true', LUAROCKS = 'luarocks'}
+        expect(release(L, env, build)).to_be(0)
+    - it builds as the lukefile says, and no docs, without a rockspec: |
+        release = setup(passing())
+        built, documented = 0, 0
+        expect(release(mkL(), env, function() built = built + 1 return 0 end,
+           function() documented = documented + 1 return 0 end)).to_be(0)
+        expect({built, documented}).to_equal {1, 0}
     - it announces the project summary and home page, and how to install it: |
         rockspec("local _MODREV, _SPECREV = 'dev', '-1'\n\npackage = 'demo'\n" ..
            "description = {summary = 'A demo.', homepage = 'https://example.com/demo'}\n")

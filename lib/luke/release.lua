@@ -496,7 +496,24 @@ end
 -- branch, the `rules` of the lukefile `release` table, the date `today`,
 -- what to `add` and the `released` rockspec, the `pages` branches and
 -- the `worktrees` for them, and the `substitute` environment.
-local function release_steps(L, env, build, plan)
+-- The step that has LuaRocks build *rockspec* where it is, but not
+-- install it, with the settings from the command line that are variables
+-- for LuaRocks, such as YAML_DIR, which are the uppercase names, except
+-- for the programs that `luke release` itself uses.  That makes what the
+-- release commits, stamped with the release version, as the rock does.
+local function make_rock(L, env, rockspec)
+   local settings = map(sorted(filter(keys(L.clidefs or {}), function(name)
+      return match(name, '^%u[%w_]*$') ~= nil and name ~= 'GH' and name ~= 'LUAROCKS'
+   end)), function(name)
+      return shellword(format('%s=%s', name, L.clidefs[name]))
+   end)
+   return bind(run, {L, env, flatten(list(
+      format('%s make --no-install', env.LUAROCKS or 'luarocks'), shellword(rockspec), settings
+   ))})
+end
+
+
+local function release_steps(L, env, build, docs, plan)
    local version, rules = plan.version, plan.rules
    local news, pages, worktrees = rules.news, plan.pages, plan.worktrees
    local tagname, branch = plan.tag, plan.branch
@@ -513,13 +530,22 @@ local function release_steps(L, env, build, plan)
          local path, pairs = destructure(entry)
          return bind(edit, {L, path, bind(replace, {[2]=plan.substitute, [3]=pairs})})
       end),
-      build,
+      -- Without a rockspec to build from, the lukefile says how to build.
+      isempty(rockspecs(rules)) and build or nil,
       map(rockspecs(rules), function(rockspec)
          return {
             bind(edit, {L, rockspec, bind(set_modrev, {[2]=version}), rockspec_name(rockspec, version)}),
             bind(run, {L, env, {'git rm --quiet', rockspec}}),
          }
       end),
+      -- Build the release as LuaRocks does, from the release rockspecs,
+      -- and then the LDocs, which a rock does not build.
+      not isempty(rockspecs(rules)) and {
+         map(rockspecs(rules), function(rockspec)
+            return make_rock(L, env, rockspec_name(rockspec, version))
+         end),
+         docs,
+      } or nil,
       not isempty(plan.added) and {
          bind(unignore, {L, env, plan.added}),
          bind(run, {L, env, {'git add -f', unpack(plan.added)}}),
@@ -583,7 +609,10 @@ return {
 
    -- Cut a release of `L.release`, configured by the lukefile `release`
    -- table, calling *build* to build everything for that version.
-   release = function(L, env, build)
+   -- Release the version in L.release.  *build* builds a project that has no
+   -- rockspec, and *docs* the LDocs that a release builds after LuaRocks
+   -- builds the rockspecs, which is *build* unless it is given.
+   release = function(L, env, build, docs)
       local version, main = L.release, git(env, 'symbolic-ref --short HEAD')
       local substitute = mkenv({version = version}, L.clidefs, L.luke.substitute, SHELLENV)
 
@@ -636,7 +665,7 @@ return {
          pages = pages, worktrees = worktrees, substitute = substitute,
       }
 
-      local status = firstof(release_steps(L, env, build, plan), isnonzero, call) or 0
+      local status = firstof(release_steps(L, env, build, docs or build, plan), isnonzero, call) or 0
 
       -- Remove any worktree that a failed step leaves behind, with
       -- whatever was copied into it.
