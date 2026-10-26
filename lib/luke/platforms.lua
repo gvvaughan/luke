@@ -3,7 +3,7 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _functional = require 'luke.functional'
+local _set = require 'std.prototype.set'
 local _std = require 'std.functional.init'
 
 local _ENV = require 'std.normalize' {
@@ -28,7 +28,7 @@ local _ENV = require 'std.normalize' {
    reject = _std.reject,
    reversed = _std.reversed,
    values = _std.values,
-   set = _functional.set,
+   Set = _set.prototype,
 }
 
 
@@ -53,7 +53,7 @@ local CANON = {
 
 
 -- The set of all available generic platform names.
-local ALLPLATFORMS = set(flatten(values(CANON)))
+local ALLPLATFORMS = Set(flatten(values(CANON)))
 
 
 -- The platforms of *uname* in *canon*, by its exact name.

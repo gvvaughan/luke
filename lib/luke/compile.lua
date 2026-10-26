@@ -5,9 +5,9 @@
 
 local _base = require 'luke._base'
 local _environment = require 'luke.environment'
-local _functional = require 'luke.functional'
 local _std = require 'std.functional.init'
-local _context = require 'type.context-manager'
+local _context = require 'std.prototype.contextmanager'
+local _ordered = require 'std.prototype.orderedmap'
 local _path = require 'type.path'
 
 local _ENV = require 'std.normalize' {
@@ -32,16 +32,15 @@ local _ENV = require 'std.normalize' {
    firstof = _std.firstof,
    flatten = _std.flatten,
    isempty = _std.isempty,
+   iter = _std.iter,
    isnonzero = _std.isnonzero,
    isstring = _std.isstring,
    istable = _std.istable,
    keys = _std.keys,
    map = _std.map,
    some = _std.some,
-   destructure = next,
-   ordered_get = _functional.ordered_get,
-   ordered_keys = _functional.ordered_keys,
-   ordered_merge = _functional.ordered_merge,
+   elems = _ordered.elems,
+   ordered = _ordered,
    File = _context.File,
    Pipe = _context.Pipe,
    TmpFile = _context.TmpFile,
@@ -92,8 +91,7 @@ end
 -- the value from its last definition, such as a module's redefinition
 -- of a macro defined for every module.
 local function defines(...)
-   return map(ordered_merge(...), function(definition)
-      local name, value = destructure(definition)
+   return map(iter(elems(ordered.merged(...))), function(name, value)
       local fmt = cond(
          {int(value) == 1, '-D%s'},
          {true, '-D%s=%s'}
@@ -233,7 +231,7 @@ end
 
 -- Install the module *name*, in the directory for it.
 local function install_module(L, env, luke, modules, name)
-   local src, dir = module_to_path(name, ordered_get(modules, name).sources, luke.variables.objdir)
+   local src, dir = module_to_path(name, modules[name].sources, luke.variables.objdir)
    return sequence{
       bind(install_dir, {L, env, dir}),
       bind(run, {L, env, {'$INSTALL', src, dir .. '/'}}),
@@ -244,7 +242,7 @@ end
 -- Install the script or program *name* beneath INST_BINDIR, and make
 -- it executable.
 local function install_script(L, env, luke, name)
-   local rules = ordered_get(luke.install.bin, name)
+   local rules = luke.install.bin[name]
    local src = script_target(name, rules, luke.variables.objdir, true)
    local dest = '$INST_BINDIR/' .. name
    return sequence{
@@ -256,7 +254,7 @@ end
 
 return {
    build_c_module = function(L, env, luke, name)
-      local rules = ordered_get(luke.modules, name)
+      local rules = luke.modules[name]
       local c_module = c_module_path(luke.variables.objdir, name)
 
       return sequence{
@@ -295,8 +293,8 @@ return {
    end,
 
    c_modules = function(modules)
-      return filter(ordered_keys(modules), function(name)
-         return c_sources(ordered_get(modules, name).sources)
+      return filter(ordered.keys(modules), function(name)
+         return c_sources(modules[name].sources)
       end)
    end,
 
@@ -310,7 +308,7 @@ return {
    incdirs = incdirs,
 
    install_modules = function(L, env, luke, modules)
-      return sequence(map(ordered_keys(modules), function(name)
+      return sequence(map(ordered.keys(modules), function(name)
          return bind(install_module, {L, env, luke, modules, name})
       end))
    end,

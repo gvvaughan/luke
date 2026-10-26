@@ -5,11 +5,11 @@
 
 local _configure = require 'luke.configure'
 local _environment = require 'luke.environment'
-local _functional = require 'luke.functional'
+local _ordered = require 'std.prototype.orderedmap'
 local _platforms = require 'luke.platforms'
 local _schema = require 'luke.schema'
 local _std = require 'std.functional.init'
-local _context = require 'type.context-manager'
+local _context = require 'std.prototype.contextmanager'
 
 local _ENV = require 'std.normalize' {
    'io.lines',
@@ -17,8 +17,8 @@ local _ENV = require 'std.normalize' {
    'string.match',
    configure = _configure.configure,
    isprobe = _configure.isprobe,
+   probes = _configure.probes,
    expand = _environment.expand,
-   destructure = next,
    bind = _std.bind,
    case = _std.case,
    compact = _std.compact,
@@ -33,14 +33,15 @@ local _ENV = require 'std.normalize' {
    indexof = _std.indexof,
    isempty = _std.isempty,
    istable = _std.istable,
+   iter = _std.iter,
    keys = _std.keys,
    map = _std.map,
    mapvalues = _std.mapvalues,
    merged = _std.merged,
    sorted = _std.sorted,
-   ordered_get = _functional.ordered_get,
-   ordered_keys = _functional.ordered_keys,
-   ordered_mapvalues = _functional.ordered_mapvalues,
+   OrderedMap = _ordered.prototype,
+   elems = _ordered.elems,
+   ordered = _ordered,
    narrow_platforms = _platforms.narrow_platforms,
    ORDERED = _schema.ORDERED,
    bad = _schema.bad,
@@ -154,19 +155,26 @@ local LUKEFILE = fields({
 }, true)
 
 
--- Every probe in *luke*, in the order it is written: list entries in
--- order, and the elements of any other table in `keys` order, so
--- that probes of the same kind run in the same order on every run.
+-- Every probe in *luke*, in the order it is written: the entries of an
+-- ordered map in order, and the elements of any other table in `keys`
+-- order, so that probes of the same kind run in the same order on every run.
 local function collect_configs(luke, modulename, sectionname)
    return flatmap(keys(luke), function(k)
       local v = luke[k]
-      return cond({isprobe(v), {{t=luke, k=k, module=modulename, section=sectionname}}},
-         {istable(v) and (k == 'modules' or k == 'external_dependencies'), function()
-            return flatmap(v, function(pair)
-               local name, rules = destructure(pair)
+      return cond({istable(v) and (k == 'modules' or k == 'external_dependencies'), function()
+            return flatmap(iter(elems(v)), function(name, rules)
                return collect_configs(rules, name, k)
             end)
          end},
+         {istable(v) and ORDERED[k], function()
+            return flatmap(iter(elems(v)), function(name, value)
+               return cond({isprobe(value), {{t=v, k=name, module=modulename, section=sectionname}}},
+                  {istable(value), function()
+                     return collect_configs(value, modulename, sectionname)
+                  end})
+            end)
+         end},
+         {isprobe(v), {{t=luke, k=k, module=modulename, section=sectionname}}},
          {istable(v), function()
             return collect_configs(v, modulename, sectionname)
          end})
@@ -174,13 +182,22 @@ local function collect_configs(luke, modulename, sectionname)
 end
 
 
+-- A copy of *tree*, and of every table in it, where an ordered map is
+-- copied in the order that it has.
 local function deepcopy(tree)
-   return mapvalues(tree, function(v)
-      if istable(v) then
-         return deepcopy(v)
+   local function copy(v)
+      return istable(v) and deepcopy(v) or v
+   end
+
+   local r = {}
+   for k, v in next, tree do
+      if istable(v) and ORDERED[k] then
+         r[k] = ordered.mapvalues(v, copy)
+      else
+         r[k] = copy(v)
       end
-      return v
-   end)
+   end
+   return r
 end
 
 
@@ -189,7 +206,7 @@ end
 -- functions, for example.
 local function weight(config)
    local probe = config.t[config.k]
-   return indexof(configure, function(kind)
+   return indexof(ordered.keys(probes), function(kind)
       return probe[kind] ~= nil
    end)
 end
@@ -249,7 +266,7 @@ local function collect_variables(luke)
       local v = luke[k]
       return cond(
          {k == 'external_dependencies', function()
-            return map(ordered_keys(v), dependency_variables)
+            return map(ordered.keys(v), dependency_variables)
          end},
          {istable(v), function()
             return {collect_variables(v)}
@@ -304,16 +321,15 @@ end
 
 
 local function unwrap_external_dependencies(luke)
-   if istable(luke.external_dependencies) then
-      local needed = filter(luke.external_dependencies, function(pair)
-         local _, config = destructure(pair)
-         return needs_library(config)
+   local dependencies = luke.external_dependencies
+   if istable(dependencies) then
+      local prefixes = filter(ordered.keys(dependencies), function(prefix)
+         return needs_library(dependencies[prefix])
       end)
-      local prefixes = ordered_keys(needed)
       luke.incdirs = extend(luke.incdirs, map(prefixes, bind(format, {'$%s_INCDIR'})))
       luke.libdirs = extend(luke.libdirs, map(prefixes, bind(format, {'$%s_LIBDIR'})))
       luke.libraries = extend(luke.libraries, map(prefixes, function(prefix)
-         return ordered_get(needed, prefix).library
+         return dependencies[prefix].library
       end))
       luke.external_dependencies = nil
    end
@@ -381,9 +397,9 @@ return {
 
    script_sections = function(luke)
       return {
-         bin     = luke.bin or {},
-         files   = luke.files or {},
-         install = (luke.install or {}).bin or {},
+         bin     = luke.bin or OrderedMap {},
+         files   = luke.files or OrderedMap {},
+         install = (luke.install or {}).bin or OrderedMap {},
       }
    end,
 
@@ -414,7 +430,9 @@ return {
       end
 
       local r = merged(luke)
-      r.modules = ordered_mapvalues(r.modules, rewritten)
+      if r.modules then
+         r.modules = ordered.mapvalues(r.modules, rewritten)
+      end
       if r.ldocs then
          r.ldocs = rewritten(r.ldocs)
       end

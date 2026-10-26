@@ -30,7 +30,7 @@ specify luke.schema:
 - describe listof:
   - it treats a string as a list of one: |
       schema = setup()
-      expect(schema.listof(schema.mkcheck 'string')('x', 'p')).to_equal {'x'}
+      expect(plain(schema.listof(schema.mkcheck 'string')('x', 'p'))).to_equal {'x'}
   - it normalizes every element: |
       schema = setup()
       expect(schema.listof(schema.mkcheck 'string') {'x', 'y'}).to_equal {'x', 'y'}
@@ -156,10 +156,10 @@ specify luke.schema:
 
   - it keeps the entries in the order written: |
       schema = setup()
-      expect(schema.ordered_map(pair)({{b = 1}, {a = 2}}, 'p')).to_equal {{b = 1}, {a = 2}}
+      expect(plain(schema.ordered_map(pair)({{b = 1}, {a = 2}}, 'p'))).to_equal {{b = 1}, {a = 2}}
   - it lets a platform replace an entry, in place: |
       schema = setup()
-      expect(schema.ordered_map(pair)({{a = 1}, {b = 2}, platforms = {unix = {{a = 3}}}}, 'p')).
+      expect(plain(schema.ordered_map(pair)({{a = 1}, {b = 2}, platforms = {unix = {{a = 3}}}}, 'p'))).
          to_equal {{a = 3}, {b = 2}}
   - it diagnoses a field rather than a list entry: |
       schema = setup()
@@ -167,17 +167,18 @@ specify luke.schema:
          to_raise 'bad p.a: list entry expected, such as {a = ...}'
   - it narrows the platforms in the value of an entry: |
       schema = setup()
-      expect(schema.ordered_map(pair)({{a = {x = 1, platforms = {unix = {x = 2}}}}}, 'p')).
+      expect(plain(schema.ordered_map(pair)({{a = {x = 1, platforms = {unix = {x = 2}}}}}, 'p'))).
          to_equal {{a = {x = 2}}}
   - it leaves an ordered map in the value of an entry for its own normalizer: |
       schema = setup()
-      expect(schema.ordered_map(pair)({{a = {defines = {'X', platforms = {unix = {'Y'}}}}}}, 'p')).
+      expect(plain(schema.ordered_map(pair)({{a = {defines = {'X', platforms = {unix = {'Y'}}}}}}, 'p'))).
          to_equal {{a = {defines = {'X', platforms = {unix = {'Y'}}}}}}
   - it names every ordered map in the lukefile: |
       schema = setup()
-      expect(schema.ORDERED).to_equal {
-         bin = true, defines = true, external_dependencies = true, files = true, modules = true,
-      }
+      for _, name in ipairs {'bin', 'defines', 'external_dependencies', 'files', 'modules'} do
+         expect(schema.ORDERED[name]).to_be(true)
+      end
+      expect(schema.ORDERED.rules).to_be(nil)
   - it diagnoses a name with two entries, for another platform too: |
       schema = setup()
       expect(schema.ordered_map(pair)({platforms = {windows = {{a = 1}, {a = 2}}}}, 'p')).
@@ -186,7 +187,7 @@ specify luke.schema:
 - describe dependencies:
   - it keeps dependencies in the order written: |
       schema = setup()
-      expect(schema.dependencies({{ZZ = {library = 'z'}}, {AA = {library = 'a'}}}, 'p')).
+      expect(plain(schema.dependencies({{ZZ = {library = 'z'}}, {AA = {library = 'a'}}}, 'p'))).
          to_equal {{ZZ = {library = 'z'}}, {AA = {library = 'a'}}}
   - it diagnoses a name that cannot name a variable: |
       schema = setup()
@@ -200,14 +201,14 @@ specify luke.schema:
 - describe defines:
   - it keeps each macro definition in order: |
       schema = setup()
-      expect(schema.defines({{B = 2}, {A = '"a"'}}, 'p')).to_equal {{B = 2}, {A = '"a"'}}
+      expect(plain(schema.defines({{B = 2}, {A = '"a"'}}, 'p'))).to_equal {{B = 2}, {A = '"a"'}}
   - it accepts rockspec style definitions: |
       schema = setup()
-      expect(schema.defines({'NDEBUG', '_XOPEN_SOURCE=700', 'EMPTY='}, 'p')).
+      expect(plain(schema.defines({'NDEBUG', '_XOPEN_SOURCE=700', 'EMPTY='}, 'p'))).
          to_equal {{NDEBUG = 1}, {_XOPEN_SOURCE = '700'}, {EMPTY = ''}}
   - it keeps the order of both styles mixed together: |
       schema = setup()
-      expect(schema.defines({'NDEBUG', {HAVE_STATVFS = {checkfunc = 'statvfs'}}, 'A=1'}, 'p')).
+      expect(plain(schema.defines({'NDEBUG', {HAVE_STATVFS = {checkfunc = 'statvfs'}}, 'A=1'}, 'p'))).
          to_equal {{NDEBUG = 1}, {HAVE_STATVFS = {checkfunc = 'statvfs'}}, {A = '1'}}
   - it accepts nil: |
       schema = setup()
@@ -247,15 +248,15 @@ specify luke.schema:
       expect(schema.defines({{['A-B'] = 1}}, 'p')).to_raise "bad p[1]: bad macro name 'A-B'"
   - it lets a platform redefine a macro, where it was first defined: |
       schema = setup()
-      expect(schema.defines({'A=1', 'B', platforms = {unix = {'C', 'A=2'}}}, 'p')).
+      expect(plain(schema.defines({'A=1', 'B', platforms = {unix = {'C', 'A=2'}}}, 'p'))).
          to_equal {{A = '2'}, {B = 1}, {C = 1}}
   - it uses the platform defaults without a matching platform: |
       schema = setup()
-      expect(schema.defines({'A=1', platforms = {windows = {'A=3'}, 'A=2'}}, 'p')).
+      expect(plain(schema.defines({'A=1', platforms = {windows = {'A=3'}, 'A=2'}}, 'p'))).
          to_equal {{A = '2'}}
   - it lets a more specific platform redefine a macro: |
       schema = setup()
-      expect(schema.defines({platforms = {unix = {'A=1'}, linux = {'A=2'}, macosx = {'A=2'}}}, 'p')).
+      expect(plain(schema.defines({platforms = {unix = {'A=1'}, linux = {'A=2'}, macosx = {'A=2'}}}, 'p'))).
          to_equal {{A = '2'}}
   - it diagnoses a duplicate within a platform that is not this one: |
       schema = setup()
@@ -287,7 +288,7 @@ specify luke.schema:
          to_raise 'bad p[1].A: string, number or probe expected, got table'
   - it treats a string as a list of one: |
       schema = setup()
-      expect(schema.defines('NDEBUG', 'p')).to_equal {{NDEBUG = 1}}
+      expect(plain(schema.defines('NDEBUG', 'p'))).to_equal {{NDEBUG = 1}}
   - it diagnoses other types: |
       schema = setup()
       expect(schema.defines(42, 'p')).to_raise 'bad p: table expected, got number'
@@ -296,7 +297,7 @@ specify luke.schema:
 - describe rules:
   - it normalizes module defines: |
       schema = setup()
-      expect(schema.rules({sources = 'a.c', defines = {'NDEBUG'}}, 'p')).
+      expect(plain(schema.rules({sources = 'a.c', defines = {'NDEBUG'}}, 'p'))).
          to_equal {sources = {'a.c'}, defines = {{NDEBUG = 1}}}
       expect(schema.rules({sources = 'a.c', defines = {NDEBUG = 1}}, 'p')).
          to_raise 'bad p.defines.NDEBUG: list entry expected, such as {NDEBUG = ...}'
@@ -328,15 +329,15 @@ specify luke.schema:
 - describe copies:
   - it maps each destination to its source: |
       schema = setup()
-      expect(schema.copies({{['index.md'] = 'doc/demo.md'}}, 'p')).
+      expect(plain(schema.copies({{['index.md'] = 'doc/demo.md'}}, 'p').copies)).
          to_equal {{['index.md'] = {optional = false, source = 'doc/demo.md'}}}
   - it copies a bare entry to the same path, when there is one: |
       schema = setup()
-      expect(schema.copies({'_config.yml.in'}, 'p')).
+      expect(plain(schema.copies({'_config.yml.in'}, 'p').copies)).
          to_equal {{['_config.yml.in'] = {optional = true, source = '_config.yml.in'}}}
   - it keeps the entries in the order written: |
       schema = setup()
-      expect(schema.copies({{['.'] = 'doc'}, {api = 'build/api'}, '_config.yml.in'}, 'p')).
+      expect(plain(schema.copies({{['.'] = 'doc'}, {api = 'build/api'}, '_config.yml.in'}, 'p').copies)).
          to_equal {
             {['.'] = {optional = false, source = 'doc'}},
             {api = {optional = false, source = 'build/api'}},
@@ -356,11 +357,11 @@ specify luke.schema:
          to_raise "bad p: more than one entry for '_config.yml'"
   - it fills a renamed template into its own name: |
       schema = setup()
-      expect(schema.copies({{['_config.yml'] = 'doc/config.yml.in'}}, 'p')).
+      expect(plain(schema.copies({{['_config.yml'] = 'doc/config.yml.in'}}, 'p').copies)).
          to_equal {{['_config.yml'] = {optional = false, source = 'doc/config.yml.in'}}}
   - it normalizes destination and source paths: |
       schema = setup()
-      expect(schema.copies({{['./api/'] = 'doc/api/'}, {['./'] = './doc'}, './_config.yml.in'}, 'p')).
+      expect(plain(schema.copies({{['./api/'] = 'doc/api/'}, {['./'] = './doc'}, './_config.yml.in'}, 'p').copies)).
          to_equal {
             {api = {optional = false, source = 'doc/api'}},
             {['.'] = {optional = false, source = 'doc'}},
@@ -381,7 +382,7 @@ specify luke.schema:
       schema = setup()
       r = schema.copies({{['.'] = 'doc'}, command = 'rm -f examples/*.lua'}, 'p')
       expect(r.command).to_be 'rm -f examples/*.lua'
-      expect(r[1]).to_equal {['.'] = {optional = false, source = 'doc'}}
+      expect(plain(r.copies)).to_equal {{['.'] = {optional = false, source = 'doc'}}}
   - it diagnoses a command that is not a string: |
       schema = setup()
       expect(schema.copies({command = 42}, 'p')).
@@ -390,10 +391,10 @@ specify luke.schema:
 - describe files:
   - it names a bare entry after the path of its source: |
       schema = setup()
-      expect(schema.files({'doc/demo.md.in'}, 'files')).to_equal {{['doc/demo.md'] = 'doc/demo.md.in'}}
+      expect(plain(schema.files({'doc/demo.md.in'}, 'files'))).to_equal {{['doc/demo.md'] = 'doc/demo.md.in'}}
   - it keeps the entries in the order written: |
       schema = setup()
-      expect(schema.files({'doc/z.md.in', {['doc/a.1'] = {command = 'true', sources = 'a.in'}}}, 'files')).
+      expect(plain(schema.files({'doc/z.md.in', {['doc/a.1'] = {command = 'true', sources = 'a.in'}}}, 'files'))).
          to_equal {{['doc/z.md'] = 'doc/z.md.in'}, {['doc/a.1'] = {command = 'true', sources = {'a.in'}}}}
   - it diagnoses entries at their path: |
       schema = setup()
@@ -401,7 +402,7 @@ specify luke.schema:
          to_raise "bad files[1]['doc/demo.1']: no sources"
   - it normalizes target and source paths: |
       schema = setup()
-      expect(schema.files({'./doc//demo.md.in', {['./doc/demo.1'] = {command = 'true', sources = './demo.in'}}}, 'files')).
+      expect(plain(schema.files({'./doc//demo.md.in', {['./doc/demo.1'] = {command = 'true', sources = './demo.in'}}}, 'files'))).
          to_equal {
             {['doc/demo.md'] = 'doc/demo.md.in'},
             {['doc/demo.1'] = {command = 'true', sources = {'demo.in'}}},
@@ -418,10 +419,10 @@ specify luke.schema:
 - describe scripts:
   - it names a bare entry after its source: |
       schema = setup()
-      expect(schema.scripts({'bin/tool.in'}, 'bin')).to_equal {{tool = 'bin/tool.in'}}
+      expect(plain(schema.scripts({'bin/tool.in'}, 'bin'))).to_equal {{tool = 'bin/tool.in'}}
   - it keeps the entries in the order written: |
       schema = setup()
-      expect(schema.scripts({{zz = 'zz.in'}, 'bin/aa.in'}, 'bin')).to_equal {{zz = 'zz.in'}, {aa = 'bin/aa.in'}}
+      expect(plain(schema.scripts({{zz = 'zz.in'}, 'bin/aa.in'}, 'bin'))).to_equal {{zz = 'zz.in'}, {aa = 'bin/aa.in'}}
   - it diagnoses a bare entry named like another: |
       schema = setup()
       expect(schema.scripts({'tool.in', {tool = 'bin/tool'}}, 'bin')).
@@ -432,11 +433,11 @@ specify luke.schema:
          to_raise "bad bin: more than one entry for 'tool'"
   - it normalizes program sources: |
       schema = setup()
-      expect(schema.scripts({{prog = {sources = 'a.c'}}}, 'bin')).
+      expect(plain(schema.scripts({{prog = {sources = 'a.c'}}}, 'bin'))).
          to_equal {{prog = {sources = {'a.c'}}}}
   - it normalizes source paths: |
       schema = setup()
-      expect(schema.scripts({'./bin//tool.in', {prog = {sources = './a.c'}}}, 'bin')).
+      expect(plain(schema.scripts({'./bin//tool.in', {prog = {sources = './a.c'}}}, 'bin'))).
          to_equal {{tool = 'bin/tool.in'}, {prog = {sources = {'a.c'}}}}
   - it diagnoses programs without a name: |
       schema = setup()
@@ -444,13 +445,13 @@ specify luke.schema:
          to_raise 'bad bin[1]: programs need a name, such as {prog = {sources = ...}}'
   - it accepts a script or program named sources, written as ./sources: |
       schema = setup()
-      expect(schema.scripts({{['./sources'] = 'bin/sources.in'}}, 'bin')).
+      expect(plain(schema.scripts({{['./sources'] = 'bin/sources.in'}}, 'bin'))).
          to_equal {{sources = 'bin/sources.in'}}
-      expect(schema.scripts({{['./sources'] = {sources = 'sources.c'}}}, 'bin')).
+      expect(plain(schema.scripts({{['./sources'] = {sources = 'sources.c'}}}, 'bin'))).
          to_equal {{sources = {sources = {'sources.c'}}}}
   - it accepts a script named like a program rule: |
       schema = setup()
-      expect(schema.scripts({{env = 'bin/env.in'}, {command = 'bin/command'}}, 'bin')).
+      expect(plain(schema.scripts({{env = 'bin/env.in'}, {command = 'bin/command'}}, 'bin'))).
          to_equal {{env = 'bin/env.in'}, {command = 'bin/command'}}
   - it diagnoses non-string program commands: |
       schema = setup()

@@ -99,3 +99,28 @@ set = function(...)
 end
 
 unpack = table.unpack or unpack
+
+
+-- Ordered tables, which luke reads as lists of one-pair tables, and keeps
+-- in an OrderedMap.
+OrderedMap = require 'std.prototype.orderedmap'.prototype
+
+-- *x*, with every OrderedMap in it, however deep, as the list of tables of
+-- one pair each that it was written as, so that what luke made of a list
+-- can be compared with that list.
+function plain(x)
+   if type(x) ~= 'table' then
+      return x
+   end
+   local r = {}
+   if (getmetatable(x) or {})._keys ~= nil then
+      for k, v in require 'std.prototype.orderedmap'.elems(x) do
+         r[#r + 1] = {[k] = plain(v)}
+      end
+   else
+      for k, v in next, x do
+         r[k] = plain(v)
+      end
+   end
+   return r
+end

@@ -37,10 +37,10 @@ specify luke.cli:
       expect(argt.write).to_be(require 'std.functional.init'.nop)
 
   - it asks for each --value in order:
-      expect(parse_arguments({'--value=B', '--value=A'}).valreqs).to_equal(list('B', 'A'))
+      expect(parse_arguments({'--value=B', '--value=A'}).valreqs).to_equal {'B', 'A'}
 
   - it takes the rest as targets, in order:
-      expect(parse_arguments({'b', 'a'}).targets).to_equal(list('b', 'a'))
+      expect(parse_arguments({'b', 'a'}).targets).to_equal {'b', 'a'}
 
   - it writes each line of debug output with a prefix: |
       expect(capture(function()
@@ -74,8 +74,8 @@ specify luke.cli:
   - it asks for what the command line says: |
       _, request = cli.commandline {'--file=' .. fname, '--quiet', 'PREFIX=/opt', 'example'}
       expect(request.quiet).to_be(true)
-      expect(request.clidefs).to_equal {PREFIX = '/opt'}
-      expect(request.targets).to_equal(list('example'))
+      expect(plain(request.clidefs)).to_equal {PREFIX = '/opt'}
+      expect(request.targets).to_equal {'example'}
       expect(request.source).to_be(fname)
   - it asks to release the version that the command line gives: |
       _, request = cli.commandline {'--file=' .. fname, 'release', 'version=2.1'}

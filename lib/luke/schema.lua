@@ -5,8 +5,9 @@
 
 local _base = require 'luke._base'
 local _configure = require 'luke.configure'
-local _functional = require 'luke.functional'
+local _ordered = require 'std.prototype.orderedmap'
 local _platforms = require 'luke.platforms'
+local _set = require 'std.prototype.set'
 local _std = require 'std.functional.init'
 local _path = require 'type.path'
 
@@ -18,8 +19,8 @@ local _ENV = require 'std.normalize' {
    'table.concat',
    int = 'math.tointeger',
    fatal = _base.fatal,
-   configure = _configure.configure,
    isprobe = _configure.isprobe,
+   probes = _configure.probes,
    destructure = next,
    bind = _std.bind,
    case = _std.case,
@@ -33,6 +34,7 @@ local _ENV = require 'std.normalize' {
    id = _std.id,
    isempty = _std.isempty,
    islistkey = _std.islistkey,
+   iter = _std.iter,
    isstring = _std.isstring,
    istable = _std.istable,
    keys = _std.keys,
@@ -41,9 +43,11 @@ local _ENV = require 'std.normalize' {
    nop = _std.nop,
    reject = _std.reject,
    sorted = _std.sorted,
-   ordered_keys = _functional.ordered_keys,
-   ordered_merge = _functional.ordered_merge,
-   set = _functional.set,
+   OrderedMap = _ordered.prototype,
+   elems = _ordered.elems,
+   ordered_keys = _ordered.keys,
+   ordered_merge = _ordered.merged,
+   Set = _set.prototype,
    isplatform = _platforms.isplatform,
    layers = _platforms.layers,
    narrow_platforms = _platforms.narrow_platforms,
@@ -60,7 +64,7 @@ local MACRO = '^[%a_][%w_]*$'
 
 -- The name of every ordered map in the lukefile, which resolves its own
 -- platforms, so that platform filtering leaves it alone.
-local ORDERED = set {'bin', 'defines', 'external_dependencies', 'files', 'modules'}
+local ORDERED = Set {'bin', 'defines', 'external_dependencies', 'files', 'modules'}
 
 
 --[[
@@ -238,7 +242,7 @@ local function definition(x, path)
          local names = keys(x)
          choose(names.n ~= 1, bind(bad, {path, 'one definition expected, got %d', names.n}))
          local name = names[1]
-         choose(isstring(name) and configure[name] ~= nil,
+         choose(isstring(name) and probes[name] ~= nil,
             bind(bad, {path, 'probe needs a macro name, such as {HAVE_X = {%s = ...}}', str(name)}))
          choose(not isstring(name) or match(name, MACRO) == nil, bind(bad, {path, "bad macro name '%s'", str(name)}))
          local value = x[name]
@@ -263,8 +267,8 @@ local function pairof(normalize, rename)
 end
 
 
--- An ordered map: a list of entries in the order written, each
--- normalized by *entry* into a table pairing one name with its value,
+-- An ordered map, which is an OrderedMap of the entries in the order written,
+-- each normalized by *entry* into a table pairing one name with its value,
 -- where a `platforms` table adds or replaces entries for particular
 -- platforms.  Every platform's entries are diagnosed, not only those
 -- for this one, and so is a field rather than a list entry, or a name
@@ -310,13 +314,14 @@ local function ordered_map(entry)
       end)
    end
 
-   -- The entries of each layer of *x* at *path* that applies here.
+   -- The entries of each layer of *x* at *path* that applies here, in an
+   -- OrderedMap.
    local function resolve(x, path)
       return ordered_merge(unpack(map(layers(x), function(layer)
          return choose(layer.platforms ~= nil, function()
             return resolve(layer, path)
          end, function()
-            return layer_entries(layer, path)
+            return OrderedMap(layer_entries(layer, path))
          end)
       end)))
    end
@@ -473,9 +478,9 @@ local function copy_entry(x, path)
 end
 
 
--- Copies of release files to a branch, as an ordered map of
--- `copy_entry`s, in the order written, where a path that a template is
--- filled into is diagnosed when it is also copied, and with the
+-- Copies of release files to a branch, as a table with its `copies`, an
+-- ordered map of `copy_entry`s in the order written, where a path that a
+-- template is filled into is diagnosed when it is also copied, and the
 -- `command`, if any, to run in the branch after copying, such as to
 -- remove files that a copied directory should not publish.  Unlike
 -- other lists, a single string is diagnosed, as any key of the
@@ -489,17 +494,15 @@ local function copies(x, path)
       return nil
    end
    local r = ordered_map(copy_entry)(except(x, 'command'), path)
-   r.command = checkstring(x.command, index(path, 'command'))
    -- Every path written: each destination, then the path that each
    -- template copied under its own name is filled into.
-   local written = set(ordered_keys(r))
-   each(r or {}, function(pair)
-      local dest, entry = destructure(pair)
+   local written = Set(ordered_keys(r))
+   each(iter(elems(r)), function(dest, entry)
       choose(fills_too(dest, entry.source), function()
          claim(written, filled(dest), true, path)
       end)
    end)
-   return r
+   return {copies = r, command = checkstring(x.command, index(path, 'command'))}
 end
 
 return {

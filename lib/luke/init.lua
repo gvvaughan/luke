@@ -7,7 +7,6 @@ local _cli = require 'luke.cli'
 local _compile = require 'luke.compile'
 local _configure = require 'luke.configure'
 local _environment = require 'luke.environment'
-local _functional = require 'luke.functional'
 local _lukefile = require 'luke.lukefile'
 local _prepare = require 'luke.prepare'
 local _release = require 'luke.release'
@@ -43,7 +42,6 @@ local _ENV = require 'std.normalize' {
    isempty = _std.isempty,
    isstring = _std.isstring,
    map = _std.map,
-   ordered_get = _functional.ordered_get,
    fill_template = _lukefile.fill_template,
    run_configs = _lukefile.run_configs,
    run_templates = _lukefile.run_templates,
@@ -60,7 +58,7 @@ end
 
 -- The rules for script *entry*, as selected by `prepare`.
 local function script_rules(L, entry)
-   return ordered_get(script_sections(L.luke)[entry.section], entry.name)
+   return script_sections(L.luke)[entry.section][entry.name]
 end
 
 

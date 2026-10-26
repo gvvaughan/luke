@@ -59,40 +59,40 @@ specify luke.compile:
       defines = compile.defines
 
   - it defines a flag for the value 1:
-      expect(defines {{NDEBUG=1}}).to_equal(list '-DNDEBUG')
+      expect(defines(OrderedMap {{NDEBUG=1}})).to_equal(list '-DNDEBUG')
 
   - it defines a plain value:
-      expect(defines {{_XOPEN_SOURCE=700}}).to_equal(list '-D_XOPEN_SOURCE=700')
+      expect(defines(OrderedMap {{_XOPEN_SOURCE=700}})).to_equal(list '-D_XOPEN_SOURCE=700')
 
   - it quotes a value containing shell metacharacters: |
-      expect(defines {{VERSION='"git"'}}).to_equal(list [[-DVERSION='"git"']])
+      expect(defines(OrderedMap {{VERSION='"git"'}})).to_equal(list [[-DVERSION='"git"']])
 
   - it quotes a value containing a single quote: |
-      expect(defines {{GREETING="it's"}}).to_equal(list [[-DGREETING='it'\''s']])
+      expect(defines(OrderedMap {{GREETING="it's"}})).to_equal(list [[-DGREETING='it'\''s']])
 
   - it defines each macro in order: |
-      expect(defines {{C=3}, {A=1}, {B=2}}).to_equal(list('-DC=3', '-DA', '-DB=2'))
+      expect(defines(OrderedMap {{C=3}, {A=1}, {B=2}})).to_equal(list('-DC=3', '-DA', '-DB=2'))
 
   - it merges several tables of defines in order, skipping nils: |
-      expect(defines({{B=2}, {A=1}}, nil, {{C=1}})).to_equal(list('-DB=2', '-DA', '-DC'))
+      expect(defines(OrderedMap {{B=2}, {A=1}}, nil, OrderedMap {{C=1}})).to_equal(list('-DB=2', '-DA', '-DC'))
 
   - it lets a later table redefine a macro, where it was first defined: |
-      expect(defines({{A=1}, {B=2}}, {{C=3}, {A=4}})).
+      expect(defines(OrderedMap {{A=1}, {B=2}}, OrderedMap {{C=3}, {A=4}})).
          to_equal(list('-DA=4', '-DB=2', '-DC=3'))
 
 - describe c_modules:
   - it lists them in the order written: |
-      expect(compile.c_modules {
+      expect(compile.c_modules(OrderedMap {
          {['posix.unistd'] = {sources={'ext/posix/unistd.c'}}},
          {['posix.ctype'] = {sources={'ext/posix/ctype.c'}}},
          {['posix.fcntl'] = {sources={'ext/posix/fcntl.c'}}},
          {['posix.dirent'] = {sources={'ext/posix/dirent.c'}}},
-      }).to_equal(list('posix.unistd', 'posix.ctype', 'posix.fcntl', 'posix.dirent'))
+      })).to_equal(list('posix.unistd', 'posix.ctype', 'posix.fcntl', 'posix.dirent'))
   - it lists only modules built from C sources:
-      expect(compile.c_modules {
+      expect(compile.c_modules(OrderedMap {
          {['posix.unistd'] = {sources={'ext/posix/unistd.c'}}},
          {['posix.version'] = {sources={'lib/posix/version.lua.in'}}},
-      }).to_equal(list('posix.unistd'))
+      })).to_equal(list('posix.unistd'))
 
 - describe spawn:
   - before:
@@ -158,18 +158,18 @@ specify luke.compile:
       os.execute("rm -rf '" .. dest .. "'")
 
   - it installs Lua modules beneath INST_LUADIR:
-      expect(compile.install_modules(L, env, luke, {
-         {['type.dict'] = {sources={'lib/type/dict.lua'}}},
+      expect(compile.install_modules(L, env, luke, OrderedMap {
+         {['type.path'] = {sources={'lib/type/path.lua'}}},
          {['luke'] = {sources={'lib/luke/init.lua'}}},
       })).to_be(0)
-      expect(slurp(dest .. '/share/type/dict.lua')).to_be(slurp 'lib/type/dict.lua')
+      expect(slurp(dest .. '/share/type/path.lua')).to_be(slurp 'lib/type/path.lua')
       expect(slurp(dest .. '/share/luke/init.lua')).to_be(slurp 'lib/luke/init.lua')
 
   - it installs modules in the order written: |
       written = {}
       L = {spawn = compile.spawn, write = function(s) written[#written + 1] = s end}
-      expect(compile.install_modules(L, env, luke, {
-         {['type.dict'] = {sources={'lib/type/dict.lua'}}},
+      expect(compile.install_modules(L, env, luke, OrderedMap {
+         {['type.path'] = {sources={'lib/type/path.lua'}}},
          {['luke'] = {sources={'lib/luke/init.lua'}}},
          {['luke.cli'] = {sources={'lib/luke/cli.lua'}}},
       })).to_be(0)
@@ -177,11 +177,11 @@ specify luke.compile:
       for _, s in ipairs(written) do
          installed[#installed + 1] = s:match '^cp (%S+)'
       end
-      expect(installed).to_equal {'lib/type/dict.lua', 'lib/luke/init.lua', 'lib/luke/cli.lua'}
+      expect(plain(installed)).to_equal {'lib/type/path.lua', 'lib/luke/init.lua', 'lib/luke/cli.lua'}
 
   - it installs built C modules beneath INST_LIBDIR:
       os.execute("mkdir -p '" .. dest .. "/obj' && echo built > '" .. dest .. "/obj/foo.so'")
-      expect(compile.install_modules(L, env, luke, {
+      expect(compile.install_modules(L, env, luke, OrderedMap {
          {foo = {sources={'ext/foo.c'}}},
       })).to_be(0)
       expect(slurp(dest .. '/lib/foo.so')).to_be 'built\n'
@@ -189,14 +189,14 @@ specify luke.compile:
   - it returns the first failing status: |
       expect(capture(function(...)
          return require 'luke.compile'.install_modules(...)
-      end, L, env, luke, {
+      end, L, env, luke, OrderedMap {
          {['no.such'] = {sources={'lib/no/such.lua'}}},
       })).to_fail_while_containing 'lib/no/such.lua'
 
   - it diagnoses unsupported source types: |
       expect(capture(function(...)
          return require 'luke.compile'.install_modules(...)
-      end, L, env, luke, {{foo = {sources={'foo.txt'}}}})).
+      end, L, env, luke, OrderedMap {{foo = {sources={'foo.txt'}}}})).
          to_fail_with "luke: fatal: unsupported source type 'foo.txt'\n"
 
 - describe script_target:
@@ -210,7 +210,7 @@ specify luke.compile:
 - describe build_c_module:
   - before:
       env = E.mkenv({CC='cc', MAKEDIRS='mkdir -p'}, E.DEFAULTENV, E.SHELLENV)
-      luke = {variables = {objdir = 'obj'}, modules = {{foo = {sources = {'ext/foo.c'}}}}}
+      luke = {variables = {objdir = 'obj'}, modules = OrderedMap {{foo = {sources = {'ext/foo.c'}}}}}
 
   - it makes the directory, and then compiles and links: |
       calls = {}
@@ -287,7 +287,7 @@ specify luke.compile:
       env = E.mkenv({INST_BINDIR=dest .. '/bin'}, E.DEFAULTENV, E.SHELLENV)
       luke = {
          variables = {objdir = 'obj'},
-         install = {bin = {{foo = 'bin/foo.in'}, {bar = 'bin/bar.in'}}},
+         install = {bin = OrderedMap {{foo = 'bin/foo.in'}, {bar = 'bin/bar.in'}}},
       }
 
   - it installs nothing without scripts:
@@ -304,7 +304,7 @@ specify luke.compile:
       for _, s in ipairs(written) do
          if s ~= '\n' then commands[#commands + 1] = s end
       end
-      expect(commands).to_equal {
+      expect(plain(commands)).to_equal {
          'mkdir -p ' .. dest .. '/bin',
          'cp bin/foo ' .. dest .. '/bin/foo',
          'chmod +x ' .. dest .. '/bin/foo',

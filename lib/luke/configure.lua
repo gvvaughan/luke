@@ -7,8 +7,9 @@ local _base = require 'luke._base'
 local _compile = require 'luke.compile'
 local _environment = require 'luke.environment'
 local _std = require 'std.functional.init'
-local _context = require 'type.context-manager'
-local _dict = require 'type.dict'
+local _context = require 'std.prototype.contextmanager'
+local _ctest = require 'luke.ctest'
+local _ordered = require 'std.prototype.orderedmap'
 
 local _ENV = require 'std.normalize' {
    'os.getenv',
@@ -44,12 +45,13 @@ local _ENV = require 'std.normalize' {
    map = _std.map,
    merged = _std.merged,
    some = _std.some,
-   CTest = _context.CTest,
+   CTest = _ctest.CTest,
    File = _context.File,
    TmpFile = _context.TmpFile,
    slurp = _context.slurp,
    with = _context.with,
-   OrderedDict = _dict.OrderedDict,
+   OrderedMap = _ordered.prototype,
+   ordered = _ordered,
    CCPROGS = {'cc', 'gcc', 'clang'},
 }
 
@@ -335,7 +337,9 @@ local function add_library(lib)
 end
 
 
-local configure = setmetatable(OrderedDict({
+-- The probes, by the key that picks each, in the order that they are run: a
+-- probe with more than one of them is run by the first.
+local probes = OrderedMap {{
    checkprog = function(L, env, config)
       return diagnose(firstof(config.progs, function(prog)
          checking(L, 'for', prog)
@@ -404,36 +408,38 @@ local configure = setmetatable(OrderedDict({
          check_struct_member_compile(L, env, config, structname, member, include_lines(config))
       )
    end
-}), {
-   __call = function(self, L, env, config, prefix)
-      return case(type(config), {
-         ['number'] = function()
-            return str(config)
-         end,
+}}
 
-         ['string'] = function()
-            return config
-         end,
 
-         ['table'] = function()
-            return diagnose(firstof(self, function(fname)
-               if config[fname] ~= nil then
-                  return apply(self[fname], pack(L, env, merged(config, external_dirs(env, prefix))))
-               end
-            end), "unable to configure with keys '%s'", concat(keys(config), "', '"))
-         end,
+-- Run the probe in *config*, and return what it found.
+local function configure(L, env, config, prefix)
+   return case(type(config), {
+      ['number'] = function()
+         return str(config)
+      end,
 
-         default = function(kind)
-            fatal("unsupported configure type '%s'", kind)
-         end,
-      })
-   end,
-})
+      ['string'] = function()
+         return config
+      end,
+
+      ['table'] = function()
+         return diagnose(firstof(ordered.keys(probes), function(fname)
+            if config[fname] ~= nil then
+               return apply(probes[fname], pack(L, env, merged(config, external_dirs(env, prefix))))
+            end
+         end), "unable to configure with keys '%s'", concat(keys(config), "', '"))
+      end,
+
+      default = function(kind)
+         fatal("unsupported configure type '%s'", kind)
+      end,
+   })
+end
 
 
 -- Whether *x* is a probe, which luke runs at build time for a value.
 local function isprobe(x)
-   return istable(x) and some(configure, function(name)
+   return istable(x) and some(ordered.keys(probes), function(name)
       return x[name] ~= nil
    end)
 end
@@ -477,4 +483,5 @@ return {
 
    configure = configure,
    isprobe = isprobe,
+   probes = probes,
 }

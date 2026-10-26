@@ -25,6 +25,7 @@ build_dependencies = {
    'smush',
    'std.functional >= 2',
    'std.normalize >= 4',
+   'std.prototype >= 2',
 }
 
 source = {
@@ -46,8 +47,8 @@ local sources = {
    'lib/luke/cli.lua',
    'lib/luke/compile.lua',
    'lib/luke/configure.lua',
+   'lib/luke/ctest.lua',
    'lib/luke/environment.lua',
-   'lib/luke/functional.lua',
    'lib/luke/init.lua',
    'lib/luke/lukefile.lua',
    'lib/luke/platforms.lua',
@@ -55,8 +56,6 @@ local sources = {
    'lib/luke/release.lua',
    'lib/luke/rockspec.lua',
    'lib/luke/schema.lua',
-   'lib/type/context-manager.lua',
-   'lib/type/dict.lua',
    'lib/type/path.lua',
    'luke.version=lib/luke/luarocks-build-luke-version.lua',
    -- From their rocks, found on the Lua path.
@@ -64,6 +63,12 @@ local sources = {
    'std.functional.init',
    'std.normalize',
    'std.normalize._core',
+   'std.prototype._base',
+   'std.prototype.container',
+   'std.prototype.contextmanager',
+   'std.prototype.object',
+   'std.prototype.orderedmap',
+   'std.prototype.set',
 }
 
 local smushed = ''

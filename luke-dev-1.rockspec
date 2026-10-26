@@ -25,6 +25,7 @@ build_dependencies = {
    'smush',
    'std.functional >= 2',
    'std.normalize >= 4',
+   'std.prototype >= 2',
 }
 
 source = {
@@ -46,8 +47,8 @@ local bundled = {
    'lib/luke/cli.lua',
    'lib/luke/compile.lua',
    'lib/luke/configure.lua',
+   'lib/luke/ctest.lua',
    'lib/luke/environment.lua',
-   'lib/luke/functional.lua',
    'lib/luke/init.lua',
    'lib/luke/lukefile.lua',
    'lib/luke/platforms.lua',
@@ -55,13 +56,17 @@ local bundled = {
    'lib/luke/release.lua',
    'lib/luke/schema.lua',
    'lib/luke/version.lua.in',
-   'lib/type/context-manager.lua',
-   'lib/type/dict.lua',
    'lib/type/path.lua',
    'std.functional._base',
    'std.functional.init',
    'std.normalize',
    'std.normalize._core',
+   'std.prototype._base',
+   'std.prototype.container',
+   'std.prototype.contextmanager',
+   'std.prototype.object',
+   'std.prototype.orderedmap',
+   'std.prototype.set',
 }
 
 build = {

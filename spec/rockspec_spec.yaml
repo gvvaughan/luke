@@ -55,9 +55,9 @@ specify luke.rockspec:
         r.build.incdirs = {'ext/include'}
         r.build.variables = {LDOC = 'true'}
         recipe = fromrockspec(r)
-        expect(recipe.defines).to_equal {{NDEBUG = 1}}
-        expect(recipe.incdirs).to_equal {'ext/include'}
-        expect(recipe.variables).to_equal {LDOC = 'true'}
+        expect(plain(recipe.defines)).to_equal {{NDEBUG = 1}}
+        expect(plain(recipe.incdirs)).to_equal {'ext/include'}
+        expect(plain(recipe.variables)).to_equal {LDOC = 'true'}
     - it leaves the rockspec as it was: |
         r, copy = rockspec(), rockspec()
         r.external_dependencies = {YAML = {library = 'yaml'}}
@@ -76,16 +76,16 @@ specify luke.rockspec:
            return fromrockspec(r).external_dependencies
         end
     - it takes the library that LuaRocks looks for, when the probe leaves it out: |
-        expect(probed({checksymbol = 'yaml_document_initialize'}, {YAML = {library = 'yaml'}})).
+        expect(plain(probed({checksymbol = 'yaml_document_initialize'}, {YAML = {library = 'yaml'}}))).
            to_equal {{YAML = {library = {checksymbol = 'yaml_document_initialize', libraries = list('yaml')}}}}
     - it keeps the library that the probe names: |
-        expect(probed({checksymbol = 'f', library = 'other'}, {YAML = {library = 'yaml'}})).
+        expect(plain(probed({checksymbol = 'f', library = 'other'}, {YAML = {library = 'yaml'}}))).
            to_equal {{YAML = {library = {checksymbol = 'f', libraries = list('other')}}}}
     - it keeps a library that is not a probe: |
-        expect(probed('yaml', {YAML = {library = 'yaml'}})).
+        expect(plain(probed('yaml', {YAML = {library = 'yaml'}}))).
            to_equal {{YAML = {library = 'yaml'}}}
     - it leaves a probe alone for a library that LuaRocks does not look for: |
-        expect(probed({checksymbol = 'f'}, {})).
+        expect(plain(probed({checksymbol = 'f'}, {}))).
            to_equal {{YAML = {library = {checksymbol = 'f'}}}}
     - it has no external dependencies without any: |
         expect(fromrockspec(rockspec()).external_dependencies).to_be(nil)

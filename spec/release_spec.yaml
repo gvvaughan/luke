@@ -387,7 +387,7 @@ specify luke.release:
         spawned['git rev-parse origin/gh-pages'] = list(0, '', 'abc123\n')
         spawned['git merge-base --is-ancestor fed789 abc123'] = list(1, '', '')
         release = setup(spawned)
-        expect(release(mkL {['gh-pages'] = {}}, env, build)).to_be(1)
+        expect(release(mkL {['gh-pages'] = {copies = OrderedMap {}}}, env, build)).to_be(1)
     - it fast-forwards gh-pages behind origin: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
         spawned['git rev-parse origin/gh-pages'] = list(0, '', 'abc123\n')
@@ -415,7 +415,7 @@ specify luke.release:
         spawned['git rev-parse refs/heads/gh-pages'] = list(128, '', '')
         spawned['git rev-parse origin/gh-pages'] = list(128, '', '')
         release = setup(spawned)
-        expect(release(mkL {['gh-pages'] = {}}, env, build)).to_be(1)
+        expect(release(mkL {['gh-pages'] = {copies = OrderedMap {}}}, env, build)).to_be(1)
     - it diagnoses gh-pages checked out in another worktree: |
         spawned = with_ghpages(passing(), 'release-no: @version@\n')
         spawned['git worktree list --porcelain'] = list(0, '', WORKTREES ..
@@ -824,7 +824,7 @@ specify luke.release:
         spawned['git add -f lib/demo.lua doc/demo.md doc/demo.1 ' .. RELEASED] = list(0, '', '')
         release = setup(spawned)
         L = mkL {rockspec = ROCKSPEC, add = {'lib/demo.lua'}}
-        L.luke.files = {
+        L.luke.files = OrderedMap {
            {['doc/demo.md'] = 'doc/demo.md.in'},
            {['doc/demo.1'] = {command = 'true', sources = {'demo.in'}}},
         }
@@ -836,11 +836,11 @@ specify luke.release:
         spawned['git add -f lib/demo.lua lib/demo/version.lua doc/demo.1 ' .. RELEASED] = list(0, '', '')
         release = setup(spawned)
         L = mkL {rockspec = ROCKSPEC, add = {'lib/demo.lua'}}
-        L.luke.modules = {
+        L.luke.modules = OrderedMap {
            {demo = {sources = {'lib/demo/init.lua'}}},
            {['demo.version'] = {sources = {'lib/demo/version.lua.in'}}},
         }
-        L.luke.files = {{['doc/demo.1'] = {command = 'true', sources = {'demo.in'}}}}
+        L.luke.files = OrderedMap {{['doc/demo.1'] = {command = 'true', sources = {'demo.in'}}}}
         expect(release(L, env, build)).to_be(0)
         expect(L.write[5]).to_be('git add -f lib/demo.lua lib/demo/version.lua doc/demo.1 ' .. RELEASED)
     - it builds with LuaRocks from the release rockspec, and then makes the docs, not the project: |
@@ -902,7 +902,7 @@ specify luke.release:
         -- A lukefile `replacements` table for README, normalized as
         -- `loadluke` would.
         function replacements(pairs)
-           return {{[README] = pairs}}
+           return OrderedMap {{[README] = OrderedMap(pairs)}}
         end
 
     - after: |

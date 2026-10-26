@@ -280,17 +280,17 @@ specify luke:
          }
       ]])
       luke = require 'luke.lukefile'.loadluke(fname)
-      expect(luke.modules[1].example.sources).to_equal {'example.lua'}
-      expect(luke.incdirs).to_equal {'include'}
-      expect(luke.libdirs).to_equal {'lib'}
-      expect(luke.ldocs.sources).to_equal {'build-aux/config.ld'}
-      expect(luke.release.add).to_equal {'doc'}
+      expect(plain(luke.modules.example.sources)).to_equal {'example.lua'}
+      expect(plain(luke.incdirs)).to_equal {'include'}
+      expect(plain(luke.libdirs)).to_equal {'lib'}
+      expect(plain(luke.ldocs.sources)).to_equal {'build-aux/config.ld'}
+      expect(plain(luke.release.add)).to_equal {'doc'}
       expect(luke.release.news).to_be 'NEWS.md'
-      expect(luke.release.rockspec).to_equal {'example-dev-1.rockspec'}
-      expect(luke.release.replacements).to_equal {
+      expect(plain(luke.release.rockspec)).to_equal {'example-dev-1.rockspec'}
+      expect(plain(luke.release.replacements)).to_equal {
          {['README.md'] = {{['?branch=master'] = '?branch=release-v@version@'}}},
       }
-      expect(luke.release['gh-pages']).to_equal {{['.'] = {optional = false, source = 'doc'}}}
+      expect(plain(luke.release['gh-pages'].copies)).to_equal {{['.'] = {optional = false, source = 'doc'}}}
   - it keeps defines in order, with platform defines after the rest: |
       spit(fname, [[
          luke_format = 0
@@ -309,8 +309,8 @@ specify luke:
          }
       ]])
       luke = require 'luke.lukefile'.loadluke(fname)
-      expect(luke.defines).to_equal {{PACKAGE = '"$package"'}, {NDEBUG = 1}, {_POSIX_C_SOURCE = '200809L'}}
-      expect(luke.modules[1].example.defines).to_equal {{B = '2'}, {A = 1}}
+      expect(plain(luke.defines)).to_equal {{PACKAGE = '"$package"'}, {NDEBUG = 1}, {_POSIX_C_SOURCE = '200809L'}}
+      expect(plain(luke.modules.example.defines)).to_equal {{B = '2'}, {A = 1}}
   - it merges a singular probe key into its plural: |
       spit(fname, [[
          luke_format = 0
@@ -548,7 +548,7 @@ specify luke:
       for name in p.output:gmatch('cp ' .. tmpdir:gsub('%p', '%%%0') .. '/(%w+)%.lua ') do
          order[#order + 1] = name
       end
-      expect(order).to_equal {'zz', 'aa'}
+      expect(plain(order)).to_equal {'zz', 'aa'}
   - it diagnoses keyed modules: |
       spit(fname, [[
          luke_format = 0

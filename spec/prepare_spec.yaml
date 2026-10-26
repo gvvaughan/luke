@@ -20,9 +20,7 @@ before: |
 
   -- The names of the modules that *L* will build, in order.
   function names(L)
-     return require 'std.functional.init'.map(L.luke.modules, function(entry)
-        return (next(entry))
-     end)
+     return require 'std.prototype.orderedmap'.keys(L.luke.modules)
   end
 
 specify luke.prepare:
@@ -95,16 +93,17 @@ specify luke.prepare:
       expect(L.write).to_be(request.write)
       expect(L.spawn).to_be(request.spawn)
   - it selects every module without targets, or for all: |
-      expect(names(prepare.prepare(recipe(), mkrequest {}))).to_equal(list('a', 'b'))
-      expect(names(prepare.prepare(recipe(), mkrequest {targets = {'all'}}))).to_equal(list('a', 'b'))
+      expect(plain(names(prepare.prepare(recipe(), mkrequest {})))).to_equal(list('a', 'b'))
+      expect(plain(names(prepare.prepare(recipe(), mkrequest {targets = {'all'}})))).to_equal(list('a', 'b'))
   - it selects the modules that the targets name: |
-      expect(names(prepare.prepare(recipe(), mkrequest {targets = {'b'}}))).to_equal(list('b'))
+      expect(plain(names(prepare.prepare(recipe(), mkrequest {targets = {'b'}})))).to_equal(list('b'))
   - it installs the selected modules, or all of them for install alone: |
-      expect(#prepare.prepare(recipe(), mkrequest {targets = {'a', 'install'}}).install).to_be(1)
-      expect(#prepare.prepare(recipe(), mkrequest {targets = {'install'}}).install).to_be(2)
+      size = require 'std.prototype.orderedmap'.size
+      expect(size(prepare.prepare(recipe(), mkrequest {targets = {'a', 'install'}}).install)).to_be(1)
+      expect(size(prepare.prepare(recipe(), mkrequest {targets = {'install'}}).install)).to_be(2)
   - it builds everything for a release, whatever the targets: |
       L = prepare.prepare(recipe(), mkrequest {targets = {'release'}, release = '2.0'})
-      expect(names(L)).to_equal(list('a', 'b'))
+      expect(plain(names(L))).to_equal(list('a', 'b'))
       expect(L.release).to_be '2.0'
   - it diagnoses a target that it has no rule for: |
       r, err = protected(prepare.prepare, recipe(), mkrequest {targets = {'zzz'}})

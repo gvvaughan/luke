@@ -7,10 +7,10 @@ local _base = require 'luke._base'
 local _compile = require 'luke.compile'
 local _configure = require 'luke.configure'
 local _environment = require 'luke.environment'
-local _functional = require 'luke.functional'
 local _lukefile = require 'luke.lukefile'
 local _std = require 'std.functional.init'
-local _context = require 'type.context-manager'
+local _context = require 'std.prototype.contextmanager'
+local _ordered = require 'std.prototype.orderedmap'
 local _path = require 'type.path'
 
 local _ENV = require 'std.normalize' {
@@ -34,7 +34,6 @@ local _ENV = require 'std.normalize' {
    interpolate = _environment.interpolate,
    mkenv = _environment.mkenv,
    shellword = _environment.shellword,
-   append = _functional.append,
    bind = _std.bind,
    call = _std.call,
    choose = _std.choose,
@@ -48,6 +47,7 @@ local _ENV = require 'std.normalize' {
    foldl = _std.foldl,
    id = _std.id,
    isempty = _std.isempty,
+   iter = _std.iter,
    isnonzero = _std.isnonzero,
    isstring = _std.isstring,
    istable = _std.istable,
@@ -58,9 +58,9 @@ local _ENV = require 'std.normalize' {
    sorted = _std.sorted,
    tabulate = _std.tabulate,
    values = _std.values,
-   destructure = next,
-   ordered_get = _functional.ordered_get,
-   ordered_keys = _functional.ordered_keys,
+   OrderedMap = _ordered.prototype,
+   elems = _ordered.elems,
+   ordered = _ordered,
    branches = _lukefile.branches,
    File = _context.File,
    slurp = _context.slurp,
@@ -253,11 +253,10 @@ end
 
 
 -- *text*, with every occurrence of each find string in the ordered map
--- *pairs* replaced, in the order written, as plain text rather than as
--- a pattern, by its replacement, filled from *substitute*.
-local function replace(text, substitute, pairs)
-   return foldl(pairs, text, function(r, pair)
-      local find, replacement = destructure(pair)
+-- *replacements* replaced, in the order written, as plain text rather
+-- than as a pattern, by its replacement, filled from *substitute*.
+local function replace(text, substitute, replacements)
+   return foldl(iter(elems(replacements)), text, function(r, find, replacement)
       return (gsub(r, (gsub(find, '%p', '%%%0')), (gsub(expand(substitute, replacement), '%%', '%%%%'))))
    end)
 end
@@ -288,13 +287,12 @@ local function copy_command(source, worktree, path, optional)
 end
 
 
--- The steps for publishing each of *copies*, from a branch table in the
--- lukefile `release` table, in the order written, to the *worktree* of
--- that branch: copy its source there. A template is filled in place
--- without its '.in' suffix.  Then run its `command`, if any, there.
-local function publish_steps(L, env, substitute, worktree, copies)
-   return compact(flatten(pack(map(copies, function(pair)
-      local path, copy = destructure(pair)
+-- The steps for publishing each of the `copies` of *branch*, from a branch
+-- table in the lukefile `release` table, in the order written, to the
+-- *worktree* of that branch: copy its source there. A template is filled
+-- in place without its '.in' suffix.  Then run its `command`, if any, there.
+local function publish_steps(L, env, substitute, worktree, branch)
+   return compact(flatten(pack(map(iter(elems(branch.copies)), function(path, copy)
       local source, optional = copy.source, copy.optional
       local dest = worktree .. '/' .. path
       local template = match(source, '%.in$') ~= nil
@@ -307,7 +305,7 @@ local function publish_steps(L, env, substitute, worktree, copies)
                (gsub(dest, '%.in$', ''))})
          end)
       )))
-   end), copies.command and bind(run, {L, env, {'cd', worktree, '&&', copies.command}}))))
+   end), branch.command and bind(run, {L, env, {'cd', worktree, '&&', branch.command}}))))
 end
 
 
@@ -362,8 +360,7 @@ end
 -- The checks that each file that *release* replaces text in exists, and
 -- has each text to replace, filled from *substitute*.
 local function replacement_checks(release, substitute)
-   return flatmap(release.replacements or {}, function(entry)
-      local path, pairs = destructure(entry)
+   return flatmap(iter(elems(release.replacements or OrderedMap {})), function(path, replacements)
       local checks = {
          {format('%s exists', path), function()
             return exists(path)
@@ -371,12 +368,13 @@ local function replacement_checks(release, substitute)
       }
       -- Each find string is looked for in the text that the
       -- replacements before it leave.
-      for i = 1, len(pairs) do
-         local text, earlier = destructure(pairs[i]), pack(unpack(pairs, 1, i - 1))
-         append(checks, {format("%s contains '%s'", path, text), function()
+      local finds = ordered.keys(replacements)
+      for i = 1, finds.n do
+         local text, earlier = finds[i], ordered.pluck(replacements, {unpack(finds, 1, i - 1)})
+         checks[#checks + 1] = {format("%s contains '%s'", path, text), function()
             local content = slurp(File(path))
             return content ~= nil and find(replace(content, substitute, earlier), text, 1, true) ~= nil
-         end})
+         end}
       end
       return checks
    end)
@@ -386,12 +384,12 @@ end
 -- The checks that each branch that *release* publishes to can be updated.
 local function branch_checks(env, release)
    return flatmap(branches(release), function(pages)
-      local copies = release[pages]
+      local copies = release[pages].copies
       -- TODO: the source of a copy under another name is not checked,
       -- as the build may make it, so a missing one fails only after the
       -- release is tagged.
-      local templates = map(filter(ordered_keys(copies), function(path)
-         return ordered_get(copies, path).optional and match(path, '%.in$') ~= nil
+      local templates = map(filter(ordered.keys(copies), function(path)
+         return copies[path].optional and match(path, '%.in$') ~= nil
       end), function(template)
          return {format('%s or the release has %s', pages, template), function()
             return exists(template) or git(env, format('cat-file -e origin/%s:%s', pages, template)) ~= nil
@@ -473,7 +471,9 @@ local function undo_commands(checks)
       local _, predicate, undo = unpack(check)
       return undo ~= nil and not predicate()
    end), {}, function(r, check)
-      choose(not contains(r, check[3]), bind(append, {r, check[3]}))
+      choose(not contains(r, check[3]), function()
+         r[#r + 1] = check[3]
+      end)
    end)
 end
 
@@ -483,16 +483,15 @@ end
 -- module filled from a template, and then the target of each generated
 -- file.
 local function generated(luke)
-   local templates = map(luke.modules or {}, function(pair)
-      local _, rules = destructure(pair)
+   local templates = map(iter(elems(luke.modules or OrderedMap {})), function(_, rules)
       return map(filter(rules.sources or {}, function(source)
          return match(source, '%.in$') ~= nil
       end), function(source)
          return (gsub(source, '%.in$', ''))
       end)
    end)
-   return flatten(pack(templates, map(ordered_keys(luke.files), function(name)
-      return script_target(name, ordered_get(luke.files, name))
+   return flatten(pack(templates, map(iter(elems(luke.files or OrderedMap {})), function(name, rules)
+      return script_target(name, rules)
    end)))
 end
 
@@ -506,7 +505,7 @@ local function ignoring(env, paths)
    local files = {}
    local listed = git(env, 'ls-files --others --ignored --exclude-standard --', unpack(map(paths, shellword)))
    for file in gmatch(listed or '', '[^\n]+') do
-      append(files, shellword(file))
+      files[#files + 1] = shellword(file)
    end
    local r = {}
    if not isempty(files) then
@@ -593,9 +592,8 @@ local function release_steps(L, env, build, docs, plan)
       },
       bind(run, {L, env, {'git checkout -b', branch}}),
       news and bind(edit, {L, news, remove_placeholder}),
-      map(rules.replacements or {}, function(entry)
-         local path, pairs = destructure(entry)
-         return bind(edit, {L, path, bind(replace, {[2]=plan.substitute, [3]=pairs})})
+      map(iter(elems(rules.replacements or OrderedMap {})), function(path, replacements)
+         return bind(edit, {L, path, bind(replace, {[2]=plan.substitute, [3]=replacements})})
       end),
       -- Without a rockspec to build from, the lukefile says how to build.
       isempty(rockspecs(rules)) and build or nil,

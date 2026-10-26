@@ -14,11 +14,11 @@
 local _base = require 'luke._base'
 local _compile = require 'luke.compile'
 local _environment = require 'luke.environment'
-local _functional = require 'luke.functional'
 local _lukefile = require 'luke.lukefile'
+local _ordered = require 'std.prototype.orderedmap'
 local _platforms = require 'luke.platforms'
 local _std = require 'std.functional.init'
-local _context = require 'type.context-manager'
+local _context = require 'std.prototype.contextmanager'
 
 local _ENV = require 'std.normalize' {
    'io.stderr',
@@ -30,9 +30,8 @@ local _ENV = require 'std.normalize' {
    diagnose = _base.diagnose,
    spawn = _compile.spawn,
    DEFAULTENV = _environment.DEFAULTENV,
-   ordered_get = _functional.ordered_get,
-   ordered_keys = _functional.ordered_keys,
-   ordered_pluck = _functional.ordered_pluck,
+   OrderedMap = _ordered.prototype,
+   ordered = _ordered,
    SCRIPT_SECTIONS = _lukefile.SCRIPT_SECTIONS,
    collect_variables = _lukefile.collect_variables,
    script_sections = _lukefile.script_sections,
@@ -96,11 +95,11 @@ end
 -- none, or `all` is one.
 local function selected_targets(targets, rulesets)
    if isempty(targets) or contains(targets, 'all') then
-      return reject(flatten(pack(targets, map(rulesets, ordered_keys))), 'all')
+      return reject(flatten(pack(targets, map(rulesets, ordered.keys))), 'all')
    end
    local unknown = reject(targets, function(target)
       return target == 'install' or some(rulesets, function(rules)
-         return ordered_get(rules, target) ~= nil
+         return rules[target] ~= nil
       end)
    end)
    diagnose(isempty(unknown), "no rule to make target '%s'", unknown[1])
@@ -112,7 +111,7 @@ end
 -- *named* targets names.
 local function script_entries(sections, named)
    return flatmap(SCRIPT_SECTIONS, function(section)
-      return map(ordered_keys(ordered_pluck(sections[section], named)), function(name)
+      return map(ordered.keys(ordered.pluck(sections[section], named)), function(name)
          return {name = name, section = section}
       end)
    end)
@@ -125,11 +124,12 @@ end
 -- installable script.
 local function installs(luke, installbin, build, named, targets)
    if not contains(targets, 'install') then
-      return nil, {}
+      return OrderedMap {}, {}
    end
    local everything = isempty(named)
-   return choose(everything, luke.modules, build),
-      choose(everything, ordered_keys(installbin), ordered_keys(ordered_pluck(installbin, named)))
+   -- An ordered map is callable, so `choose` would call it, as a branch.
+   return everything and luke.modules or build,
+      choose(everything, ordered.keys(installbin), ordered.keys(ordered.pluck(installbin, named)))
 end
 
 
@@ -194,11 +194,12 @@ local function prepare(recipe, request)
 
    local sections = script_sections(luke)
    local installbin = sections.install
-   local rulesets = {luke.modules or {}, sections.bin, sections.files, installbin}
+   luke.modules = luke.modules or OrderedMap {}
+   local rulesets = {luke.modules, sections.bin, sections.files, installbin}
    local targets = selected_targets(choose(release, {}, request.targets), rulesets)
 
    local named = reject(targets, 'install')
-   local build = ordered_pluck(luke.modules, named)
+   local build = ordered.pluck(luke.modules, named)
    local install, install_scripts = installs(luke, installbin, build, named, targets)
    local scripts = {build = script_entries(sections, named), install = install_scripts}
    luke.modules = build

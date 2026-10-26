@@ -1,0 +1,59 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before: |
+  ctest = require 'luke.ctest'
+
+  -- Does it quack like a context manager?
+  function iscontextmanager(x)
+     return not not (x.context and x.release and type(x.n) == 'number' and x.filename)
+  end
+
+  function exists(path)
+     local fh = io.open(path)
+     return fh ~= nil and fh:close()
+  end
+
+specify luke.ctest:
+- describe CTest:
+  - before:
+      CTest = ctest.CTest
+      cm = CTest()
+
+  - after:
+      cm:release()
+
+  - it returns a context manager instance:
+      expect(iscontextmanager(cm)).to_be(true)
+
+  - it has a filename ending in .c:
+      expect(cm.filename).to_match '%.c$'
+
+  - it has an objfile in the current directory, ending in .o:
+      expect(cm.objfile).to_be((cm.filename:gsub('^.*/', ''):gsub('%.c$', '.o')))
+
+- describe CTest release:
+  - before: |
+      CTest = ctest.CTest
+
+      function probe(keep)
+         local cm = CTest(keep)
+         local filename, objfile = cm.filename, cm.objfile
+         cm:write 'int x;\n'
+         io.open(objfile, 'w'):close()
+         cm:release()
+         return filename, objfile
+      end
+
+  - it removes the source and object files:
+      filename, objfile = probe()
+      expect(exists(filename)).to_be(false)
+      expect(exists(objfile)).to_be(false)
+
+  - it keeps the source and object files when asked:
+      filename, objfile = probe(true)
+      expect(exists(filename)).to_be(true)
+      expect(exists(objfile)).to_be(true)
+      os.remove(filename)
+      os.remove(objfile)
+      os.remove((filename:gsub('%.c$', '')))

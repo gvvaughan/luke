@@ -4,7 +4,6 @@
 ]]
 
 local _base = require 'luke._base'
-local _functional = require 'luke.functional'
 local _lukefile = require 'luke.lukefile'
 local _prepare = require 'luke.prepare'
 local _version = require 'luke.version'
@@ -18,7 +17,6 @@ local _ENV = require 'std.normalize' {
    diagnose = _base.diagnose,
    fatal = _base.fatal,
    message = _base.message,
-   append = _functional.append,
    loadluke = _lukefile.loadluke,
    mkrequest = _prepare.mkrequest,
    prepare = _prepare.prepare,
@@ -135,7 +133,7 @@ local function parse_arguments(args)
          end},
 
          {'%-%-value=(.+)', function(optarg)
-            append(r.valreqs, optarg)
+            r.valreqs[#r.valreqs + 1] = optarg
          end},
 
          ['--quiet'] = function()
@@ -158,7 +156,7 @@ local function parse_arguments(args)
             if match(opt, '^-') ~= nil then
                opterr("unrecognized option '%s'", opt)
             end
-            append(r.targets, opt)
+            r.targets[#r.targets + 1] = opt
          end,
       })
    end)
