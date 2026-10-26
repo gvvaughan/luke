@@ -103,7 +103,7 @@ end
 test_dependencies = {
    'ansicolors',
    'luacov',
-   'specl >= 16',
+   'specl >= 16.1',
 }
 
 test = {

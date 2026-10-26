@@ -48,9 +48,7 @@ end
 function capture(fn, ...)
    return require 'specl.inprocess'.capture(function(fn, ...)
       require 'luke.strict':enforce()
-      -- TODO: drop the parentheses once Specl runs on std.normalize 3;
-      -- until then, Specl's getfenv returns an extra nil on Lua 5.1.
-      setfenv(fn, (getfenv(1)))
+      setfenv(fn, getfenv(1))
       return fn(...)
    end, {fn, ...})
 end
