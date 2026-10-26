@@ -134,30 +134,20 @@ return setmetatable({
    -- @string version release version identifier
 
 
-   --- Enforce strict declarations in luke.normalize, and in every module
-   -- environment it sets up.
+   --- Enforce strict declarations in every module environment that
+   -- std.normalize sets up.
    --
-   -- Only for running luke from its source tree: this module is not in
-   -- lib_SOURCES, so the smushed build-aux/luke has no trace of it.
-   -- Call this before anything loads luke.normalize, to make its own
-   -- environment strict too.  Specl examples keep a private copy of
-   -- `package`, so there only the environments it sets up are strict.
-   -- Safe to call more than once.
+   -- Only for running luke from its source tree: this module is not
+   -- bundled, so the smushed build-aux/luke has no trace of it.  Specl
+   -- examples keep a private copy of `package`, so there the hook is
+   -- made afresh for each.  Safe to call more than once.
    -- @function enforce
    -- @usage
    --   require 'luke.strict':enforce()
    enforce = function(self)
-      -- luke.normalize sets up every other module environment, but not
-      -- its own, so load it in a strict environment here.
-      local libdir = debug_getinfo(1, 'S').source:match '^@(.-)strict%.lua$'
-      package.preload['luke.normalize'] = function(modname)
-         local env = self.strict(setmetatable({}, {__index = _G}))
-         local chunk = assert(loadfile(libdir .. 'normalize.lua', 't', env))
-         setfenv(chunk, env)
-         return chunk(modname)
-      end
-
-      local mt = getmetatable(require 'luke.normalize')
+      -- Hook the call that sets up every module environment, so that
+      -- each is strict.
+      local mt = getmetatable(require 'std.normalize')
       if not rawget(mt, '_strict') then
          local __call = mt.__call
          mt.__call = function(normalize, env, level)

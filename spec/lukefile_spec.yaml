@@ -8,6 +8,9 @@ before: |
   -- A fresh luke.lukefile, with luke.configure's `configure` put back
   -- as it was loaded, and a logger that records what it is told.
   function setup()
+     -- Modules stay loaded between examples, so load the ones that luke.lukefile
+     -- imports before faking `fatal`, or they keep the fake for good.
+     require 'luke.schema'
      replace(require 'luke._base', 'fatal', Stub())
      replace(require 'luke.environment'.CONFIGENV, 'libs', '')
      local lukefile = reload 'luke.lukefile'

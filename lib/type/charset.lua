@@ -3,7 +3,12 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {}
+local _std = require 'std.functional.init'
+
+local _ENV = require 'std.normalize' {
+   'string.sub',
+   merged = _std.merged,
+}
 
 local mt; mt = {
    __call = function(self, x)
@@ -11,7 +16,7 @@ local mt; mt = {
    end,
 
    __concat = function(a, b)
-      local r = copy(a)
+      local r = merged(a)
       for k in next, b do
          r[k] = true
       end

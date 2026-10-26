@@ -17,7 +17,16 @@ require 'luke.strict':enforce()
 -- it copies the current fields of every module it imports.
 function reload(modname)
    local filename = assert(package.searchpath(modname, package.path))
-   return assert(loadfile(filename))(modname)
+   -- Run it in the environment of the example, so that its `require` is
+   -- the example's too, and leaves no module behind for the next one.
+   local chunk
+   if _VERSION == 'Lua 5.1' then
+      chunk = assert(loadfile(filename))
+      setfenv(chunk, getfenv(1))
+   else
+      chunk = assert(loadfile(filename, 't', _ENV))
+   end
+   return chunk(modname)
 end
 
 

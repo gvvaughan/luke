@@ -3,10 +3,20 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {
-   'luke._base',
-   'luke.platforms',
-   'luke.functional',
+local _base = require 'luke._base'
+local _platforms = require 'luke.platforms'
+local _std = require 'std.functional.init'
+
+local _ENV = require 'std.normalize' {
+   'os.getenv',
+   'string.gsub',
+   'string.match',
+   diagnose = _base.diagnose,
+   filter_platforms = _platforms.filter_platforms,
+   bind = _std.bind,
+   converge = _std.converge,
+   firstof = _std.firstof,
+   reject = _std.reject,
    LUA_VERSION = string.gsub(_VERSION, '[^0-9%.]+', ''),
    SHELLMETACHARS = '[%s%$"\'&;|<>()*?`\\]',
 }
@@ -91,7 +101,7 @@ return {
    -- turn, skipping nils, and remembers what it finds.  An environment
    -- among them is such a table too.
    mkenv = function(...)
-      local tables, found = reject(list(...), nil), {}
+      local tables, found = reject(pack(...), nil), {}
       return setmetatable({}, {
          __index = function(_, varname)
             if found[varname] == nil then

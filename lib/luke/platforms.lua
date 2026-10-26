@@ -3,28 +3,53 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {
-   'luke.functional',
+local _functional = require 'luke.functional'
+local _std = require 'std.functional.init'
+
+local _ENV = require 'std.normalize' {
+   'io.popen',
+   'string.match',
+   'string.sub',
+   get = _functional.get,
+   islistkey = _functional.islistkey,
+   istable = _functional.istable,
+   keys = _functional.keys,
+   set = _functional.set,
+   any = _std.any,
+   bind = _std.bind,
+   default = _std.default,
+   each = _std.each,
+   either = _std.either,
+   except = _std.except,
+   filter = _std.filter,
+   firstof = _std.firstof,
+   flatten = _std.flatten,
+   foldl = _std.foldl,
+   isempty = _std.isempty,
+   map = _std.map,
+   reject = _std.reject,
+   reversed = _std.reversed,
+   values = _std.values,
 }
 
 
 -- Platform with 'uname -s' output that matches a key in this dict will get all
 -- platforms subtables that match the associated list of generic platform names.
 local CANON = {
-   ['AIX']       = list('aix', 'unix'),
-   ['FreeBSD']   = list('freebsd', 'bsd', 'unix'),
-   ['OpenBSD']   = list('openbsd', 'bsd', 'unix'),
-   ['NetBSD']    = list('netbsd', 'bsd', 'unix'),
-   ['Darwin']    = list('macosx', 'bsd', 'unix'),
-   ['Linux']     = list('linux', 'unix'),
-   ['SunOS']     = list('solaris', 'unix'),
-   ['^CYGWIN']   = list('cygwin', 'unix'),
-   ['^MSYS']     = list('msys', 'cygwin', 'unix'),
-   ['^Windows']  = list('win32', 'windows'),
-   ['^MINGW']    = list('mingw32', 'win32', 'windows'),
-   ['^procnto']  = list('qnx'),
-   ['QNX']       = list('qnx'),
-   ['Haiku']     = list('haiku', 'unix'),
+   ['AIX']       = pack('aix', 'unix'),
+   ['FreeBSD']   = pack('freebsd', 'bsd', 'unix'),
+   ['OpenBSD']   = pack('openbsd', 'bsd', 'unix'),
+   ['NetBSD']    = pack('netbsd', 'bsd', 'unix'),
+   ['Darwin']    = pack('macosx', 'bsd', 'unix'),
+   ['Linux']     = pack('linux', 'unix'),
+   ['SunOS']     = pack('solaris', 'unix'),
+   ['^CYGWIN']   = pack('cygwin', 'unix'),
+   ['^MSYS']     = pack('msys', 'cygwin', 'unix'),
+   ['^Windows']  = pack('win32', 'windows'),
+   ['^MINGW']    = pack('mingw32', 'win32', 'windows'),
+   ['^procnto']  = pack('qnx'),
+   ['QNX']       = pack('qnx'),
+   ['Haiku']     = pack('haiku', 'unix'),
 }
 
 
@@ -54,7 +79,7 @@ end
 
 -- Anything else is a Unix.
 local function by_default()
-   return list('unix')
+   return pack('unix')
 end
 
 

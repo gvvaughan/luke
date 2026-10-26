@@ -3,8 +3,20 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
- local _ENV = require 'luke.normalize' {
-   'luke.functional',
+ local _functional = require 'luke.functional'
+local _std = require 'std.functional.init'
+
+local _ENV = require 'std.normalize' {
+   'io.close',
+   'io.open',
+   'io.popen',
+   'os.tmpname',
+   'string.gsub',
+   rm = 'os.remove',
+   apply = _functional.apply,
+   isfile = _functional.isfile,
+   pop = _functional.pop,
+   each = _std.each,
 }
 
 
@@ -46,15 +58,15 @@ end
 
 
 local function with(...)
-   local argu = list(...)
+   local argu = pack(...)
    local block = pop(argu)
-   local r = list(apply(block, argu))
+   local r = pack(apply(block, argu))
    each(argu, function(cm)
       if cm ~= nil then
          cm:release()
       end
    end)
-   return unpack(r)
+   return unpack(r, 1, r.n)
 end
 
 

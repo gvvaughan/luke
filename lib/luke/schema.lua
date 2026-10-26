@@ -3,12 +3,52 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {
-   'luke._base',
-   'luke.configure',
-   'luke.functional',
-   'luke.platforms',
-   'type.path',
+local _base = require 'luke._base'
+local _configure = require 'luke.configure'
+local _functional = require 'luke.functional'
+local _platforms = require 'luke.platforms'
+local _std = require 'std.functional.init'
+local _path = require 'type.path'
+
+local _ENV = require 'std.normalize' {
+   'string.gmatch',
+   'string.gsub',
+   'string.match',
+   'table.concat',
+   int = 'math.tointeger',
+   fatal = _base.fatal,
+   configure = _configure.configure,
+   isprobe = _configure.isprobe,
+   format = _functional.format,
+   destructure = _functional.destructure,
+   islistkey = _functional.islistkey,
+   isstring = _functional.isstring,
+   istable = _functional.istable,
+   keys = _functional.keys,
+   ordered_keys = _functional.ordered_keys,
+   ordered_merge = _functional.ordered_merge,
+   set = _functional.set,
+   sorted_keys = _functional.sorted_keys,
+   isplatform = _platforms.isplatform,
+   layers = _platforms.layers,
+   narrow_platforms = _platforms.narrow_platforms,
+   bind = _std.bind,
+   case = _std.case,
+   choose = _std.choose,
+   cond = _std.cond,
+   each = _std.each,
+   except = _std.except,
+   filter = _std.filter,
+   flatten = _std.flatten,
+   foldl = _std.foldl,
+   id = _std.id,
+   isempty = _std.isempty,
+   map = _std.map,
+   merged = _std.merged,
+   nop = _std.nop,
+   reject = _std.reject,
+   sorted = _std.sorted,
+   basename = _path.basename,
 }
 
 

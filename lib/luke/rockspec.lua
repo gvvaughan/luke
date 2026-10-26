@@ -14,10 +14,27 @@
  lukefile.  The request is made of the variables that LuaRocks passes.
 ]]
 
-local _ENV = require 'luke.normalize' {
-   'luke.functional',
-   'luke.lukefile',
-   'luke.prepare',
+local _functional = require 'luke.functional'
+local _lukefile = require 'luke.lukefile'
+local _prepare = require 'luke.prepare'
+local _std = require 'std.functional.init'
+
+local _ENV = require 'std.normalize' {
+   'string.gsub',
+   destructure = _functional.destructure,
+   keys = _functional.keys,
+   normalize = _lukefile.normalize,
+   mkrequest = _prepare.mkrequest,
+   bind = _std.bind,
+   choose = _std.choose,
+   contains = _std.contains,
+   except = _std.except,
+   flatmap = _std.flatmap,
+   flatten = _std.flatten,
+   map = _std.map,
+   merged = _std.merged,
+   sorted = _std.sorted,
+   tabulate = _std.tabulate,
 }
 
 
@@ -44,7 +61,7 @@ local INSTALLS = {
 -- The variables that LuaRocks makes for each of its `external_dependencies`
 -- *name*s, which luke has by the same names.
 local function dependency_variables(name)
-   return list(name .. '_BINDIR', name .. '_DIR', name .. '_INCDIR', name .. '_LIBDIR')
+   return pack(name .. '_BINDIR', name .. '_DIR', name .. '_INCDIR', name .. '_LIBDIR')
 end
 
 
@@ -95,7 +112,7 @@ end
 -- and the names of the rockspec's *externals*.
 local function settings_of(variables, externals)
    return merged(
-      tabulate(flatten(list(SAME, flatmap(sorted(externals), dependency_variables))), function(name)
+      tabulate(flatten(pack(SAME, flatmap(sorted(externals), dependency_variables))), function(name)
          return name, variables[name]
       end),
       tabulate(sorted(keys(INSTALLS)), function(name)
@@ -113,7 +130,7 @@ return {
       return recipe_of(rockspec), mkrequest {
          clidefs = settings_of(rockspec.variables, keys(rockspec.external_dependencies or {})),
          source  = rockspec.package .. '-' .. rockspec.version .. '.rockspec',
-         targets = choose(no_install, list('all'), list('all', 'install')),
+         targets = choose(no_install, pack('all'), pack('all', 'install')),
       }
    end,
 }

@@ -3,8 +3,13 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {
-   error = error,
+local _functional = require 'luke.functional'
+
+local _ENV = require 'std.normalize' {
+   'io.stderr',
+   'io.stdout',
+   'os.exit',
+   format = _functional.format,
 }
 
 -- The message *...*, formatted if it has more than the format.

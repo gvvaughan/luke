@@ -6,9 +6,18 @@
 -- What luke needs that std.functional does not have: the functions of
 -- std.functional.init, and these.
 
-local _ENV = require 'luke.normalize' {
-   'std.functional.init',
-   sf = require 'std.functional.init',
+local sf = require 'std.functional.init'
+
+local _ENV = require 'std.normalize' {
+   'string.gmatch',
+   'table.sort',
+   host_format = 'string.format',
+   int = 'math.tointeger',
+   compact = sf.compact,
+   each = sf.each,
+   foldl = sf.foldl,
+   merged = sf.merged,
+   reject = sf.reject,
    destructure = next,
    isfile = function(x) return io.type(x) == 'file' end,
 }
@@ -22,7 +31,7 @@ end
 
 -- Call *fn* with the items of the list *argu*, even trailing nils.
 local function apply(fn, argu)
-   return fn(unpack(argu))
+   return fn(unpack(argu, 1, argu.n or len(argu)))
 end
 
 
@@ -32,6 +41,73 @@ local function force(branch, ...)
       return branch(...)
    end
    return branch
+end
+
+
+-- Lua 5.1 formats only strings and numbers with `%s`, so convert every
+-- other `%s` argument with tostring first, as later Luas do.  This
+-- is a gap in std.normalize, whose string.format is the host's.
+local format = (function(f)
+   if pcall(f, '%s', nil) then
+      return f
+   end
+
+   return function(fmt, ...)
+      local argu, i = pack(...), 0
+      for conversion in gmatch(fmt, '%%[-+ #0]*%d*%.?%d*([%a%%])') do
+         if conversion ~= '%' then
+            i = i + 1
+            if conversion == 's' then
+               argu[i] = tostring(argu[i])
+            end
+         end
+      end
+      return f(fmt, unpack(argu, 1, argu.n))
+   end
+end)(host_format)
+
+
+-- Add *v* to the end of the list *seq*, which keeps its length in `n`.
+local function append(seq, v)
+   local n = (int(seq.n) or len(seq)) + 1
+   seq.n, seq[n] = n, v
+   return seq
+end
+
+
+-- Load the chunk *s*, to run in the environment *env*.
+local function loadenv(s, chunkname, env)
+   local chunk, err = load(s, chunkname)
+   if chunk ~= nil then
+      setfenv(chunk, env)
+   end
+   return chunk, err
+end
+
+
+-- The largest integer key of *iterable*.
+local function maxn(iterable)
+   local n = 0
+   for k in next, iterable or {} do
+      local i = int(k)
+      if i and i > n then
+         n = i
+      end
+   end
+   return n
+end
+
+
+-- Remove and return the last item of the list *seq*, which keeps its
+-- length in `n`.
+local function pop(seq)
+   local n = seq.n or len(seq)
+   local r = seq[n]
+   seq[n] = nil
+   if int(seq.n) and seq.n > 0 then
+      seq.n = seq.n - 1
+   end
+   return r
 end
 
 
@@ -58,6 +134,8 @@ end
 
 
 local extras = {
+   append = append,
+
    apply = apply,
 
    call = call,
@@ -89,7 +167,13 @@ local extras = {
       return type(x) == 'table'
    end,
 
+   format = format,
+
    keys = keys,
+
+   loadenv = loadenv,
+
+   maxn = maxn,
 
    -- The value paired with *key* in the list of one-pair tables *om*.
    ordered_get = function(om, key)
@@ -104,7 +188,7 @@ local extras = {
 
    -- The key of each pair in the list of one-pair tables *om*, in order.
    ordered_keys = function(om)
-      return foldl(om or {}, list(), function(r, pair)
+      return foldl(om or {}, pack(), function(r, pair)
          return append(r, (destructure(pair)))
       end)
    end,
@@ -123,7 +207,7 @@ local extras = {
    -- value of the last pair for that key.
    ordered_merge = function(...)
       local at = {}
-      return foldl(compact(list(...)), {}, function(r, pairs)
+      return foldl(compact(pack(...)), {}, function(r, pairs)
          foldl(pairs, r, function(r, pair)
             local k, v = destructure(pair)
             at[k] = at[k] or #r + 1
@@ -140,6 +224,8 @@ local extras = {
          return not wanted[(destructure(pair))]
       end)
    end,
+
+   pop = pop,
 
    set = set,
 

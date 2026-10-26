@@ -2,13 +2,13 @@
 # Copyright (C) 2014-2026 Gary V. Vaughan
 
 before: |
-  -- Make luke.normalize.popen answer `uname -s` with *uname* until the
+  -- Make std.normalize.io.popen answer `uname -s` with *uname* until the
   -- next `restore()`.  Examples see deep copies of any tables set up in
   -- `before`, so always fetch the shared module with `require`.
   function mock_uname(uname)
-     local normalize = require 'luke.normalize'
-     local popen = normalize.popen
-     replace(normalize, 'popen', function(prog, mode)
+     local nio = require 'std.normalize'.io
+     local popen = nio.popen
+     replace(nio, 'popen', function(prog, mode)
         if prog == 'uname -s' then
            return {read = function() return uname end}
         end
@@ -29,16 +29,16 @@ specify luke.platforms:
 - describe mock_uname:
   - it answers uname -s with the given name:
       mock_uname 'QNX'
-      expect(require 'luke.normalize'.popen('uname -s'):read '*l').to_be 'QNX'
+      expect(require 'std.normalize'.io.popen('uname -s'):read '*l').to_be 'QNX'
 
   - it passes other commands through:
       mock_uname 'QNX'
-      expect(require 'luke.normalize'.popen('echo hello'):read '*l').to_be 'hello'
+      expect(require 'std.normalize'.io.popen('echo hello'):read '*l').to_be 'hello'
 
   - it is undone by restore:
       mock_uname 'QNX'
       restore()
-      expect(require 'luke.normalize'.popen).to_be(io.popen)
+      expect(require 'std.normalize'.io.popen).to_be(io.popen)
 
 - describe platforms:
   - it is a non-empty list for the real system:

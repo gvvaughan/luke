@@ -3,14 +3,54 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {
-   'luke._base',
-   'luke.compile',
-   'luke.environment',
-   'luke.functional',
-   'type.context-manager',
-   'type.dict',
+local _base = require 'luke._base'
+local _compile = require 'luke.compile'
+local _environment = require 'luke.environment'
+local _functional = require 'luke.functional'
+local _std = require 'std.functional.init'
+local _context = require 'type.context-manager'
+local _dict = require 'type.dict'
 
+local _ENV = require 'std.normalize' {
+   'os.getenv',
+   'string.find',
+   'string.gmatch',
+   'string.gsub',
+   'string.sub',
+   'table.concat',
+   diagnose = _base.diagnose,
+   fatal = _base.fatal,
+   defines = _compile.defines,
+   incdirs = _compile.incdirs,
+   libdirs = _compile.libdirs,
+   spawn = _compile.spawn,
+   CONFIGENV = _environment.CONFIGENV,
+   interpolate = _environment.interpolate,
+   mkenv = _environment.mkenv,
+   format = _functional.format,
+   apply = _functional.apply,
+   call = _functional.call,
+   isfile = _functional.isfile,
+   istable = _functional.istable,
+   keys = _functional.keys,
+   bind = _std.bind,
+   case = _std.case,
+   choose = _std.choose,
+   compact = _std.compact,
+   cond = _std.cond,
+   each = _std.each,
+   firstof = _std.firstof,
+   flatten = _std.flatten,
+   isempty = _std.isempty,
+   map = _std.map,
+   merged = _std.merged,
+   some = _std.some,
+   CTest = _context.CTest,
+   File = _context.File,
+   TmpFile = _context.TmpFile,
+   slurp = _context.slurp,
+   with = _context.with,
+   OrderedDict = _dict.OrderedDict,
    CCPROGS = {'cc', 'gcc', 'clang'},
 }
 
@@ -71,7 +111,7 @@ end
 
 
 local function bindirs(...)
-   return map(compact(flatten(list(...))), function(v)
+   return map(compact(flatten(pack(...))), function(v)
       return v .. ':'
    end)
 end
@@ -81,7 +121,7 @@ end
 -- cannot see the results of earlier probes, and a probe among them is
 -- passed to `defines` unresolved.
 local function compile_command(L, env, config, objfile, filename)
-   local command = compact(flatten(list(
+   local command = compact(flatten(pack(
       '$CC', '-c', '$CFLAGS',
       defines(L.luke.defines),
       incdirs(config.incdir),
@@ -95,7 +135,7 @@ end
 
 
 local function link_command(L, env, config, a_out, source, lib)
-   local command = compact(flatten(list(
+   local command = compact(flatten(pack(
       '$CC', '$CFLAGS',
       defines(L.luke.defines),
       incdirs(config.incdir),
@@ -334,7 +374,7 @@ local configure = setmetatable(OrderedDict({
 
       -- Look for required symbol in libc, and then each of `libraries`.
       local libraries, symbol = config.libraries, config.checksymbol
-      local trylibs = flatten(list('', map(libraries, function(lib)
+      local trylibs = flatten(pack('', map(libraries, function(lib)
          return '-l' .. lib
       end)))
       return firstof(trylibs, function(lib)
@@ -379,7 +419,7 @@ local configure = setmetatable(OrderedDict({
          ['table'] = function()
             return diagnose(firstof(self, function(fname)
                if config[fname] ~= nil then
-                  return apply(self[fname], list(L, env, merged(config, external_dirs(env, prefix))))
+                  return apply(self[fname], pack(L, env, merged(config, external_dirs(env, prefix))))
                end
             end), "unable to configure with keys '%s'", concat(keys(config), "', '"))
          end,

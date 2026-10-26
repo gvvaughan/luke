@@ -3,15 +3,68 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {
-   'luke._base',
-   'luke.configure',
-   'luke.environment',
-   'luke.platforms',
-   'luke.functional',
-   'luke.schema',
-   'type.context-manager',
-   'type.path',
+local _configure = require 'luke.configure'
+local _environment = require 'luke.environment'
+local _functional = require 'luke.functional'
+local _platforms = require 'luke.platforms'
+local _schema = require 'luke.schema'
+local _std = require 'std.functional.init'
+local _context = require 'type.context-manager'
+
+local _ENV = require 'std.normalize' {
+   'io.lines',
+   'string.match',
+   configure = _configure.configure,
+   isprobe = _configure.isprobe,
+   expand = _environment.expand,
+   format = _functional.format,
+   destructure = _functional.destructure,
+   istable = _functional.istable,
+   keys = _functional.keys,
+   loadenv = _functional.loadenv,
+   ordered_get = _functional.ordered_get,
+   ordered_keys = _functional.ordered_keys,
+   ordered_mapvalues = _functional.ordered_mapvalues,
+   sorted_keys = _functional.sorted_keys,
+   narrow_platforms = _platforms.narrow_platforms,
+   ORDERED = _schema.ORDERED,
+   bad = _schema.bad,
+   copies = _schema.copies,
+   defines = _schema.defines,
+   dependencies = _schema.dependencies,
+   fields = _schema.fields,
+   files = _schema.files,
+   index = _schema.index,
+   keypaths = _schema.keypaths,
+   listof = _schema.listof,
+   luke_format = _schema.luke_format,
+   mkcheck = _schema.mkcheck,
+   ordered_map = _schema.ordered_map,
+   pairof = _schema.pairof,
+   pathname = _schema.pathname,
+   rules = _schema.rules,
+   scripts = _schema.scripts,
+   bind = _std.bind,
+   case = _std.case,
+   compact = _std.compact,
+   cond = _std.cond,
+   each = _std.each,
+   either = _std.either,
+   except = _std.except,
+   filter = _std.filter,
+   flatmap = _std.flatmap,
+   flatten = _std.flatten,
+   id = _std.id,
+   indexof = _std.indexof,
+   isempty = _std.isempty,
+   map = _std.map,
+   mapvalues = _std.mapvalues,
+   merged = _std.merged,
+   merged = _std.merged,
+   sorted = _std.sorted,
+   File = _context.File,
+   slurp = _context.slurp,
+   with = _context.with,
 }
 
 
@@ -222,7 +275,7 @@ local function pluralize(config)
    each(keys(PLURALS), function(singular)
       if config[singular] ~= nil then
          local plural = PLURALS[singular]
-         r[plural] = compact(flatten(list(config[singular], config[plural])))
+         r[plural] = compact(flatten(pack(config[singular], config[plural])))
       end
    end)
    return r
@@ -249,7 +302,7 @@ end
 
 -- The list *existing* followed by *items*, or nil if there are none.
 local function extend(existing, items)
-   return either(compact(flatten(list(existing, items))), nil)
+   return either(compact(flatten(pack(existing, items))), nil)
 end
 
 
@@ -294,7 +347,7 @@ return {
          return nil, err
       end
       local r = {}
-      local chunk, err = loadstring(content, filename, r)
+      local chunk, err = loadenv(content, filename, r)
       if chunk == nil then
          return nil, "Error loading file: " .. err
       end
@@ -363,7 +416,7 @@ return {
          return merged(rules, {sources = map(rules.sources, rewrite)})
       end
 
-      local r = copy(luke)
+      local r = merged(luke)
       r.modules = ordered_mapvalues(r.modules, rewritten)
       if r.ldocs then
          r.ldocs = rewritten(r.ldocs)

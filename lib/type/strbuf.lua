@@ -3,8 +3,11 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {
-   'luke.functional',
+local _std = require 'std.functional.init'
+
+local _ENV = require 'std.normalize' {
+   'table.concat',
+   map = _std.map,
 }
 
 local function __concat(self, x)
@@ -25,7 +28,7 @@ local mt = {
    end,
 
    __tostring = function(self)
-      return concat(map(self, str))
+      return concat(map(self, tostring))
    end,
 }
 

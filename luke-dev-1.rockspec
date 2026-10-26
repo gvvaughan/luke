@@ -49,7 +49,6 @@ local bundled = {
    'lib/luke/functional.lua',
    'lib/luke/init.lua',
    'lib/luke/lukefile.lua',
-   'lib/luke/normalize.lua',
    'lib/luke/platforms.lua',
    'lib/luke/prepare.lua',
    'lib/luke/release.lua',

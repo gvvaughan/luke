@@ -2,6 +2,13 @@
 
 ## Noteworthy changes in release ?.? (????-??-??) [?]
 
+### Bugs fixed:
+
+  - luke and smush run on the `std.normalize` and `std.functional` that
+    they bundle, instead of a `luke.normalize` and copies of functions of
+    their own, so they behave as every other project that uses them
+    does, and import only the names that they use.
+
 
 ## Noteworthy changes in release 0.7 (2026-10-25) [stable]
 

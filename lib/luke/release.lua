@@ -3,16 +3,72 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {
-   'luke._base',
-   'luke.compile',
-   'luke.configure',
-   'luke.environment',
-   'luke.functional',
-   'luke.lukefile',
-   'type.context-manager',
-   'type.path',
+local _base = require 'luke._base'
+local _compile = require 'luke.compile'
+local _configure = require 'luke.configure'
+local _environment = require 'luke.environment'
+local _functional = require 'luke.functional'
+local _lukefile = require 'luke.lukefile'
+local _std = require 'std.functional.init'
+local _context = require 'type.context-manager'
+local _path = require 'type.path'
 
+local _ENV = require 'std.normalize' {
+   'io.stderr',
+   'os.tmpname',
+   'string.find',
+   'string.gmatch',
+   'string.gsub',
+   'string.match',
+   'string.sub',
+   'table.concat',
+   rm = 'os.remove',
+   fatal = _base.fatal,
+   run = _compile.run,
+   script_target = _compile.script_target,
+   spawn = _compile.spawn,
+   configure = _configure.configure,
+   SHELLENV = _environment.SHELLENV,
+   expand = _environment.expand,
+   interpolate = _environment.interpolate,
+   mkenv = _environment.mkenv,
+   shellword = _environment.shellword,
+   format = _functional.format,
+   append = _functional.append,
+   call = _functional.call,
+   destructure = _functional.destructure,
+   isnonzero = _functional.isnonzero,
+   isstring = _functional.isstring,
+   istable = _functional.istable,
+   keys = _functional.keys,
+   loadenv = _functional.loadenv,
+   ordered_get = _functional.ordered_get,
+   ordered_keys = _functional.ordered_keys,
+   branches = _lukefile.branches,
+   bind = _std.bind,
+   choose = _std.choose,
+   compact = _std.compact,
+   contains = _std.contains,
+   each = _std.each,
+   filter = _std.filter,
+   firstof = _std.firstof,
+   flatmap = _std.flatmap,
+   flatten = _std.flatten,
+   foldl = _std.foldl,
+   id = _std.id,
+   isempty = _std.isempty,
+   map = _std.map,
+   merged = _std.merged,
+   reject = _std.reject,
+   sorted = _std.sorted,
+   tabulate = _std.tabulate,
+   values = _std.values,
+   File = _context.File,
+   slurp = _context.slurp,
+   with = _context.with,
+   basename = _path.basename,
+   dirname = _path.dirname,
+   exists = _path.exists,
    date = os.date,
 }
 
@@ -133,7 +189,7 @@ end
 -- The variables that rockspec *text* sets, or else an empty table.
 local function rockspec_fields(text)
    local r = {}
-   local chunk = text and loadstring(text, 'rockspec', r)
+   local chunk = text and loadenv(text, 'rockspec', r)
    if chunk == nil or not pcall(chunk) then
       return {}
    end
@@ -149,7 +205,7 @@ local function announcement(package, version, news, rockspec, rocks)
    local fields = rockspec_fields(rockspec)
    local description = istable(fields.description) and fields.description or {}
    package = isstring(fields.package) and fields.package or package
-   local lines = compact(flatten(list(
+   local lines = compact(flatten(pack(
       isstring(description.summary) and {description.summary, ''} or {},
       format('I am happy to announce release %s of %s.', version, package), '',
       isstring(description.homepage) and {format("%s's home page is at %s", package, description.homepage), ''} or {},
@@ -238,12 +294,12 @@ end
 -- that branch: copy its source there. A template is filled in place
 -- without its '.in' suffix.  Then run its `command`, if any, there.
 local function publish_steps(L, env, substitute, worktree, copies)
-   return compact(flatten(list(map(copies, function(pair)
+   return compact(flatten(pack(map(copies, function(pair)
       local path, copy = destructure(pair)
       local source, optional = copy.source, copy.optional
       local dest = worktree .. '/' .. path
       local template = match(source, '%.in$') ~= nil
-      return compact(flatten(list(
+      return compact(flatten(pack(
          choose(optional or not template, function()
             return bind(run, {L, env, {copy_command(source, worktree, path, optional)}})
          end),
@@ -317,7 +373,7 @@ local function replacement_checks(release, substitute)
       -- Each find string is looked for in the text that the
       -- replacements before it leave.
       for i = 1, len(pairs) do
-         local text, earlier = destructure(pairs[i]), list(unpack(pairs, 1, i - 1))
+         local text, earlier = destructure(pairs[i]), pack(unpack(pairs, 1, i - 1))
          append(checks, {format("%s contains '%s'", path, text), function()
             local content = slurp(File(path))
             return content ~= nil and find(replace(content, substitute, earlier), text, 1, true) ~= nil
@@ -369,7 +425,7 @@ end
 local function rockspec_checks(env, release)
    return flatmap(rockspecs(release), function(name)
       local rockspec = slurp(File(name))
-      return reject(list(
+      return reject(pack(
          {format('%s is a development rockspec', name), function()
             return match(name, DEVROCKSPEC) ~= nil
          end},
@@ -400,7 +456,7 @@ end
 
 
 local function preconditions(env, release, tag, branch, version, main, substitute, ldocs)
-   return flatmap(list(
+   return flatmap(pack(
       repository_checks(env, tag, branch, main),
       news_checks(release, version),
       replacement_checks(release, substitute),
@@ -436,7 +492,7 @@ local function generated(luke)
          return (gsub(source, '%.in$', ''))
       end)
    end)
-   return flatten(list(templates, map(ordered_keys(luke.files), function(name)
+   return flatten(pack(templates, map(ordered_keys(luke.files), function(name)
       return script_target(name, ordered_get(luke.files, name))
    end)))
 end
@@ -519,7 +575,7 @@ local function make_rock(L, env, rockspec)
    end)), function(name)
       return shellword(format('%s=%s', name, L.clidefs[name]))
    end)
-   return bind(run, {L, env, flatten(list(
+   return bind(run, {L, env, flatten(pack(
       format('%s make --no-install', env.LUAROCKS or 'luarocks'), shellword(rockspec), settings
    ))})
 end
@@ -531,7 +587,7 @@ local function release_steps(L, env, build, docs, plan)
    local tagname, branch = plan.tag, plan.branch
    -- TODO: before branching, rename any PACKAGE-git-1.rockspec to
    -- PACKAGE-dev-1.rockspec, setting its _MODREV from 'git' to 'dev'.
-   return compact(flatten(list(
+   return compact(flatten(pack(
       news and {
          bind(edit, {L, news, bind(add_release_header, {[2]=version, [3]=plan.today})}),
          bind(run, {L, env, {'git commit', format("-m 'maint: update NEWS.md for %s.'", version), news}}),
@@ -585,7 +641,7 @@ end
 -- announcing it as *package*.
 local function ready_message(L, env, plan, package)
    local version, main, released = plan.version, plan.main, plan.released
-   local pushed = compact(flatten(list(main, plan.branch, plan.tag, plan.pages)))
+   local pushed = compact(flatten(pack(main, plan.branch, plan.tag, plan.pages)))
    L.write(format('\nRelease %s is ready.  To publish it:\n\n   git push origin %s\n',
       plan.tag, concat(pushed, ' ')))
    -- GH=true skips announcing the release on GitHub.
@@ -673,7 +729,7 @@ return {
       end)
       local plan = {
          version = version, tag = tag, branch = branch, main = main, rules = rules, today = today, notes = notes,
-         added = compact(flatten(list(rules.add, generated(L.luke), released))), released = released,
+         added = compact(flatten(pack(rules.add, generated(L.luke), released))), released = released,
          pages = pages, worktrees = worktrees, substitute = substitute,
       }
 

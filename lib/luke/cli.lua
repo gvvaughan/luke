@@ -3,20 +3,35 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {
-   'luke._base',
-   'luke.compile',
-   'luke.environment',
-   'luke.lukefile',
-   'luke.functional',
-   'luke.prepare',
-   'luke.version',
-   'type.context-manager',
+local _base = require 'luke._base'
+local _functional = require 'luke.functional'
+local _lukefile = require 'luke.lukefile'
+local _prepare = require 'luke.prepare'
+local _version = require 'luke.version'
+local _std = require 'std.functional.init'
+
+local _ENV = require 'std.normalize' {
+   'io.stderr',
+   'os.exit',
+   'string.gsub',
+   'string.match',
+   diagnose = _base.diagnose,
+   fatal = _base.fatal,
+   message = _base.message,
+   append = _functional.append,
+   loadluke = _lukefile.loadluke,
+   mkrequest = _prepare.mkrequest,
+   prepare = _prepare.prepare,
+   case = _std.case,
+   contains = _std.contains,
+   each = _std.each,
+   merged = _std.merged,
+   nop = _std.nop,
 }
 
 
 local function version()
-   print(versiontext)
+   print(_version.versiontext)
    exit(0)
 end
 

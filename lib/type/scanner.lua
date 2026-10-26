@@ -3,7 +3,11 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {}
+
+local _ENV = require 'std.normalize' {
+   'string.sub',
+   int = 'math.tointeger',
+}
 
 local methods = {
    eof = function(self)
@@ -34,7 +38,7 @@ local mt = {
    __index = function(self, name)
       local i = int(name)
       if i then
-         return sub(str(self), i, i)
+         return sub(tostring(self), i, i)
       end
       return methods[name]
    end,

@@ -490,9 +490,9 @@ specify luke.release:
           spawned[deps_command()] = list(1, 'Error: Could not satisfy dependency std.prototype >= 2',
              MISSING .. '\ndemo dev-1 depends on std.prototype >= 2 (not installed)\n')
           written = {}
-          -- luke.release writes to the io.stderr that luke.normalize
+          -- luke.release writes to the io.stderr that std.normalize
           -- saved when it loaded.
-          replace(require 'luke.normalize', 'stderr', {write = function(self, ...)
+          replace(require 'std.normalize'.io, 'stderr', {write = function(self, ...)
              written[#written + 1] = table.concat {...}
           end})
           release, fatal = setup(spawned)

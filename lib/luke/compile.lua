@@ -3,12 +3,53 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {
-   'luke._base',
-   'luke.environment',
-   'luke.functional',
-   'type.context-manager',
-   'type.path',
+local _base = require 'luke._base'
+local _environment = require 'luke.environment'
+local _functional = require 'luke.functional'
+local _std = require 'std.functional.init'
+local _context = require 'type.context-manager'
+local _path = require 'type.path'
+
+local _ENV = require 'std.normalize' {
+   'io.stderr',
+   'io.stdout',
+   'string.gsub',
+   'string.match',
+   'table.concat',
+   int = 'math.tointeger',
+   fatal = _base.fatal,
+   interpolate = _environment.interpolate,
+   mkenv = _environment.mkenv,
+   shellword = _environment.shellword,
+   format = _functional.format,
+   call = _functional.call,
+   destructure = _functional.destructure,
+   isnonzero = _functional.isnonzero,
+   isstring = _functional.isstring,
+   istable = _functional.istable,
+   keys = _functional.keys,
+   ordered_get = _functional.ordered_get,
+   ordered_keys = _functional.ordered_keys,
+   ordered_merge = _functional.ordered_merge,
+   bind = _std.bind,
+   case = _std.case,
+   choose = _std.choose,
+   compact = _std.compact,
+   cond = _std.cond,
+   filter = _std.filter,
+   firstof = _std.firstof,
+   flatten = _std.flatten,
+   isempty = _std.isempty,
+   map = _std.map,
+   some = _std.some,
+   sorted = _std.sorted,
+   File = _context.File,
+   Pipe = _context.Pipe,
+   TmpFile = _context.TmpFile,
+   slurp = _context.slurp,
+   with = _context.with,
+   dirname = _path.dirname,
+   exists = _path.exists,
 }
 
 
@@ -67,7 +108,7 @@ end
 -- items of any lists among them.
 local function flagged(flag)
    return function(...)
-      return map(compact(flatten(list(...))), function(v)
+      return map(compact(flatten(pack(...))), function(v)
          return flag .. v
       end)
    end
@@ -163,7 +204,7 @@ end
 -- with *head*, with the defines, include and library directories, and
 -- libraries that the rules of *luke* and *rules* give.
 local function c_command(luke, rules, head, sources, output)
-   return compact(flatten(list(
+   return compact(flatten(pack(
       head,
       defines(luke.defines, rules.defines),
       incdirs(rules.incdirs, luke.incdirs),
@@ -184,7 +225,7 @@ end
 local function exports_for(env, rules)
    local names = sorted(keys(rules.env or {}))
    return choose(isempty(names), {}, function()
-      return compact(flatten(list('export', map(names, function(name)
+      return compact(flatten(pack('export', map(names, function(name)
          return format('%s=%s', name, shellword(interpolate(env, rules.env[name])))
       end), ';')))
    end)
@@ -245,7 +286,7 @@ return {
          -- Export env for the whole command, and let `$NAME` in the
          -- command itself expand to the same value.
          env = mkenv({sources = concat(sources, ' '), target = target}, rules.env, env)
-         return run(L, env, compact(flatten(list(exports_for(env, rules), rules.command))))
+         return run(L, env, compact(flatten(pack(exports_for(env, rules), rules.command))))
       end
 
       if not c_sources(sources) then
@@ -281,7 +322,7 @@ return {
       if isempty(names) then
          return 0
       end
-      return sequence(compact(flatten(list(
+      return sequence(compact(flatten(pack(
          bind(install_dir, {L, env, '$INST_BINDIR'}),
          map(names, function(name)
             return bind(install_script, {L, env, luke, name})

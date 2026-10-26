@@ -3,14 +3,36 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {
-   'luke.functional',
+local _functional = require 'luke.functional'
+local _std = require 'std.functional.init'
+local _context = require 'type.context-manager'
+
+local _ENV = require 'std.normalize' {
+   'io.stderr',
+   'io.write',
+   'os.exit',
    'package',
-   'type.context-manager',
+   'package.searchpath',
+   'string.char',
+   'string.find',
+   'string.gsub',
+   'string.match',
+   'string.rep',
+   'string.sub',
+   'table.concat',
+   int = 'math.tointeger',
+   format = _functional.format,
+   append = _functional.append,
+   keys = _functional.keys,
+   each = _std.each,
+   map = _std.map,
+   reject = _std.reject,
+   sorted = _std.sorted,
+   File = _context.File,
+   slurp = _context.slurp,
    Charset = require 'type.charset',
    Scanner = require 'type.scanner',
    StrBuf  = require 'type.strbuf',
-
    DIGIT = '1234567890',
    IDENT = '_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
    SPACE = ' \t\r\n',
@@ -52,7 +74,7 @@ local function comment(scanner, c)
       buf, c = buf .. c, scanner:advance()
    end
    scanner:advance(len(eos))
-   return {'COMMENT', str(buf .. eos), l}
+   return {'COMMENT', tostring(buf .. eos), l}
 end
 
 
@@ -61,7 +83,7 @@ local function identifier(scanner, c)
    while isidnum(c) do
       buf, c = buf .. c, scanner:advance()
    end
-   return {'IDENTIFIER', str(buf), l}
+   return {'IDENTIFIER', tostring(buf), l}
 end
 
 
@@ -85,7 +107,7 @@ local function longstring(scanner, c)
       buf, c = buf .. c, scanner:advance()	-- consume scanned char
    end
    scanner:advance(eqx + 2)			-- consume end-of-string
-   return {'STRING', str(buf .. eos), l}
+   return {'STRING', tostring(buf .. eos), l}
 end
 
 
@@ -94,7 +116,7 @@ local function number(scanner, c)
    while isdigit(c) do
       buf, c = buf .. c, scanner:advance()
    end
-   return {'INTEGER', tointeger(str(buf)), l}
+   return {'INTEGER', tointeger(tostring(buf)), l}
 end
 
 
@@ -116,7 +138,7 @@ local function shortstring(scanner, c)
       c = scanner:advance()			-- consume scanned char
    end
    scanner:advance()				-- consume closing quote
-   return {'STRING', str(buf .. upto), l}
+   return {'STRING', tostring(buf .. upto), l}
 end
 
 
@@ -125,7 +147,7 @@ local function whitespace(scanner, c)
    while isspace(c) do
       buf, c = buf .. c, scanner:advance()
    end
-   return {'WHITESPACE', str(buf), l}
+   return {'WHITESPACE', tostring(buf), l}
 end
 
 
@@ -186,7 +208,7 @@ end
 -- The file for an argument that is a module name rather than a path: find
 -- it in the Lua path, as `require` would.
 local function modfile(name)
-   local fname, err = searchpath(name, path)
+   local fname, err = searchpath(name, package.path)
    if fname == nil then
       stderr:write('smush: module ', name, ' not found:', err, '\n')
       exit(1)
@@ -262,7 +284,7 @@ local function minify(tokens)
       if needspace(prev, token[1]) then
          write(l < token[3] and '\n' or ' ')
       end
-      write(str(token[2]))
+      write(tostring(token[2]))
       prev, l = token[1], token[3]
    end)
 end
@@ -283,7 +305,7 @@ local function unbundled(tokens, known)
       if name and not optional then
          local found
          while name ~= nil and not known[name] do
-            found = found or (searchpath(name, path) and name)
+            found = found or (searchpath(name, package.path) and name)
             name = match(name, '^(.+)%.[^.]*$')
          end
          if name == nil and found then

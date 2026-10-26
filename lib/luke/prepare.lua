@@ -11,14 +11,45 @@
  which reads it from a rockspec.
 ]]
 
-local _ENV = require 'luke.normalize' {
-   'luke._base',
-   'luke.compile',
-   'luke.environment',
-   'luke.functional',
-   'luke.lukefile',
-   'luke.platforms',
-   'type.context-manager',
+local _base = require 'luke._base'
+local _compile = require 'luke.compile'
+local _environment = require 'luke.environment'
+local _functional = require 'luke.functional'
+local _lukefile = require 'luke.lukefile'
+local _platforms = require 'luke.platforms'
+local _std = require 'std.functional.init'
+local _context = require 'type.context-manager'
+
+local _ENV = require 'std.normalize' {
+   'io.stderr',
+   'io.stdout',
+   'string.gmatch',
+   'string.gsub',
+   'string.match',
+   'table.concat',
+   diagnose = _base.diagnose,
+   spawn = _compile.spawn,
+   DEFAULTENV = _environment.DEFAULTENV,
+   ordered_get = _functional.ordered_get,
+   ordered_keys = _functional.ordered_keys,
+   ordered_pluck = _functional.ordered_pluck,
+   SCRIPT_SECTIONS = _lukefile.SCRIPT_SECTIONS,
+   collect_variables = _lukefile.collect_variables,
+   script_sections = _lukefile.script_sections,
+   platforms = _platforms.platforms,
+   choose = _std.choose,
+   contains = _std.contains,
+   each = _std.each,
+   flatmap = _std.flatmap,
+   flatten = _std.flatten,
+   isempty = _std.isempty,
+   map = _std.map,
+   merged = _std.merged,
+   nop = _std.nop,
+   reject = _std.reject,
+   some = _std.some,
+   Pipe = _context.Pipe,
+   slurp = _context.slurp,
 }
 
 
@@ -28,7 +59,10 @@ end
 
 
 local function dump(...)
-   local s = concat(map(list(...), str))
+   -- Strings as they are, not as std.normalize's str escapes them.
+   local s = concat(map(pack(...), function(x)
+      return type(x) == 'string' and x or str(x)
+   end))
    if len(s) > 0 then
       -- Not gsub '\n*$', which matches again at the end in Lua 5.1.
       each(gmatch(match(s, '^(.-)\n*$') .. '\n', '(.-)\n'), function(line)
@@ -62,7 +96,7 @@ end
 -- none, or `all` is one.
 local function selected_targets(targets, rulesets)
    if isempty(targets) or contains(targets, 'all') then
-      return reject(flatten(list(targets, map(rulesets, ordered_keys))), 'all')
+      return reject(flatten(pack(targets, map(rulesets, ordered_keys))), 'all')
    end
    local unknown = reject(targets, function(target)
       return target == 'install' or some(rulesets, function(rules)
@@ -140,7 +174,7 @@ end
 -- Whether *recipe* has no rule for anything to make.
 local function nothing_to_build(recipe)
    local sections = script_sections(recipe)
-   return not some(list(recipe.modules, recipe.ldocs, sections.bin, sections.files, sections.install), function(rules)
+   return not some(pack(recipe.modules, recipe.ldocs, sections.bin, sections.files, sections.install), function(rules)
       return not isempty(rules or {})
    end)
 end

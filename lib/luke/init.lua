@@ -3,20 +3,58 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
-local _ENV = require 'luke.normalize' {
-   'luke.cli',
-   'luke.compile',
-   'luke.configure',
-   'luke.environment',
-   'luke.lukefile',
-   'luke.functional',
-   'luke.prepare',
-   'luke.release',
+local _cli = require 'luke.cli'
+local _compile = require 'luke.compile'
+local _configure = require 'luke.configure'
+local _environment = require 'luke.environment'
+local _functional = require 'luke.functional'
+local _lukefile = require 'luke.lukefile'
+local _prepare = require 'luke.prepare'
+local _release = require 'luke.release'
+local _std = require 'std.functional.init'
+
+local _ENV = require 'std.normalize' {
+   'os.exit',
+   commandline = _cli.commandline,
+   build_c_module = _compile.build_c_module,
+   build_program = _compile.build_program,
+   c_modules = _compile.c_modules,
+   c_program = _compile.c_program,
+   install_modules = _compile.install_modules,
+   install_scripts = _compile.install_scripts,
+   make_executable = _compile.make_executable,
+   run = _compile.run,
+   script_target = _compile.script_target,
+   sequence = _compile.sequence,
+   config_compiler = _configure.config_compiler,
+   config_ldoc = _configure.config_ldoc,
+   CONFIGENV = _environment.CONFIGENV,
+   DEFAULTENV = _environment.DEFAULTENV,
+   SHELLENV = _environment.SHELLENV,
+   interpolate = _environment.interpolate,
+   mkenv = _environment.mkenv,
+   format = _functional.format,
+   isstring = _functional.isstring,
+   ordered_get = _functional.ordered_get,
+   fill_template = _lukefile.fill_template,
+   run_configs = _lukefile.run_configs,
+   run_templates = _lukefile.run_templates,
+   script_sections = _lukefile.script_sections,
+   prepare = _prepare.prepare,
+   release = _release.release,
+   bind = _std.bind,
+   choose = _std.choose,
+   compact = _std.compact,
+   each = _std.each,
+   filter = _std.filter,
+   flatten = _std.flatten,
+   isempty = _std.isempty,
+   map = _std.map,
 }
 
 
 local function run_ldocs(L, env, ldocs)
-   return run(L, env, compact(flatten(list('$LDOC -c', ldocs.sources, '.'))))
+   return run(L, env, compact(flatten(pack('$LDOC -c', ldocs.sources, '.'))))
 end
 
 
@@ -87,7 +125,7 @@ local function build_modules(L, env, substitute, c_names)
       return 0
    end
    L.luke = run_templates(L, substitute, L.luke)
-   return sequence(compact(flatten(list(
+   return sequence(compact(flatten(pack(
       map(c_names, function(name)
          return bind(build_c_module, {L, env, L.luke, name})
       end),
