@@ -29,12 +29,12 @@ specify luke.cli:
   - it is not quiet by default:
       argt = parse_arguments {}
       expect(argt.quiet).to_be(false)
-      expect(argt.write).not_to_be(require 'luke.functional'.nop)
+      expect(argt.write).not_to_be(require 'std.functional.init'.nop)
 
   - it writes nothing with --quiet:
       argt = parse_arguments {'--quiet'}
       expect(argt.quiet).to_be(true)
-      expect(argt.write).to_be(require 'luke.functional'.nop)
+      expect(argt.write).to_be(require 'std.functional.init'.nop)
 
   - it asks for each --value in order:
       expect(parse_arguments({'--value=B', '--value=A'}).valreqs).to_equal(list('B', 'A'))

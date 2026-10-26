@@ -14,27 +14,26 @@
  lukefile.  The request is made of the variables that LuaRocks passes.
 ]]
 
-local _functional = require 'luke.functional'
 local _lukefile = require 'luke.lukefile'
 local _prepare = require 'luke.prepare'
 local _std = require 'std.functional.init'
 
 local _ENV = require 'std.normalize' {
    'string.gsub',
-   destructure = _functional.destructure,
-   keys = _functional.keys,
-   normalize = _lukefile.normalize,
-   mkrequest = _prepare.mkrequest,
+   destructure = next,
    bind = _std.bind,
    choose = _std.choose,
    contains = _std.contains,
    except = _std.except,
    flatmap = _std.flatmap,
    flatten = _std.flatten,
+   keys = _std.keys,
    map = _std.map,
    merged = _std.merged,
    sorted = _std.sorted,
    tabulate = _std.tabulate,
+   normalize = _lukefile.normalize,
+   mkrequest = _prepare.mkrequest,
 }
 
 
@@ -115,7 +114,7 @@ local function settings_of(variables, externals)
       tabulate(flatten(pack(SAME, flatmap(sorted(externals), dependency_variables))), function(name)
          return name, variables[name]
       end),
-      tabulate(sorted(keys(INSTALLS)), function(name)
+      tabulate(keys(INSTALLS), function(name)
          return name, variables[INSTALLS[name]]
       end)
    )

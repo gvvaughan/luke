@@ -17,6 +17,7 @@ local _ENV = require 'std.normalize' {
    'io.stderr',
    'os.tmpname',
    'string.find',
+   'string.format',
    'string.gmatch',
    'string.gsub',
    'string.match',
@@ -33,19 +34,9 @@ local _ENV = require 'std.normalize' {
    interpolate = _environment.interpolate,
    mkenv = _environment.mkenv,
    shellword = _environment.shellword,
-   format = _functional.format,
    append = _functional.append,
-   call = _functional.call,
-   destructure = _functional.destructure,
-   isnonzero = _functional.isnonzero,
-   isstring = _functional.isstring,
-   istable = _functional.istable,
-   keys = _functional.keys,
-   loadenv = _functional.loadenv,
-   ordered_get = _functional.ordered_get,
-   ordered_keys = _functional.ordered_keys,
-   branches = _lukefile.branches,
    bind = _std.bind,
+   call = _std.call,
    choose = _std.choose,
    compact = _std.compact,
    contains = _std.contains,
@@ -57,12 +48,20 @@ local _ENV = require 'std.normalize' {
    foldl = _std.foldl,
    id = _std.id,
    isempty = _std.isempty,
+   isnonzero = _std.isnonzero,
+   isstring = _std.isstring,
+   istable = _std.istable,
+   keys = _std.keys,
    map = _std.map,
    merged = _std.merged,
    reject = _std.reject,
    sorted = _std.sorted,
    tabulate = _std.tabulate,
    values = _std.values,
+   destructure = next,
+   ordered_get = _functional.ordered_get,
+   ordered_keys = _functional.ordered_keys,
+   branches = _lukefile.branches,
    File = _context.File,
    slurp = _context.slurp,
    with = _context.with,
@@ -189,7 +188,7 @@ end
 -- The variables that rockspec *text* sets, or else an empty table.
 local function rockspec_fields(text)
    local r = {}
-   local chunk = text and loadenv(text, 'rockspec', r)
+   local chunk = text and load(text, 'rockspec', 't', r)
    if chunk == nil or not pcall(chunk) then
       return {}
    end
@@ -529,7 +528,7 @@ end
 local function unignore(L, env, paths)
    repeat
       local lines = ignoring(env, paths)
-      local sources = sorted(keys(lines))
+      local sources = keys(lines)
       each(sources, function(source)
          edit(L, source, function(text)
             local n = 0
@@ -570,9 +569,9 @@ end
 -- for the programs that `luke release` itself uses.  That makes what the
 -- release commits, stamped with the release version, as the rock does.
 local function make_rock(L, env, rockspec)
-   local settings = map(sorted(filter(keys(L.clidefs or {}), function(name)
+   local settings = map(filter(keys(L.clidefs or {}), function(name)
       return match(name, '^%u[%w_]*$') ~= nil and name ~= 'GH' and name ~= 'LUAROCKS'
-   end)), function(name)
+   end), function(name)
       return shellword(format('%s=%s', name, L.clidefs[name]))
    end)
    return bind(run, {L, env, flatten(pack(

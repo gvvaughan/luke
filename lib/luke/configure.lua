@@ -6,7 +6,6 @@
 local _base = require 'luke._base'
 local _compile = require 'luke.compile'
 local _environment = require 'luke.environment'
-local _functional = require 'luke.functional'
 local _std = require 'std.functional.init'
 local _context = require 'type.context-manager'
 local _dict = require 'type.dict'
@@ -14,6 +13,7 @@ local _dict = require 'type.dict'
 local _ENV = require 'std.normalize' {
    'os.getenv',
    'string.find',
+   'string.format',
    'string.gmatch',
    'string.gsub',
    'string.sub',
@@ -27,13 +27,9 @@ local _ENV = require 'std.normalize' {
    CONFIGENV = _environment.CONFIGENV,
    interpolate = _environment.interpolate,
    mkenv = _environment.mkenv,
-   format = _functional.format,
-   apply = _functional.apply,
-   call = _functional.call,
-   isfile = _functional.isfile,
-   istable = _functional.istable,
-   keys = _functional.keys,
+   apply = _std.apply,
    bind = _std.bind,
+   call = _std.call,
    case = _std.case,
    choose = _std.choose,
    compact = _std.compact,
@@ -42,6 +38,9 @@ local _ENV = require 'std.normalize' {
    firstof = _std.firstof,
    flatten = _std.flatten,
    isempty = _std.isempty,
+   isfile = _std.isfile,
+   istable = _std.istable,
+   keys = _std.keys,
    map = _std.map,
    merged = _std.merged,
    some = _std.some,

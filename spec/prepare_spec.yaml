@@ -3,7 +3,7 @@
 
 before: |
   prepare = require 'luke.prepare'
-  nop = require 'luke.functional'.nop
+  nop = require 'std.functional.init'.nop
   protected = require 'luke._base'.protected
 
   -- A normalized recipe of two modules, as any front end makes one.
@@ -20,8 +20,8 @@ before: |
 
   -- The names of the modules that *L* will build, in order.
   function names(L)
-     return require 'luke.functional'.map(L.luke.modules, function(entry)
-        return (require 'luke.functional'.destructure(entry))
+     return require 'std.functional.init'.map(L.luke.modules, function(entry)
+        return (next(entry))
      end)
   end
 

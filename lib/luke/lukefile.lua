@@ -13,19 +13,34 @@ local _context = require 'type.context-manager'
 
 local _ENV = require 'std.normalize' {
    'io.lines',
+   'string.format',
    'string.match',
    configure = _configure.configure,
    isprobe = _configure.isprobe,
    expand = _environment.expand,
-   format = _functional.format,
-   destructure = _functional.destructure,
-   istable = _functional.istable,
-   keys = _functional.keys,
-   loadenv = _functional.loadenv,
+   destructure = next,
+   bind = _std.bind,
+   case = _std.case,
+   compact = _std.compact,
+   cond = _std.cond,
+   each = _std.each,
+   either = _std.either,
+   except = _std.except,
+   filter = _std.filter,
+   flatmap = _std.flatmap,
+   flatten = _std.flatten,
+   id = _std.id,
+   indexof = _std.indexof,
+   isempty = _std.isempty,
+   istable = _std.istable,
+   keys = _std.keys,
+   map = _std.map,
+   mapvalues = _std.mapvalues,
+   merged = _std.merged,
+   sorted = _std.sorted,
    ordered_get = _functional.ordered_get,
    ordered_keys = _functional.ordered_keys,
    ordered_mapvalues = _functional.ordered_mapvalues,
-   sorted_keys = _functional.sorted_keys,
    narrow_platforms = _platforms.narrow_platforms,
    ORDERED = _schema.ORDERED,
    bad = _schema.bad,
@@ -44,24 +59,6 @@ local _ENV = require 'std.normalize' {
    pathname = _schema.pathname,
    rules = _schema.rules,
    scripts = _schema.scripts,
-   bind = _std.bind,
-   case = _std.case,
-   compact = _std.compact,
-   cond = _std.cond,
-   each = _std.each,
-   either = _std.either,
-   except = _std.except,
-   filter = _std.filter,
-   flatmap = _std.flatmap,
-   flatten = _std.flatten,
-   id = _std.id,
-   indexof = _std.indexof,
-   isempty = _std.isempty,
-   map = _std.map,
-   mapvalues = _std.mapvalues,
-   merged = _std.merged,
-   merged = _std.merged,
-   sorted = _std.sorted,
    File = _context.File,
    slurp = _context.slurp,
    with = _context.with,
@@ -158,10 +155,10 @@ local LUKEFILE = fields({
 
 
 -- Every probe in *luke*, in the order it is written: list entries in
--- order, and the elements of any other table in `sorted_keys` order, so
+-- order, and the elements of any other table in `keys` order, so
 -- that probes of the same kind run in the same order on every run.
 local function collect_configs(luke, modulename, sectionname)
-   return flatmap(sorted_keys(luke), function(k)
+   return flatmap(keys(luke), function(k)
       local v = luke[k]
       return cond({isprobe(v), {{t=luke, k=k, module=modulename, section=sectionname}}},
          {istable(v) and (k == 'modules' or k == 'external_dependencies'), function()
@@ -347,7 +344,7 @@ return {
          return nil, err
       end
       local r = {}
-      local chunk, err = loadenv(content, filename, r)
+      local chunk, err = load(content, filename, 't', r)
       if chunk == nil then
          return nil, "Error loading file: " .. err
       end
@@ -365,7 +362,7 @@ return {
    -- The branches that the lukefile *release* table copies files to,
    -- in sorted order.
    branches = function(release)
-      return filter(sorted(keys(release or {})), function(k)
+      return filter(keys(release or {}), function(k)
          return RELEASE.schema[k] == nil and not isrockspec(k)
       end)
    end,

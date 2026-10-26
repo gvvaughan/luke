@@ -11,6 +11,7 @@ local _std = require 'std.functional.init'
 local _path = require 'type.path'
 
 local _ENV = require 'std.normalize' {
+   'string.format',
    'string.gmatch',
    'string.gsub',
    'string.match',
@@ -19,19 +20,7 @@ local _ENV = require 'std.normalize' {
    fatal = _base.fatal,
    configure = _configure.configure,
    isprobe = _configure.isprobe,
-   format = _functional.format,
-   destructure = _functional.destructure,
-   islistkey = _functional.islistkey,
-   isstring = _functional.isstring,
-   istable = _functional.istable,
-   keys = _functional.keys,
-   ordered_keys = _functional.ordered_keys,
-   ordered_merge = _functional.ordered_merge,
-   set = _functional.set,
-   sorted_keys = _functional.sorted_keys,
-   isplatform = _platforms.isplatform,
-   layers = _platforms.layers,
-   narrow_platforms = _platforms.narrow_platforms,
+   destructure = next,
    bind = _std.bind,
    case = _std.case,
    choose = _std.choose,
@@ -43,11 +32,21 @@ local _ENV = require 'std.normalize' {
    foldl = _std.foldl,
    id = _std.id,
    isempty = _std.isempty,
+   islistkey = _std.islistkey,
+   isstring = _std.isstring,
+   istable = _std.istable,
+   keys = _std.keys,
    map = _std.map,
    merged = _std.merged,
    nop = _std.nop,
    reject = _std.reject,
    sorted = _std.sorted,
+   ordered_keys = _functional.ordered_keys,
+   ordered_merge = _functional.ordered_merge,
+   set = _functional.set,
+   isplatform = _platforms.isplatform,
+   layers = _platforms.layers,
+   narrow_platforms = _platforms.narrow_platforms,
    basename = _path.basename,
 }
 
@@ -285,7 +284,7 @@ local function ordered_map(entry)
 
    -- The entries of one *layer* at *path*, apart from its platforms.
    local function layer_entries(layer, path)
-      each(filter(sorted_keys(layer), function(k)
+      each(filter(keys(layer), function(k)
          return k ~= 'platforms' and not islistkey(layer, k)
       end), function(k)
          bad(index(path, k), 'list entry expected, such as {%s = ...}', index('', k))
@@ -304,7 +303,7 @@ local function ordered_map(entry)
       local at = index(path, 'platforms')
       local platforms = checktable(x.platforms, at)
       choose(platforms ~= nil, function()
-         each(filter(sorted_keys(platforms), isplatform), function(name)
+         each(filter(keys(platforms), isplatform), function(name)
             check_layers(platforms[name], index(at, name))
          end)
          check_layers(except(platforms, isplatform), at)

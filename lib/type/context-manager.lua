@@ -13,10 +13,10 @@ local _ENV = require 'std.normalize' {
    'os.tmpname',
    'string.gsub',
    rm = 'os.remove',
-   apply = _functional.apply,
-   isfile = _functional.isfile,
-   pop = _functional.pop,
+   apply = _std.apply,
    each = _std.each,
+   isfile = _std.isfile,
+   pop = _functional.pop,
 }
 
 

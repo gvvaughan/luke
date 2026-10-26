@@ -13,6 +13,7 @@ local _path = require 'type.path'
 local _ENV = require 'std.normalize' {
    'io.stderr',
    'io.stdout',
+   'string.format',
    'string.gsub',
    'string.match',
    'table.concat',
@@ -21,17 +22,8 @@ local _ENV = require 'std.normalize' {
    interpolate = _environment.interpolate,
    mkenv = _environment.mkenv,
    shellword = _environment.shellword,
-   format = _functional.format,
-   call = _functional.call,
-   destructure = _functional.destructure,
-   isnonzero = _functional.isnonzero,
-   isstring = _functional.isstring,
-   istable = _functional.istable,
-   keys = _functional.keys,
-   ordered_get = _functional.ordered_get,
-   ordered_keys = _functional.ordered_keys,
-   ordered_merge = _functional.ordered_merge,
    bind = _std.bind,
+   call = _std.call,
    case = _std.case,
    choose = _std.choose,
    compact = _std.compact,
@@ -40,9 +32,16 @@ local _ENV = require 'std.normalize' {
    firstof = _std.firstof,
    flatten = _std.flatten,
    isempty = _std.isempty,
+   isnonzero = _std.isnonzero,
+   isstring = _std.isstring,
+   istable = _std.istable,
+   keys = _std.keys,
    map = _std.map,
    some = _std.some,
-   sorted = _std.sorted,
+   destructure = next,
+   ordered_get = _functional.ordered_get,
+   ordered_keys = _functional.ordered_keys,
+   ordered_merge = _functional.ordered_merge,
    File = _context.File,
    Pipe = _context.Pipe,
    TmpFile = _context.TmpFile,
@@ -223,7 +222,7 @@ end
 -- value is expanded before it is quoted, so that a quote in a variable
 -- it uses is quoted too.
 local function exports_for(env, rules)
-   local names = sorted(keys(rules.env or {}))
+   local names = keys(rules.env or {})
    return choose(isempty(names), {}, function()
       return compact(flatten(pack('export', map(names, function(name)
          return format('%s=%s', name, shellword(interpolate(env, rules.env[name])))

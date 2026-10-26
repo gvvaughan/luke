@@ -10,11 +10,6 @@ local _ENV = require 'std.normalize' {
    'io.popen',
    'string.match',
    'string.sub',
-   get = _functional.get,
-   islistkey = _functional.islistkey,
-   istable = _functional.istable,
-   keys = _functional.keys,
-   set = _functional.set,
    any = _std.any,
    bind = _std.bind,
    default = _std.default,
@@ -26,10 +21,14 @@ local _ENV = require 'std.normalize' {
    flatten = _std.flatten,
    foldl = _std.foldl,
    isempty = _std.isempty,
+   islistkey = _std.islistkey,
+   istable = _std.istable,
+   keys = _std.keys,
    map = _std.map,
    reject = _std.reject,
    reversed = _std.reversed,
    values = _std.values,
+   set = _functional.set,
 }
 
 
@@ -101,7 +100,9 @@ end
 -- specific first, or else a table of its other elements as defaults, if
 -- it has any.
 local function selected(platforms, supported, isplatform)
-   local matches = reject(map(supported, bind(get, {platforms})), nil)
+   local matches = reject(map(supported, function(name)
+      return platforms[name]
+   end), nil)
    local defaults = reject({except(platforms, isplatform)}, isempty)
    return either(matches, defaults)
 end

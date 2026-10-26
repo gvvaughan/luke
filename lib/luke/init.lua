@@ -15,6 +15,7 @@ local _std = require 'std.functional.init'
 
 local _ENV = require 'std.normalize' {
    'os.exit',
+   'string.format',
    commandline = _cli.commandline,
    build_c_module = _compile.build_c_module,
    build_program = _compile.build_program,
@@ -33,15 +34,6 @@ local _ENV = require 'std.normalize' {
    SHELLENV = _environment.SHELLENV,
    interpolate = _environment.interpolate,
    mkenv = _environment.mkenv,
-   format = _functional.format,
-   isstring = _functional.isstring,
-   ordered_get = _functional.ordered_get,
-   fill_template = _lukefile.fill_template,
-   run_configs = _lukefile.run_configs,
-   run_templates = _lukefile.run_templates,
-   script_sections = _lukefile.script_sections,
-   prepare = _prepare.prepare,
-   release = _release.release,
    bind = _std.bind,
    choose = _std.choose,
    compact = _std.compact,
@@ -49,7 +41,15 @@ local _ENV = require 'std.normalize' {
    filter = _std.filter,
    flatten = _std.flatten,
    isempty = _std.isempty,
+   isstring = _std.isstring,
    map = _std.map,
+   ordered_get = _functional.ordered_get,
+   fill_template = _lukefile.fill_template,
+   run_configs = _lukefile.run_configs,
+   run_templates = _lukefile.run_templates,
+   script_sections = _lukefile.script_sections,
+   prepare = _prepare.prepare,
+   release = _release.release,
 }
 
 
