@@ -2,6 +2,9 @@
 
 ## Noteworthy changes in release ?.? (????-??-??) [?]
 
+
+## Noteworthy changes in release 0.7 (2026-10-25) [stable]
+
 ### New features:
 
   - `luarocks-build-luke` is a LuaRocks build backend for luke, released
