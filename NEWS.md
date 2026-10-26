@@ -2,15 +2,17 @@
 
 ## Noteworthy changes in release ?.? (????-??-??) [?]
 
+### Incompatible changes:
+
+  - `smush` is spun own into its own project now, and luke is built with
+    the `smush` rock.  `build-aux/smush` is gone from the source tree.
+
 ### Bugs fixed:
 
-  - luke and smush run on the `std.normalize` and `std.functional` that
-    they bundle, instead of a `luke.normalize` and copies of functions of
-    their own, so they behave as every other project that uses them
-    does, and import only the names that they use. They need the 
-    releases of std.normalize with `load` that takes an environment and
-    of std.functional with `keys`, `isstring`, `istable`, `isfile`,
-    `islistkey`, `isnonzero` and `destructure`.
+  - luke runs on the `std.normalize` and `std.functional` that it
+    bundle, instead of a `luke.normalize` and copies of functions of its
+    own, so it behaves like every other project that uses them
+    does, importing only the names it uses.
 
 
 ## Noteworthy changes in release 0.7 (2026-10-25) [stable]

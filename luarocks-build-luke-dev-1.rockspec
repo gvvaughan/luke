@@ -22,6 +22,7 @@ dependencies = {
 -- Luke is one file with these bundled in, so installing it needs them
 -- only to build it.
 build_dependencies = {
+   'smush',
    'std.functional >= 2',
    'std.normalize >= 4',
 }
@@ -37,7 +38,8 @@ if _MODREV == 'dev' then
    }
 end
 
--- The backend is one file that smush bundles from this source tree.
+-- The backend is one file that smush, from its rock, bundles from this source
+-- tree.
 local sources = {
    'lib/luarocks/build/luke.lua',
    'lib/luke/_base.lua',
@@ -76,7 +78,7 @@ build = {
    -- by LuaRocks itself.
    build_command =
       "sed 's/@version@/" .. _MODREV .. "/' lib/luke/version.lua.in > lib/luke/luarocks-build-luke-version.lua && " ..
-      'LUA_PATH="$PWD/lib/?.lua;$PWD/lib/?/init.lua;$LUA_PATH;;" $(LUA) build-aux/smush' ..
+      'LUA_PATH="$PWD/lib/?.lua;$PWD/lib/?/init.lua;$LUA_PATH;;" smush' ..
       ' --module=luarocks.build.luke --external=luarocks.path' .. smushed ..
       ' > build-aux/luarocks-build-luke.lua',
 

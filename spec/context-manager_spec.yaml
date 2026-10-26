@@ -49,7 +49,7 @@ specify type.context-manager:
 - describe File:
   - before:
       File = context_manager.File
-      cm = File('build-aux/smush', 'r')
+      cm = File('lukefile', 'r')
 
   - after:
       cm:release()
@@ -58,7 +58,7 @@ specify type.context-manager:
       expect(iscontextmanager(cm)).to_be(true)
 
   - it records the calling arguments:
-      expect(cm[1]).to_be 'build-aux/smush'
+      expect(cm[1]).to_be 'lukefile'
       expect(cm[2]).to_be 'r'
 
   - it records the number of arguments:
@@ -123,10 +123,10 @@ specify type.context-manager:
       expect(list(slurp(File(fname, 'r')))).to_equal(list(nil, fname .. ': No such file or directory'))
 
   - it returns the entire contents of named file:
-      fh = io.open('build-aux/smush', 'r')
+      fh = io.open('lukefile', 'r')
       content = fh:read '*a'
       fh:close()
-      cm = File('build-aux/smush', 'r')
+      cm = File('lukefile', 'r')
       expect(slurp(cm)).to_be(content)
       cm:release()
 

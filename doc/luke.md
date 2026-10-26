@@ -224,7 +224,7 @@ builds its own `build-aux/luke`:
 {% highlight lua %}
     bin = {
        {['build-aux/luke'] = {
-          command = '$LUA build-aux/smush $sources > $target',
+          command = '$SMUSH --main=luke $sources > $target',
           env     = {LUA_PATH = '$abs_top_srcdir/lib/?.lua;;'},
           sources = {'lib/luke/init.lua', 'lib/luke/version.lua.in'},
        }},

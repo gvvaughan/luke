@@ -22,6 +22,7 @@ dependencies = {
 -- only to build it.
 build_dependencies = {
    'luarocks-build-luke >= 0.2',
+   'smush',
    'std.functional >= 2',
    'std.normalize >= 4',
 }
@@ -69,14 +70,15 @@ build = {
    -- A build without help2man keeps the man page that a release commits.
    variables = {
       HELP2MAN = {checkprog = 'HELP2MAN', progs = {'help2man', 'true'}},
+      SMUSH    = {checkprog = 'SMUSH', progs = {'smush'}},
    },
 
    bin = {
       {['build-aux/luke'] = {
-         -- smush finds std.normalize and std.functional on LUA_PATH, as
-         -- `luarocks path` sets it, or else on the default path.
+         -- smush, from its rock, finds std.normalize and std.functional on
+         -- LUA_PATH, as `luarocks path` sets it, or else on the default path.
          command = 'LUA_PATH="$abs_top_srcdir/lib/?.lua;$abs_top_srcdir/lib/?/init.lua;$LUA_PATH;;"' ..
-                   ' $LUA build-aux/smush $sources > $target',
+                   ' $SMUSH --main=luke $sources > $target',
          sources = bundled,
       }},
    },
