@@ -10,8 +10,6 @@ if package.path:sub(1, #LIBPATH) ~= LIBPATH then
    package.path = LIBPATH .. package.path
 end
 
-require 'luke.strict':enforce()
-
 
 -- Load a fresh copy of *modname*, bypassing the module cache, so that
 -- it copies the current fields of every module it imports.
@@ -56,7 +54,6 @@ end
 -- with its exit status and output.
 function capture(fn, ...)
    return require 'specl.inprocess'.capture(function(fn, ...)
-      require 'luke.strict':enforce()
       setfenv(fn, getfenv(1))
       return fn(...)
    end, {fn, ...})

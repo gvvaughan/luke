@@ -12,6 +12,8 @@ jobs:
       fail-fast: false
       matrix:
         lua-version: ["5.5", "5.4", "5.3", "5.2", "5.1", "luajit"]
+        debug: ["std._debug", ""]
+        strict: ["std.strict", ""]
 
     runs-on: ubuntu-latest
 
@@ -19,6 +21,11 @@ jobs:
     permissions:
       contents: read
       id-token: write
+
+    # Specl's own dependencies include std._debug, so luke's go into a tree
+    # of their own, the only one the examples search.
+    env:
+      DEPS: ${{ github.workspace }}/deps
 
     steps:
       - uses: actions/checkout@v7
@@ -39,10 +46,33 @@ jobs:
           luarocks install --server=https://luarocks.org/manifests/gvvaughan ldoc
           printf gvvaughan > "$(luarocks show --rock-dir ldoc)/rock_namespace"
           luarocks test --prepare
+          luarocks --tree="$DEPS" make --only-deps
+          test -n "${{ matrix.debug }}" && luarocks --tree="$DEPS" install std._debug || true
+          test -n "${{ matrix.strict }}" && luarocks --tree="$DEPS" install std.strict || true
 
       - name: build
         run: |
           luarocks make --force
+
+      - name: paths
+        run: |
+          V=$(lua -e 'print((_VERSION:gsub("^Lua ", "")))')
+          echo "LUA_PATH=$DEPS/share/lua/$V/?.lua;$DEPS/share/lua/$V/?/init.lua" >> "$GITHUB_ENV"
+          echo "LUA_CPATH=$DEPS/lib/lua/$V/?.so" >> "$GITHUB_ENV"
+
+      - name: check optional modules
+        run: |
+          # Fail if a dependency installed a module this matrix cell omits.
+          lua -e "
+            for name, want in pairs {
+               ['std._debug'] = '${{ matrix.debug }}' ~= '',
+               ['std.strict.init'] = '${{ matrix.strict }}' ~= '',
+            } do
+               local have = pcall(require, name)
+               print(name, have and 'installed' or 'not installed')
+               assert(have == want, name .. ' installation does not match matrix')
+            end
+          "
 
       - name: test
         run: |

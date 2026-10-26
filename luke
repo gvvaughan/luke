@@ -4,10 +4,9 @@
  Copyright (C) 2014-2026 Gary V. Vaughan
 ]]
 
--- Run luke from this source tree, enforcing strict variable declarations
--- in every module environment unless called with `--strict=no`.
--- luke.strict is not in lib_SOURCES, so none of this reaches the smushed
--- build-aux/luke.
+-- Run luke from this source tree, with strict variable declarations in
+-- every module environment, by way of std.strict when it is installed,
+-- unless called with `--strict=no`.
 local srcdir = arg[0]:gsub('[^/]*$', '')
 local libdir = srcdir .. 'lib'
 package.path = libdir .. '/?.lua;' .. libdir .. '/?/init.lua;' .. package.path
@@ -116,8 +115,16 @@ while arg[i] ~= nil do
    end
 end
 
-if enabled then
-   require 'luke.strict':enforce()
+-- std.normalize reads this when it loads, so set it before anything else.
+-- Without std._debug, it takes strict as true, so stand in for that to
+-- turn it off.
+local ok, debug = pcall(require, 'std._debug')
+if ok then
+   debug.strict = enabled
+elseif not enabled then
+   package.preload['std._debug'] = function()
+      return setmetatable({argcheck = true, strict = false}, {__call = function() end})
+   end
 end
 
 os.exit(require 'luke'.main(arg))
