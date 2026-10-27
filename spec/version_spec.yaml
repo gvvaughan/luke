@@ -1,0 +1,13 @@
+# Use the source, Luke!
+# Copyright (C) 2014-2026 Gary V. Vaughan
+
+before:
+  M = require 'luke.version'
+
+specify luke.version:
+- it is set:
+    expect(M.VERSION).not_to_be(nil)
+- it ends with the release number or the stamp of a development build:
+    expect(M.VERSION).to_match.any_of {'^%d[%.%d]*$', '^[%w_.-]+/%x+$'}
+- it is the version that is described:
+    expect(M.versiontext).to_contain(M.VERSION)
