@@ -82,11 +82,11 @@ build = {
 
    -- luarocks.path, luarocks.core.cfg, luarocks.core.vers and luarocks.manif
    -- are referenced from luarocks-build-luke.lua, but provided by LuaRocks
-   -- itself.
+   -- itself, and `package` is the host's, to ask whether LuaRocks is running.
    build_command =
       "sed 's/@version@/" .. _MODREV .. "/' lib/luke/version.lua.in > lib/luke/luarocks-build-luke-version.lua && " ..
       'LUA_PATH="$PWD/lib/?.lua;$PWD/lib/?/init.lua;$LUA_PATH;;" smush' ..
-      ' --module=luarocks.build.luke --external=luarocks.path' ..
+      ' --module=luarocks.build.luke --external=package --external=luarocks.path' ..
       ' --external=luarocks.core.cfg --external=luarocks.core.vers --external=luarocks.manif' .. smushed ..
       ' > build-aux/luarocks-build-luke.lua',
 

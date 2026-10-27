@@ -12,12 +12,18 @@
 
 local luke = {}
 
+-- The package of the Lua that runs this, which LuaRocks has loaded its
+-- modules into if it is the program that runs it.  When this is smushed
+-- into a single file, `package` is the bundle's own, with only what the
+-- bundle has loaded, so build it with `--external=package` to get the host's.
+local host_package = require 'package'
+
 -- *rockspec*, with the directories that LuaRocks stages the rock in as
 -- they are now.  LuaRocks sets those variables when it loads the rockspec,
 -- and then packing a binary rock changes to a temporary tree, so only
 -- ask LuaRocks, if it is running, and never trust the variables.
 local function staged(rockspec)
-   local path = package.loaded['luarocks.path']
+   local path = host_package.loaded['luarocks.path']
    if path == nil then
       return rockspec
    end
@@ -84,7 +90,7 @@ local function bundling(rockspec)
    for _, name in ipairs(bundled.modules(build.files)) do
       names[#names + 1] = name
    end
-   if #names == 0 or package.loaded['luarocks.path'] == nil then
+   if #names == 0 or host_package.loaded['luarocks.path'] == nil then
       return nil
    end
    return names, provider(luapath())
