@@ -13,6 +13,14 @@
     rock that bundles only its own files, or has no such rule, is built
     as it was.
 
+  - A template, such as the `version.lua.in` of a program that smush
+    bundles, can say which rocks are bundled in it, with `@bundled@`,
+    which luarocks-build-luke fills with the name and version of each
+    rock that has a module named among the `sources` of a rule, as the
+    items of a Lua table, so `BUNDLED = {@bundled@}` is `BUNDLED =
+    {"std.normalize 5-1", "typecheck 5-1"}`.  It is empty when no rock has
+    one, and when luke is not run by LuaRocks.
+
 ### Incompatible changes:
 
   - `smush` is spun own into its own project now, and luke is built with

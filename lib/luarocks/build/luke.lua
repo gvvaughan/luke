@@ -73,11 +73,11 @@ local function provider(path)
    end
 end
 
--- An error message if a module that a rule of *rockspec* bundles from the
--- Lua path comes from a rock older than the build dependency on it, else
--- nothing.  That is only a rule that has a module name among its sources,
--- and only when LuaRocks is running to say which rock has the file.
-local function outdated(rockspec)
+-- The names of the modules that a rule of *rockspec* bundles from the Lua
+-- path, and a function that finds the rock that has the file for one.  That
+-- is only a rule that has a module name among its sources, and only when
+-- LuaRocks is running to say which rock has the file, and else nothing.
+local function bundling(rockspec)
    local bundled = require 'luke.bundled'
    local build = rockspec.build or {}
    local names = bundled.modules(build.bin)
@@ -87,9 +87,15 @@ local function outdated(rockspec)
    if #names == 0 or package.loaded['luarocks.path'] == nil then
       return nil
    end
+   return names, provider(luapath())
+end
+
+-- An error message if a module of *names* comes from a rock older than the
+-- build dependency on it, else nothing.
+local function outdated(rockspec, names, find)
    local vers = require 'luarocks.core.vers'
    local queries = (rockspec.build_dependencies or {}).queries or {}
-   local messages = bundled.outdated(names, provider(luapath()), function(rock, version)
+   local messages = require 'luke.bundled'.outdated(names, find, function(rock, version)
       for _, query in ipairs(queries) do
          if query.name == rock then
             local ok = vers.match_constraints(vers.parse_version(version), query.constraints)
@@ -107,12 +113,22 @@ end
 -- @tparam boolean no_install whether LuaRocks asked only for a build
 -- @treturn boolean `true`, or else `nil` and a message
 function luke.run(rockspec, no_install)
-   local old = outdated(rockspec)
-   if old ~= nil then
-      return nil, old
+   local names, find = bundling(rockspec)
+   if names ~= nil then
+      local old = outdated(rockspec, names, find)
+      if old ~= nil then
+         return nil, old
+      end
    end
    local status, err = require 'luke._base'.protected(function()
-      return require 'luke'.make(require 'luke.rockspec'.fromrockspec(staged(rockspec), no_install))
+      local recipe, request = require 'luke.rockspec'.fromrockspec(staged(rockspec), no_install)
+      if names ~= nil then
+         -- For `@bundled@` in a template, such as a version file, to say
+         -- which rocks the file that it is part of has bundled.
+         local bundled = require 'luke.bundled'
+         request.clidefs.bundled = bundled.listing(bundled.rocks(names, find))
+      end
+      return require 'luke'.make(recipe, request)
    end)
    if status == nil then
       return nil, err

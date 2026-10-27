@@ -154,6 +154,16 @@ specify luarocks.build.luke:
         p = run_with_rock(bundling(tmpdir), tmpdir .. '/tree', tmpdir .. '/tree/share/lua/5.5', '4-1')
         expect(p).to_succeed_while_containing 'true nil\n'
         expect(slurp(tmpdir .. '/prog')).to_be 'built\n'
+    - it fills @bundled@ in a template with the rocks that it bundles: |
+        spit(tmpdir .. '/versions.lua.in', "return {@bundled@}\n")
+        r = bundling(tmpdir)
+        r.build.bin[1][tmpdir .. '/prog'] = {
+           command = 'cat ' .. tmpdir .. '/versions.lua > $target',
+           sources = {tmpdir .. '/versions.lua.in', 'example.dep'},
+        }
+        p = run_with_rock(r, tmpdir .. '/tree', tmpdir .. '/tree/share/lua/5.5', '4-1')
+        expect(p).to_succeed_while_containing 'true nil\n'
+        expect(slurp(tmpdir .. '/prog')).to_be 'return {"example.dep 4-1"}\n'
     - it builds when no rock has it, as for a checkout on the Lua path: |
         os.execute('mkdir -p ' .. tmpdir .. '/elsewhere/example')
         os.execute('mv ' .. tmpdir .. '/tree/share/lua/5.5/example/dep.lua ' .. tmpdir .. '/elsewhere/example/')
