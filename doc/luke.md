@@ -85,6 +85,7 @@ The options are:
 
     --help        print help, then exit
     --version     print version number, then exit
+    --bundled     print the rocks bundled in luke, then exit
     --dry-run     print the commands, without running them
     --file=FILE   use FILE instead of lukefile
     --value=NAME  print the value of variable NAME, then exit

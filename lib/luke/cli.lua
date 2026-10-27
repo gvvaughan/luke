@@ -31,9 +31,14 @@ local _ENV = require 'std.normalize' {
 
 local function version()
    print(_version.versiontext)
-   local bundled = _version.BUNDLED or {}
-   if #bundled > 0 then
-      print('Bundled rocks:\n  ' .. concat(bundled, '\n  '))
+   exit(0)
+end
+
+
+local function bundled()
+   local rocks = _version.BUNDLED or {}
+   if #rocks > 0 then
+      print(concat(rocks, '\n'))
    end
    exit(0)
 end
@@ -47,6 +52,7 @@ Use the source, Luke!
 
   --help        print this help, then exit
   --version     print version number, then exit
+  --bundled     print the rocks bundled in luke, then exit
   --dry-run     print the commands, without running them
   --file=FILE   use FILE instead of lukefile
   --value=NAME  print the value of variable NAME
@@ -152,6 +158,8 @@ local function parse_arguments(args)
          ['--help'] = help,
 
          ['--version'] = version,
+
+         ['--bundled'] = bundled,
 
          {'([^-][^=]-)=(.+)', function(name, value)
             r.clidefs[name] = value
