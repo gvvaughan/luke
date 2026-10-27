@@ -14,6 +14,7 @@ local _ENV = require 'std.normalize' {
    'os.exit',
    'string.gsub',
    'string.match',
+   'table.concat',
    diagnose = _base.diagnose,
    fatal = _base.fatal,
    message = _base.message,
@@ -30,6 +31,10 @@ local _ENV = require 'std.normalize' {
 
 local function version()
    print(_version.versiontext)
+   local bundled = _version.BUNDLED or {}
+   if #bundled > 0 then
+      print('Bundled rocks:\n  ' .. concat(bundled, '\n  '))
+   end
    exit(0)
 end
 

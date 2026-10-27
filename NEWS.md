@@ -21,6 +21,9 @@
     {"std.normalize 5-1", "typecheck 5-1"}`.  It is empty when no rock has
     one, and when luke is not run by LuaRocks.
 
+  - `luke --version` lists the rocks that are bundled in it, with their
+    versions, when luarocks-build-luke built it.
+
 ### Incompatible changes:
 
   - `smush` is spun own into its own project now, and luke is built with

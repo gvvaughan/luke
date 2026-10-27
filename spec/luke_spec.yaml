@@ -38,6 +38,14 @@ specify luke:
          '^luke %(Luke%) [^/%s]*/%x%x%x%x%x%x%x+\n',
          '^luke %(Luke%) %d+%.%d+[%.%d]*\n',
       }
+  - it lists the rocks that are bundled in it, if there are any: |
+      p = capture(function()
+         package.preload['luke.version'] = function()
+            return {versiontext = 'luke (Luke) 1\n', BUNDLED = {'a 1-1', 'b 2-1'}}
+         end
+         return require 'luke'.main {'--version'}
+      end)
+      expect(p).to_succeed_while_matching '^luke %(Luke%) 1\n\nBundled rocks:\n  a 1%-1\n  b 2%-1\n$'
   - it prints help: |
       expect(luke '--help').to_succeed_while_containing 'Usage: luke'
   - it diagnoses unknown options: |
