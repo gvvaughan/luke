@@ -609,6 +609,17 @@ rockspec format 3.0, gives development builds an `ldoc` to run:
     end
 {% endhighlight %}
 
+A rule that bundles modules from other rocks, such as `std.normalize`
+for [Smush], names them among its `sources`, and builds with whichever
+file the Lua path finds for them.  LuaRocks only checks that each build
+dependency is installed somewhere, so when luarocks-build-luke builds
+the rock it also looks at the file that the Lua path finds for each of
+those modules, and exits with an error if the rock that has it is older
+than the version that `build_dependencies` asks for.  Files of a rock
+that are named by path are not checked, nor are modules that no rock
+has, such as a checkout on the Lua path, and nor are rocks that
+`build_dependencies` does not name.
+
 For now, that repeats some of the `lukefile` in the rockspec.  One day,
 Luke may read the extra syntax it needs directly from your rockspec,
 so that a separate `lukefile` is no longer necessary.
@@ -922,6 +933,7 @@ requests are especially welcome.
 [luajit]:   https://luajit.org
 [luaposix]: https://github.com/luaposix/luaposix
 [luarocks]: https://luarocks.org
+[smush]:    https://github.com/gvvaughan/smush
 [specl]:    https://github.com/gvvaughan/specl
 [luke]:     https://github.com/gvvaughan/luke
 [lyaml]:    https://github.com/gvvaughan/lyaml

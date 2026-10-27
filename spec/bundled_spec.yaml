@@ -1,0 +1,69 @@
+# Use the source, Luke!
+# Copyright (C) 2026 Gary V. Vaughan
+
+before:
+  bundled = require 'luke.bundled'
+
+specify luke.bundled:
+- describe isname:
+  - it is true for the name of a module:
+      expect(bundled.isname 'typecheck').to_be(true)
+      expect(bundled.isname 'std.normalize._core').to_be(true)
+  - it is false for the path of a file:
+      expect(bundled.isname 'lib/specl/main.lua').to_be(false)
+      expect(bundled.isname 'main.lua').to_be(false)
+      expect(bundled.isname 'version.lua.in').to_be(false)
+  - it is false for NAME=PATH and ALIAS::MODULE:
+      expect(bundled.isname 'luke.version=lib/version.lua').to_be(false)
+      expect(bundled.isname 'a._normalize::std.normalize._core').to_be(false)
+  - it is false for what is not a string:
+      expect(bundled.isname(nil)).to_be(false)
+      expect(bundled.isname {}).to_be(false)
+
+- describe modules:
+  - it has the module names among the sources of the rules, sorted, each once:
+      rules = {
+         {['build-aux/prog'] = {
+            command = 'smush $sources > $target',
+            sources = {'lib/prog/init.lua', 'std.normalize', 'a.b', 'std.normalize'},
+         }},
+         'prog.in',
+         {['doc/prog.1'] = {command = 'x', sources = 'prog.module'}},
+      }
+      expect(bundled.modules(rules)).to_equal {'a.b', 'prog.module', 'std.normalize'}
+  - it has none for rules of files only:
+      rules = {{['build-aux/prog'] = {command = 'cp $sources $target', sources = {'lib/prog.lua'}}}}
+      expect(bundled.modules(rules)).to_equal {}
+  - it has none for no rules:
+      expect(bundled.modules(nil)).to_equal {}
+
+- describe outdated:
+  - before: |
+      -- Which rock and version has each module.
+      has = {
+         ['std.normalize'] = {'std.normalize', '3-1', '/tree/std/normalize.lua'},
+         ['std.normalize._core'] = {'std.normalize', '3-1', '/tree/std/normalize/_core.lua'},
+         ['typecheck'] = {'typecheck', '4-1', '/tree/typecheck/init.lua'},
+         ['local.thing'] = nil,
+      }
+      function provider(name)
+         local h = has[name]
+         if h then return h[1], h[2], h[3] end
+      end
+      -- std.normalize 4 is wanted, and typecheck 4 or later; nothing else.
+      function satisfies(rock, version)
+         if rock == 'std.normalize' then return tonumber(version:match '^%d+') >= 4, 'std.normalize >= 4' end
+         if rock == 'typecheck' then return tonumber(version:match '^%d+') >= 4, 'typecheck >= 4' end
+      end
+  - it says nothing when every rock is new enough:
+      expect(bundled.outdated({'typecheck'}, provider, satisfies)).to_equal {}
+  - it says which rock is too old, and the file that it has:
+      expect(bundled.outdated({'std.normalize'}, provider, satisfies)).to_equal {
+         'std.normalize 3-1 provides std.normalize (/tree/std/normalize.lua), which does not satisfy the build dependency std.normalize >= 4',
+      }
+  - it says so once for each rock:
+      expect(#bundled.outdated({'std.normalize', 'std.normalize._core', 'typecheck'}, provider, satisfies)).to_be(1)
+  - it says nothing of a module that no rock has: |
+      expect(bundled.outdated({'local.thing'}, provider, satisfies)).to_equal {}
+  - it says nothing of a rock that no build dependency names: |
+      expect(bundled.outdated({'typecheck'}, provider, function() end)).to_equal {}

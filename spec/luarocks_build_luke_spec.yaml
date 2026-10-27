@@ -90,3 +90,85 @@ specify luarocks.build.luke:
   - it gives back nil and a message when a command fails: |
       p = run(rockspec(tmpdir, {type = 'luke', modules = {{missing = tmpdir .. '/missing.lua'}}}))
       expect(p).to_succeed_while_containing 'nil luke failed\n'
+
+  - context with a module that smush bundles from the Lua path:
+    - before: |
+        os.execute('mkdir -p ' .. tmpdir .. '/tree/share/lua/5.5/example')
+        spit(tmpdir .. '/tree/share/lua/5.5/example/dep.lua', "return {}\n")
+
+        -- LuaRocks, as far as the backend asks it: one tree, with a rock
+        -- that has the module at the version that it is given, or no rock
+        -- that has it when *where* is not the tree.
+        function run_with_rock(rockspec, tree, where, version)
+           return capture(function(rockspec, tree, where, version)
+              package.loaded['luarocks.path'] = {
+                 bin_dir = function() return tree .. '/bin' end,
+                 lib_dir = function() return tree .. '/lib' end,
+                 lua_dir = function() return tree .. '/lua' end,
+                 deploy_lua_dir = function(t) return t.root .. '/share/lua/5.5' end,
+              }
+              package.loaded['luarocks.core.cfg'] = {rocks_trees = {{root = tree}}}
+              package.loaded['luarocks.manif'] = {
+                 get_provided_item = function(_, file)
+                    return 'module', (file:gsub('%.lua$', ''):gsub('/', '.'))
+                 end,
+                 get_current_provider = function(_, name)
+                    if name == 'example.dep' then return 'example.dep', version end
+                 end,
+              }
+              package.loaded['luarocks.core.vers'] = {
+                 parse_version = function(v) return tonumber(v:match '^%d+') end,
+                 match_constraints = function(v, constraints)
+                    return v >= constraints[1].version
+                 end,
+              }
+              -- Look only where the file is, whatever LUA_PATH says.
+              os.getenv = function() return nil end
+              package.path = where .. '/?.lua;' .. package.path
+              local ok, err = require 'luarocks.build.luke'.run(rockspec)
+              io.stdout:write(tostring(ok), ' ', tostring(err), '\n')
+              return 0
+           end, rockspec, tree, where, version)
+        end
+
+        -- A rock that makes a file from the module, with the build dependency
+        -- on example.dep >= 4 that LuaRocks keeps as a query.
+        function bundling(tmpdir)
+           local query = setmetatable({name = 'example.dep', constraints = {{op = '>=', version = 4}}},
+                                      {__tostring = function() return 'example.dep >= 4' end})
+           local r = rockspec(tmpdir, {
+              type = 'luke',
+              bin = {{[tmpdir .. '/prog'] = {
+                 command = 'echo built > $target',
+                 sources = {tmpdir .. '/other.lua', 'example.dep'},
+              }}},
+           })
+           r.build_dependencies = {queries = {query}}
+           return r
+        end
+    - it gives back nil and a message when the rock that has it is older than the build dependency: |
+        p = run_with_rock(bundling(tmpdir), tmpdir .. '/tree', tmpdir .. '/tree/share/lua/5.5', '3-1')
+        expect(p).to_succeed_while_matching "nil example%.dep 3%-1 provides example%.dep %(.*/example/dep%.lua%), which does not satisfy the build dependency example%.dep >= 4\n"
+        expect(slurp(tmpdir .. '/prog')).to_be(nil)
+    - it builds when the rock that has it is new enough: |
+        p = run_with_rock(bundling(tmpdir), tmpdir .. '/tree', tmpdir .. '/tree/share/lua/5.5', '4-1')
+        expect(p).to_succeed_while_containing 'true nil\n'
+        expect(slurp(tmpdir .. '/prog')).to_be 'built\n'
+    - it builds when no rock has it, as for a checkout on the Lua path: |
+        os.execute('mkdir -p ' .. tmpdir .. '/elsewhere/example')
+        os.execute('mv ' .. tmpdir .. '/tree/share/lua/5.5/example/dep.lua ' .. tmpdir .. '/elsewhere/example/')
+        p = run_with_rock(bundling(tmpdir), tmpdir .. '/tree', tmpdir .. '/elsewhere', '1-1')
+        expect(p).to_succeed_while_containing 'true nil\n'
+    - it does not ask LuaRocks about a rock that has only files of its own: |
+        p = capture(function(rockspec, tmpdir)
+           package.loaded['luarocks.path'] = {
+              bin_dir = function() return tmpdir .. '/stage/bin' end,
+              lib_dir = function() return tmpdir .. '/stage/lib' end,
+              lua_dir = function() return tmpdir .. '/stage/lua' end,
+           }
+           package.loaded['luarocks.manif'] = {get_current_provider = function() error 'asked' end}
+           local ok, err = require 'luarocks.build.luke'.run(rockspec)
+           io.stdout:write(tostring(ok), ' ', tostring(err), '\n')
+           return 0
+        end, rockspec(tmpdir), tmpdir)
+        expect(p).to_succeed_while_containing 'true nil\n'

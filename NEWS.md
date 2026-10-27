@@ -2,6 +2,17 @@
 
 ## Noteworthy changes in release ?.? (????-??-??) [?]
 
+### New features:
+
+  - `luarocks-build-luke` checks the modules that a `bin` or `files`
+    rule bundles from the Lua path, by name, in its `sources`, as
+    smush does: if the rock that has the file that the path finds is
+    older than the `build_dependencies` entry for it, the build exits
+    with an error that says so, instead of bundling it, as LuaRocks
+    only checks that some version of each dependency is installed.  A
+    rock that bundles only its own files, or has no such rule, is built
+    as it was.
+
 ### Incompatible changes:
 
   - `smush` is spun own into its own project now, and luke is built with

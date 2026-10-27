@@ -44,6 +44,7 @@ end
 local sources = {
    'lib/luarocks/build/luke.lua',
    'lib/luke/_base.lua',
+   'lib/luke/bundled.lua',
    'lib/luke/cli.lua',
    'lib/luke/compile.lua',
    'lib/luke/configure.lua',
@@ -79,12 +80,14 @@ end
 build = {
    type = 'command',
 
-   -- luarocks.path is referenced from luarocks-build-luke.lua, but provided
-   -- by LuaRocks itself.
+   -- luarocks.path, luarocks.core.cfg, luarocks.core.vers and luarocks.manif
+   -- are referenced from luarocks-build-luke.lua, but provided by LuaRocks
+   -- itself.
    build_command =
       "sed 's/@version@/" .. _MODREV .. "/' lib/luke/version.lua.in > lib/luke/luarocks-build-luke-version.lua && " ..
       'LUA_PATH="$PWD/lib/?.lua;$PWD/lib/?/init.lua;$LUA_PATH;;" smush' ..
-      ' --module=luarocks.build.luke --external=luarocks.path' .. smushed ..
+      ' --module=luarocks.build.luke --external=luarocks.path' ..
+      ' --external=luarocks.core.cfg --external=luarocks.core.vers --external=luarocks.manif' .. smushed ..
       ' > build-aux/luarocks-build-luke.lua',
 
    install = {
