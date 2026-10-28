@@ -4,6 +4,10 @@
 
 ### New features:
 
+  - `luarocks make VERSION=1.0` builds a rock with luarocks-build-luke at
+    version 1.0, whatever version its rockspec or `build.version` say, so
+    that a development rockspec can build the files of a release.
+
   - `luke release` finds `_MODREV` in a rockspec after leading `--`
     comments and blank lines, such as a copyright notice, and not only
     on its first line.  A block comment, `--[[`, before it is not

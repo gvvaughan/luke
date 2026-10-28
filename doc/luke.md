@@ -565,7 +565,10 @@ to be built, only to be released:
 `copy_directories`, `install` and `type` are LuaRocks's own; the rest of
 `build` is what a lukefile says.  That includes `version`, if you want
 templates and defines to see a version other than that of the rock, such
-as `$USER/$gitref` for a development build.
+as `$USER/$gitref` for a development build.  A `VERSION` that is
+given to LuaRocks, as in `luarocks make VERSION=1.0`, takes the place of
+both, which is how `luke release` builds a development rockspec with the
+version to release.
 
 Otherwise, to build with Luke from a rockspec, use the `command` backend,
 and pass along the settings LuaRocks has chosen.  [luaposix] does it

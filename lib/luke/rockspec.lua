@@ -95,9 +95,9 @@ local function recipe_of(rockspec)
       {
          luke_format = 0,
          package     = rockspec.package,
-         -- A `build.version` is the version that a lukefile would say, such as
-         -- `$USER/$gitref`, for a development build.
-         version     = build.version or modrev(rockspec.version),
+         -- If not overridden on the command line by `VERSION=1.0`, default to
+         -- `build.version` from lukefile.
+         version     = (rockspec.variables or {}).VERSION or build.version or modrev(rockspec.version),
          -- The list that map makes has an `n` field, which is not an entry.
          external_dependencies = choose(build.external_dependencies, function(dependencies)
             return except(map(dependencies, with_library(rockspec.external_dependencies or {})), 'n')

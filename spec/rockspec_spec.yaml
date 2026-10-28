@@ -41,6 +41,11 @@ specify luke.rockspec:
         r = rockspec {version = 'dev-1'}
         r.build.version = '$USER/$gitref'
         expect(fromrockspec(r).version).to_be '$USER/$gitref'
+    - it takes the version that LuaRocks is given on its command line, before any other: |
+        r = rockspec {version = 'dev-1', variables = {VERSION = '3.4'}}
+        r.build.version = '$USER/$gitref'
+        expect(fromrockspec(r).version).to_be '3.4'
+        expect(fromrockspec(rockspec {version = 'dev-1', variables = {VERSION = '3.4'}}).version).to_be '3.4'
     - it leaves out what LuaRocks keeps for itself: |
         r = rockspec()
         r.build.copy_directories = {'doc'}
