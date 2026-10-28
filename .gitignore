@@ -2,7 +2,6 @@
 .DS_Store
 /*.src.rock
 /build-aux/luke
-/build-aux/luarocks-build-luke.lua
 /doc/luke.1
 /lib/luke/*version.lua
 /luacov.*.out
