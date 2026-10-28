@@ -1,0 +1,1889 @@
+--[[ minified code follows, see --help text for source location! ]]
+local host,hostrequire=package,require
+local env={}for k,v in next,_G do env[k]=v end env._G=env
+local bundled,loaded={},{} bundled["luarocks.core.cfg"]=function(n)local m=host.loaded[n]if m==nil then m=hostrequire(n)end return m end bundled["luarocks.core.vers"]=function(n)local m=host.loaded[n]if m==nil then m=hostrequire(n)end return m end bundled["luarocks.manif"]=function(n)local m=host.loaded[n]if m==nil then m=hostrequire(n)end return m end bundled["luarocks.path"]=function(n)local m=host.loaded[n]if m==nil then m=hostrequire(n)end return m end bundled["package"]=function(n)local m=host.loaded[n]if m==nil then m=hostrequire(n)end return m end loaded.coroutine=host.loaded.coroutine loaded.debug=host.loaded.debug loaded.io=host.loaded.io loaded.math=host.loaded.math loaded.os=host.loaded.os loaded.string=host.loaded.string loaded.table=host.loaded.table loaded._G=env
+env.package=setmetatable({preload=bundled,loaded=loaded},{__index=host})
+local require=function(modname)local m=loaded[modname]if m==nil then
+if bundled[modname]==nil then
+error("module '" .. modname .. "' not found:\n   no bundled module '" .. modname .. "'",2)
+end
+m=bundled[modname](modname)if m==nil then m=true end loaded[modname]=m end
+return m end
+env.require=require
+local _ENV=env
+bundled['luarocks.build.luke']=function()
+local luke={}local host_package=require'package'local function staged(rockspec)local path=host_package.loaded['luarocks.path']if path==nil then
+return rockspec
+end
+local r,variables={},{}for k,v in next,rockspec do
+r[k]=v
+end
+for k,v in next,rockspec.variables do
+variables[k]=v
+end
+local name,version=rockspec.package,rockspec.version
+variables.BINDIR=path.bin_dir(name,version)variables.LIBDIR=path.lib_dir(name,version)variables.LUADIR=path.lua_dir(name,version)r.variables=variables
+return r
+end
+local function srcdir()local fs=host_package.loaded['luarocks.fs']return fs and fs.current_dir()end
+local function luapath()local path=os.getenv'LUA_PATH'if path==nil then
+return package.path
+end
+return(string.gsub(path,';;',';'..package.path..';',1))end
+local function provider(path)local cfg=require'luarocks.core.cfg'local luapath=require'luarocks.path'local manif=require'luarocks.manif'local searchpath=require'std.normalize'.package.searchpath
+return function(name)local file=searchpath(name,path)if file==nil then
+return nil
+end
+for _,tree in ipairs(cfg.rocks_trees)do
+local deployed=luapath.deploy_lua_dir(tree)..'/'if string.sub(file,1,#deployed)==deployed then
+local kind,item=manif.get_provided_item('lua',string.sub(file,#deployed+1))local rock,version=manif.get_current_provider(kind,item,tree)return rock,version,file
+end
+end
+end
+end
+local function bundling(rockspec)local bundled=require'luke.bundled'local build=rockspec.build or{}local names=bundled.modules(build.bin)for _,name in ipairs(bundled.modules(build.files))do
+names[#names+1]=name
+end
+if#names==0 or host_package.loaded['luarocks.path']==nil then
+return nil
+end
+return names,provider(luapath())end
+local function outdated(rockspec,names,find)local vers=require'luarocks.core.vers'local queries=(rockspec.build_dependencies or{}).queries or{}local messages=require'luke.bundled'.outdated(names,find,function(rock,version)for _,query in ipairs(queries)do
+if query.name==rock then
+local ok=vers.match_constraints(vers.parse_version(version),query.constraints)return ok,tostring(query)end
+end
+end)if#messages>0 then
+return table.concat(messages,'\n')end
+end
+function luke.run(rockspec,no_install)local names,find=bundling(rockspec)if names~=nil then
+local old=outdated(rockspec,names,find)if old~=nil then
+return nil,old
+end
+end
+local status,err=require'luke._base'.protected(function()local recipe,request=require'luke.rockspec'.fromrockspec(staged(rockspec),no_install,srcdir())if names~=nil then
+local bundled=require'luke.bundled'request.clidefs.bundled=bundled.listing(bundled.rocks(names,find))end
+return require'luke'.make(recipe,request)end)if status==nil then
+return nil,err
+end
+if status~=0 then
+return nil,'luke failed'end
+return true
+end
+return luke
+end
+bundled['luke._base']=function()
+local _ENV=require'std.normalize'{'io.stderr','io.stdout','os.exit','string.format',}local function message(...)if select('#',...)>1 then
+return format(...)end
+return(...)end
+local M={}function M.failure(msg)stdout:flush()stderr:write('luke: fatal: '..msg..'\n')exit(1)end
+local function fatal(...)M.failure(message(...))end
+M.fatal=fatal
+M.message=message
+function M.diagnose(predicate,...)if not predicate then
+M.fatal(...)end
+return predicate
+end
+local FATAL={}function M.protected(fn,...)local outer=M.failure
+M.failure=function(msg)error(setmetatable({message=msg},FATAL),0)end
+local r=pack(pcall(fn,...))M.failure=outer
+if r[1]then
+return unpack(r,2,r.n)end
+if getmetatable(r[2])==FATAL then
+return nil,r[2].message
+end
+error(r[2],0)end
+return M
+end
+bundled['luke.bundled']=function()
+local _ENV=require'std.normalize'{'string.format','string.match','table.concat','table.sort',}local function isname(source)return type(source)=='string'and
+match(source,'^[%w_][%w_.]*$')~=nil and
+match(source,'%.lua$')==nil and
+match(source,'%.in$')==nil
+end
+local function modules(rules)local names,seen={},{}for i=1,#(rules or{})do
+local rule=rules[i]if type(rule)=='table'then
+for _,spec in next,rule do
+local sources=type(spec)=='table'and spec.sources or{}if type(sources)=='string'then
+sources={sources}end
+for j=1,#sources do
+local name=sources[j]if isname(name)and not seen[name]then
+seen[name]=true
+names[#names+1]=name
+end
+end
+end
+end
+end
+sort(names)return names
+end
+local function outdated(names,provider,satisfies)local messages,reported={},{}for i=1,#names do
+local rock,version,file=provider(names[i])if rock~=nil and not reported[rock]then
+local ok,wanted=satisfies(rock,version)if ok==false then
+reported[rock]=true
+messages[#messages+1]=format("%s %s provides %s (%s), which does not satisfy the build dependency %s",rock,version,names[i],file,wanted)end
+end
+end
+return messages
+end
+local function rocks(names,provider)local list,seen={},{}for i=1,#names do
+local rock,version=provider(names[i])if rock~=nil and not seen[rock]then
+seen[rock]=true
+list[#list+1]=rock..' '..version
+end
+end
+sort(list)return list
+end
+local function listing(list)local items={}for i=1,#list do
+items[i]=format('%q',list[i])end
+return concat(items,', ')end
+return{isname=isname,listing=listing,modules=modules,outdated=outdated,rocks=rocks,}
+end
+bundled['luke.cli']=function()
+local _base=require'luke._base'local _lukefile=require'luke.lukefile'local _prepare=require'luke.prepare'local _version=require'luke.version'local _std=require'std.functional.init'local _ENV=require'std.normalize'{'io.stderr','os.exit','string.gsub','string.match','table.concat',diagnose=_base.diagnose,fatal=_base.fatal,message=_base.message,loadluke=_lukefile.loadluke,mkrequest=_prepare.mkrequest,prepare=_prepare.prepare,case=_std.case,contains=_std.contains,each=_std.each,merged=_std.merged,nop=_std.nop,}local function version()print(_version.versiontext)exit(0)end
+local function bundled()local rocks=_version.BUNDLED or{}if#rocks>0 then
+print(concat(rocks,'\n'))end
+exit(0)end
+local function help()print[[
+Usage: luke [OPTION]... [VAR=VALUE]... [TARGET]
+
+Use the source, Luke!
+
+  --help        print this help, then exit
+  --version     print version number, then exit
+  --bundled     print the rocks bundled in luke, then exit
+  --dry-run     print the commands, without running them
+  --file=FILE   use FILE instead of lukefile
+  --value=NAME  print the value of variable NAME
+  --quiet       without any output
+  --verbose     provide more progress output
+
+Each TARGET can be one of the module table keys from lukefile, or:
+
+  all           build all targets in lukefile
+  install       copy all built targets to $PREFIX
+  release       cut a release of the rock=NAME at version=VERSION
+                (rock=@package@ if not specified)
+
+If no TARGET is given, 'all' is implied.
+
+Report bugs to https://github.com/gvvaughan/luke/issues.]]exit(0)end
+local progname=arg[0]local function opterr(...)local msg=gsub(message(...),'%.$','')stderr:write('luke: error: '..msg..'.\n')stderr:write("luke: try '"..progname.." --help' for help.\n")exit(2)end
+local function check_lukefile(parsed)local luke,err=loadluke(parsed.fname)diagnose(luke~=nil,'bad %s: %s',parsed.fname,err)return luke
+end
+local function release_version(parsed)if not contains(parsed.targets,'release')then
+return nil
+end
+diagnose(len(parsed.targets)==1,'release cannot be combined with other targets')local release=parsed.clidefs.version
+diagnose(release~=nil,'release needs a version=VERSION argument')case(release,{{'%d+',nop},{'%d+%.%d+',nop},{'%d+%.%d+%.%d+',nop},default=function()fatal("bad release version '%s': X, X.Y or X.Y.Z expected",release)end,})return release
+end
+local function parse_arguments(args)local r={clidefs={},debug=false,dryrun=false,valreqs={},fname='lukefile',quiet=false,targets={},verbose=false,}each(args,function(opt)case(opt,{['--debug']=function()r.debug=true
+end,['--dry-run']=function()r.dryrun=true
+end,{'%-%-file=(.+)',function(optarg)r.fname=optarg
+end},{'%-%-value=(.+)',function(optarg)r.valreqs[#r.valreqs+1]=optarg
+end},['--quiet']=function()r.quiet=true
+end,['--verbose']=function()r.verbose=true
+end,['--help']=help,['--version']=version,['--bundled']=bundled,{'([^-][^=]-)=(.+)',function(name,value)r.clidefs[name]=value
+end},default=function(opt)if match(opt,'^-')~=nil then
+opterr("unrecognized option '%s'",opt)end
+r.targets[#r.targets+1]=opt
+end,})end)return mkrequest(r)end
+return{commandline=function(args)local parsed=parse_arguments(args)return check_lukefile(parsed),merged(parsed,{release=release_version(parsed)})end,parse_arguments=parse_arguments,validate_arguments=function(parsed)local luke=check_lukefile(parsed)return prepare(luke,merged(parsed,{release=release_version(parsed)}))end,}
+end
+bundled['luke.compile']=function()
+local _base=require'luke._base'local _environment=require'luke.environment'local _std=require'std.functional.init'local _context=require'std.prototype.contextmanager'local _ordered=require'std.prototype.orderedmap'local _path=require'type.path'local _ENV=require'std.normalize'{'io.stderr','io.stdout','string.format','string.gsub','string.match','table.concat',int='math.tointeger',fatal=_base.fatal,interpolate=_environment.interpolate,mkenv=_environment.mkenv,shellword=_environment.shellword,bind=_std.bind,call=_std.call,case=_std.case,choose=_std.choose,compact=_std.compact,cond=_std.cond,filter=_std.filter,firstof=_std.firstof,flatten=_std.flatten,isempty=_std.isempty,iter=_std.iter,isnonzero=_std.isnonzero,isstring=_std.isstring,istable=_std.istable,keys=_std.keys,map=_std.map,some=_std.some,elems=_ordered.elems,ordered=_ordered,File=_context.File,Pipe=_context.Pipe,TmpFile=_context.TmpFile,slurp=_context.slurp,with=_context.with,dirname=_path.dirname,exists=_path.exists,}local function spawn(env,...)local command=interpolate(env,concat({...},' '))return with(TmpFile(),TmpFile(),function(out,err)local pipe=concat{'{ ',command,'\n} >',out.filename,' 2>',err.filename,'; printf $?'}return tonumber(slurp(Pipe(pipe))),slurp(File(err.filename)),slurp(File(out.filename))end)end
+local function write_error(err)if err~=''then
+stderr:write(err,match(err,'\n$')and''or'\n')end
+end
+local function run(L,env,command)L.write(interpolate(env,concat(command,' ')),'\n')local status,err,out=L.spawn(env,unpack(command))if status~=0 then
+if L.quiet then
+stdout:write(concat(command,' ')..'\n')end
+write_error(err)end
+return status,out,err
+end
+local function defines(...)return map(iter(elems(ordered.merged(...))),function(name,value)local fmt=cond({int(value)==1,'-D%s'},{true,'-D%s=%s'})return format(fmt,name,shellword(value))end)end
+local function flagged(flag)return function(...)return map(compact(flatten(pack(...))),function(v)return flag..v
+end)end
+end
+local incdirs=flagged'-I'local libdirs=flagged'-L'local function c_module_path(objdir,name)return format('%s/%s.$LIB_EXTENSION',objdir,gsub(name,'%.','/'))end
+local function c_source(module,objdir)local path=gsub(module,'%.','/')local src=c_module_path(objdir,path)return src,(gsub('$INST_LIBDIR/'..path,'/[^/]+$',''))end
+local function lua_source(module,src)local suffix=choose(match(src,'/init%.lua$'),'/init','')local abspath='$INST_LUADIR/'..gsub(module,'%.','/')..suffix..'.lua'return src,(gsub(abspath,'/[^/]+%.lua$',''))end
+local function script_target(name,rules,objdir,installed)return cond({isstring(rules),function()return(gsub(rules,'%.in$',''))end},{installed,function()return format('%s/%s',objdir,name)end},{true,name})end
+local function c_sources(sources)return some(sources,bind(match,{[2]='%.[ch]$'}))end
+local function module_to_path(module,sources,objdir)return case(sources[1],{{'.*%.[ch]',bind(c_source,{module,objdir})},{'(.*%.[ch])%.in',bind(c_source,{module,objdir})},{'.*%.lua',bind(lua_source,{module})},{'(.*%.lua)%.in',bind(lua_source,{module})},default=function(src)fatal("unsupported source type '%s'",src)end,})end
+local function sequence(steps)return firstof(steps,isnonzero,call)or 0
+end
+local function make_dir(L,env,dir)local command={'$MAKEDIRS',dir}local status,err=L.spawn(env,unpack(command))if status~=0 then
+stdout:write(concat(command,' ')..'\n')write_error(err)end
+return status
+end
+local function install_dir(L,env,dir)return choose(exists(interpolate(env,dir)),0,function()return run(L,env,{'$MAKEDIRS',dir})end)end
+local function c_command(luke,rules,head,sources,output)return compact(flatten(pack(head,defines(luke.defines,rules.defines),incdirs(rules.incdirs,luke.incdirs),sources,'-o',output,'$LDFLAGS',libdirs(rules.libdirs,luke.libdirs),'$LIBS',rules.libraries,luke.libraries)))end
+local function exports_for(env,rules)local names=keys(rules.env or{})return choose(isempty(names),{},function()return compact(flatten(pack('export',map(names,function(name)return format('%s=%s',name,shellword(interpolate(env,rules.env[name])))end),';')))end)end
+local function install_module(L,env,luke,modules,name)local src,dir=module_to_path(name,modules[name].sources,luke.variables.objdir)return sequence{bind(install_dir,{L,env,dir}),bind(run,{L,env,{'$INSTALL',src,dir..'/'}}),}end
+local function install_script(L,env,luke,name)local rules=luke.install.bin[name]local src=script_target(name,rules,luke.variables.objdir,true)local dest='$INST_BINDIR/'..name
+return sequence{bind(run,{L,env,{'$INSTALL',src,dest}}),bind(run,{L,env,{'$CHMOD','+x',dest}}),}end
+return{build_c_module=function(L,env,luke,name)local rules=luke.modules[name]local c_module=c_module_path(luke.variables.objdir,name)return sequence{bind(make_dir,{L,env,dirname(c_module)}),bind(run,{L,env,c_command(luke,rules,'$CC $CFLAGS $LIBFLAG $PKGFLAGS $CPPFLAGS',rules.sources,c_module)}),}end,build_program=function(L,env,luke,rules,target,sources)local status=choose(match(target,'/'),function()return make_dir(L,env,dirname(target))end,0)if status~=0 then
+return status
+end
+if rules.command~=nil then
+env=mkenv({sources=concat(sources,' '),target=target},rules.env,env)return run(L,env,compact(flatten(pack(exports_for(env,rules),rules.command))))end
+if not c_sources(sources)then
+fatal("no command to build '%s' from %s",target,concat(sources,' '))end
+return run(L,env,c_command(luke,rules,'$CC $CFLAGS $CPPFLAGS',sources,target))end,c_modules=function(modules)return filter(ordered.keys(modules),function(name)return c_sources(modules[name].sources)end)end,c_program=function(rules)return istable(rules)and rules.command==nil and c_sources(rules.sources)end,defines=defines,incdirs=incdirs,install_modules=function(L,env,luke,modules)return sequence(map(ordered.keys(modules),function(name)return bind(install_module,{L,env,luke,modules,name})end))end,install_scripts=function(L,env,luke,names)if isempty(names)then
+return 0
+end
+return sequence(compact(flatten(pack(bind(install_dir,{L,env,'$INST_BINDIR'}),map(names,function(name)return bind(install_script,{L,env,luke,name})end)))))end,libdirs=libdirs,make_executable=function(L,env,path)return run(L,env,{'$CHMOD','+x',path})end,run=run,sequence=sequence,script_target=script_target,spawn=spawn,}
+end
+bundled['luke.configure']=function()
+local _base=require'luke._base'local _compile=require'luke.compile'local _environment=require'luke.environment'local _std=require'std.functional.init'local _context=require'std.prototype.contextmanager'local _ctest=require'luke.ctest'local _ordered=require'std.prototype.orderedmap'local _ENV=require'std.normalize'{'os.getenv','string.find','string.format','string.gmatch','string.gsub','string.sub','table.concat',diagnose=_base.diagnose,fatal=_base.fatal,defines=_compile.defines,incdirs=_compile.incdirs,libdirs=_compile.libdirs,spawn=_compile.spawn,CONFIGENV=_environment.CONFIGENV,interpolate=_environment.interpolate,mkenv=_environment.mkenv,apply=_std.apply,bind=_std.bind,call=_std.call,case=_std.case,choose=_std.choose,compact=_std.compact,cond=_std.cond,each=_std.each,firstof=_std.firstof,flatten=_std.flatten,isempty=_std.isempty,isfile=_std.isfile,istable=_std.istable,keys=_std.keys,map=_std.map,merged=_std.merged,some=_std.some,CTest=_ctest.CTest,File=_context.File,TmpFile=_context.TmpFile,slurp=_context.slurp,with=_context.with,OrderedMap=_ordered.prototype,ordered=_ordered,CCPROGS={'cc','gcc','clang'},}local function logspawn(L,env,filename,...)local status,err=spawn(env,...)if status~=0 and err~=''then
+with(File(filename,'r'),function(h)L.log(h.filename..':')L.log(slurp(h))end)L.log(err)end
+return status
+end
+local function Conftest(L)local cm=CTest(L.debug)if L.debug and cm~=nil then
+L.log('keeping '..cm.filename..' and '..cm.objfile)end
+return cm
+end
+local function checking(L,...)L.verbose('checking ',concat({...},' '),'... ')end
+local function found_library(L,x)L.verbose(cond({x==nil or x=='','none required'},{isempty(x),'not supported'},{true,x}))L.verbose'\n'return x
+end
+local function found_prog(L,x)L.verbose(choose(x,'yes\n','no\n'))return x
+end
+local function found_result(L,x)L.verbose(choose(x==0,'yes\n','no\n'))return choose(x~=0,0,1)end
+local function fill(template,values)return(gsub(template,'@(%u+)@',values))end
+local function bindirs(...)return map(compact(flatten(pack(...))),function(v)return v..':'end)end
+local function compile_command(L,env,config,objfile,filename)local command=compact(flatten(pack('$CC','-c','$CFLAGS',defines(L.luke.defines),incdirs(config.incdir),'$CPPFLAGS','-o',objfile,filename)))L.log(interpolate(env,concat(command,' ')))return unpack(command)end
+local function link_command(L,env,config,a_out,source,lib)local command=compact(flatten(pack('$CC','$CFLAGS',defines(L.luke.defines),incdirs(config.incdir),'$CPPFLAGS','-o',a_out,source,libdirs(config.libdir),'$LDFLAGS',lib,'$libs',CONFIGENV.libs)))L.log(interpolate(env,concat(command,' ')))return unpack(command)end
+local function check_executable_in_path(L,env,config,prog)local PATH=concat(bindirs(config.bindir))..getenv('PATH')local found=firstof(gmatch(PATH,'[^:]+'),function(path)local progpath=path..'/'..prog
+return with(File(progpath,'r'),function(h)return choose(h and isfile(h.context),progpath)end)end)L.log(choose(found,function()return'found '..found
+end,prog..' not found'))return found~=nil
+end
+local function compile_probe(L,env,config,source)return with(Conftest(L),function(conftest)conftest:write(source)conftest:flush()return logspawn(L,env,conftest.filename,compile_command(L,env,config,conftest.objfile,conftest.filename))end)end
+local function link_probe(L,env,config,source,lib)return with(Conftest(L),TmpFile(),function(conftest,a_out)conftest:write(source)conftest:flush()return logspawn(L,env,conftest.filename,link_command(L,env,config,a_out.filename,conftest.filename,lib))end)end
+local function check_header_compile(L,env,config,header,extra_hdrs)return compile_probe(L,env,config,format('%s\n#include "%s"\n',extra_hdrs,header))end
+local function check_struct_member_compile(L,env,config,structname,member,extra_hdrs)return compile_probe(L,env,config,fill([[
+@HEADERS@
+int main () {
+static @STRUCT@ aggr;
+if (sizeof aggr.@MEMBER@)
+    return 0;
+return 0;
+}
+]],{HEADERS=extra_hdrs,STRUCT=structname,MEMBER=member}))end
+local function try_link(L,env,config,lib,symbol)return link_probe(L,env,config,fill([[
+/* Override any GCC internal prototype to avoid an error.
+ Use char because int might match the return type of a GCC
+ builtin and then its argument prototype would still apply.   */
+char @SYMBOL@ ();
+int main () {
+return @SYMBOL@ ();
+}
+]],{SYMBOL=symbol}),lib)end
+local function try_compile(L,env,config,headers)return link_probe(L,env,config,fill([[
+@HEADERS@
+#if !defined @IFDEF@ || @IFDEF@ == -1
+choke me
+#endif
+int
+main()
+{
+return 0;
+}
+]],{HEADERS=headers,IFDEF=config.ifdef}))end
+local function check_func_decl(L,env,config,fname,extra_hdrs)return compile_probe(L,env,config,fill([[
+@HEADERS@
+int
+main()
+{
+#ifndef @FUNC@
+(void) @FUNC@;
+#endif
+return 0;
+}
+]],{HEADERS=extra_hdrs,FUNC=fname}))end
+local function check_func_link(L,env,config,fname)return link_probe(L,env,config,fill([[
+/* Define to an innocous variant, in case <limits.h> declares it.
+ For example, HP-UX 11i <limits.h> declares gettimeofday.   */
+#define @FUNC@ innocuous_@FUNC@
+
+/* System header to define __stub macros and hopefully few prototypes,
+ which can conflict with declaration below.
+ Prefer <limits.h> to <assert.h> if __STDC__ is defined, since
+ <limits.h> exists even on freestanding compilers.   */
+
+#ifdef __STDC__
+# include <limits.h>
+#else
+# include <assert.h>
+#endif
+
+#undef @FUNC@
+
+/* Override any GCC internal prototype to avoid an error.
+ Use char because int might match the return type of a GCC
+ builtin and then its argument prototype would still apply.   */
+char @FUNC@ ();
+
+/* The GNU C library defines this for functions which it implements
+ to always fail with ENOSYS.   Some functions are actually named
+ something starting with __ and the normal name is an alias.   */
+#if defined __stub_@FUNC@ || defined __stub__@FUNC@
+choke me
+#endif
+
+int main () {
+return @FUNC@ ();
+}
+]],{FUNC=fname}))end
+local DIRVARS={bindir='$%s_BINDIR',incdir='$%s_INCDIR',libdir='$%s_LIBDIR'}local function external_dirs(env,prefix)local r={}if prefix~=nil then
+each(keys(DIRVARS),function(k)local envvar=interpolate(env,format(DIRVARS[k],prefix))if envvar~=''then
+r[k]=envvar
+end
+end)end
+return r
+end
+local function format_includes(includes)return map(includes or{},function(include)return format('#include "%s"',include)end)end
+local function include_lines(config)return concat(format_includes(config.includes),'\n')end
+local function add_library(lib)CONFIGENV.libs=choose(CONFIGENV.libs=='',lib,lib..' '..CONFIGENV.libs)end
+local probes=OrderedMap{{checkprog=function(L,env,config)return diagnose(firstof(config.progs,function(prog)checking(L,'for',prog)if found_prog(L,check_executable_in_path(L,env,config,prog))then
+return prog
+end
+end),'cannot find %s',config.checkprog)end},{checkheader=function(L,env,config)checking(L,'for',config.checkheader)return found_result(L,check_header_compile(L,env,config,config.checkheader,include_lines(config)))end},{checkdecl=function(L,env,config)checking(L,'whether',config.checkdecl,'is declared')return found_result(L,check_func_decl(L,env,config,config.checkdecl,include_lines(config)))end},{checksymbol=function(L,env,config)checking(L,'for library containing',config.checksymbol)if config.ifdef~=nil then
+if try_compile(L,env,config,include_lines(config))~=0 then
+return found_library(L,{})end
+end
+local libraries,symbol=config.libraries,config.checksymbol
+local trylibs=flatten(pack('',map(libraries,function(lib)return'-l'..lib
+end)))return firstof(trylibs,function(lib)if try_link(L,env,config,lib,symbol)==0 then
+choose(lib~='',bind(add_library,{lib}))return found_library(L,lib)end
+end)or call(function()L.verbose'\n'fatal("required symbol '%s' not found in any of libc, lib%s",symbol,concat(libraries,', lib'))end)end},{checkfunc=function(L,env,config)checking(L,'for',config.checkfunc)return found_result(L,check_func_link(L,env,config,config.checkfunc))end},{checkmember=function(L,env,config)checking(L,'for',config.checkmember)local i=find(config.checkmember,'%.')local structname=sub(config.checkmember,1,i-1)local member=sub(config.checkmember,i+1)return found_result(L,check_struct_member_compile(L,env,config,structname,member,include_lines(config)))end}}local function configure(L,env,config,prefix)return case(type(config),{['number']=function()return str(config)end,['string']=function()return config
+end,['table']=function()return diagnose(firstof(ordered.keys(probes),function(fname)if config[fname]~=nil then
+return apply(probes[fname],pack(L,env,merged(config,external_dirs(env,prefix))))end
+end),"unable to configure with keys '%s'",concat(keys(config),"', '"))end,default=function(kind)fatal("unsupported configure type '%s'",kind)end,})end
+local function isprobe(x)return istable(x)and some(ordered.keys(probes),function(name)return x[name]~=nil
+end)end
+return{config_compiler=function(L,env)local CC=env.CC
+if CC==nil then
+CC=configure(L,env,{checkprog='C compiler',progs=CCPROGS})env=mkenv(env,{CC=CC})end
+checking(L,interpolate(env,'whether $CC works'))local cm=Conftest(L)local works,err=with(cm,function(conftest)conftest:write('typedef int x;\n')conftest:flush()return spawn(env,'$compile','-o',conftest.objfile,conftest.filename)end)if works~=0 then
+L.verbose'no\n'L.log(interpolate(env,'$compile -o '..cm.objfile..' '..cm.filename))if err and err~=''then
+L.log(err)end
+fatal('could not find a working C compiler')end
+found_prog(L,CC)return env
+end,config_ldoc=function(L,env)local LDOC=env.LDOC
+if LDOC==nil then
+LDOC=configure(L,env,{checkprog='LDocs generator',progs={'ldoc','true'}})env=mkenv(env,{LDOC=LDOC})end
+return env
+end,configure=configure,isprobe=isprobe,probes=probes,}
+end
+bundled['luke.ctest']=function()
+local _context=require'std.prototype.contextmanager'local _ENV=require'std.normalize'{'io.close','io.open','os.remove','os.tmpname','string.gsub',iotype='io.type',}local function closefile(cm)return iotype(cm.context)=='file'and close(cm.context)end
+return{CTest=function(keep)local conftest=tmpname()local source=conftest..'.c'local cm,err=_context(function(cm)local closed=closefile(cm)if keep then
+return closed
+end
+remove(conftest)remove(cm.objfile)return closed and remove(cm.filename)end,open,source,'w')if cm~=nil then
+cm.filename=source
+cm.objfile=gsub(conftest,'^.*/','')..'.o'end
+return cm,err
+end,}
+end
+bundled['luke.environment']=function()
+local _base=require'luke._base'local _platforms=require'luke.platforms'local _std=require'std.functional.init'local _ENV=require'std.normalize'{'os.getenv','string.gsub','string.match',diagnose=_base.diagnose,filter_platforms=_platforms.filter_platforms,bind=_std.bind,converge=_std.converge,firstof=_std.firstof,reject=_std.reject,LUA_VERSION=string.gsub(_VERSION,'[^0-9%.]+',''),SHELLMETACHARS='[%s%$"\'&;|<>()*?`\\]',}local function interpolate_with(pattern,env,s)local ok,result=pcall(converge,s,function(text)return(gsub(text,pattern,function(varname)return env[varname]or''end))end)return diagnose(ok and result,"cannot expand '%s': its names refer to each other",s)end
+local function quoted(s)return"'"..gsub(s,"'",[['\'']]).."'"end
+return{CONFIGENV={compile='$CC -c $CFLAGS $CPPFLAGS',libs='',link='$CC $CFLAGS $CPPFLAGS $LDFLAGS',},DEFAULTENV=filter_platforms{LUA='lua',LUA_VERSION=LUA_VERSION,LUAVERSION='$LUA_VERSION',PREFIX='/usr/local',INST_BINDIR='$PREFIX/bin',INST_LIBDIR='$PREFIX/lib/lua/$LUA_VERSION',INST_LUADIR='$PREFIX/share/lua/$LUA_VERSION',LIB_EXTENSION='so',OBJ_EXTENSION='o',CHMOD='chmod',INSTALL='cp',MAKEDIRS='mkdir -p',CFLAGS='-O2',platforms={macosx={LIBFLAG='-fPIC -bundle -undefined dynamic_lookup -all_load',},LIBFLAG='-shared -fPIC',},},SHELLENV=setmetatable({},{__index=function(_,v)return getenv(v)end,}),expand=bind(interpolate_with,{'@([%w_]+)@'}),interpolate=bind(interpolate_with,{'%$([%w_]+)'}),shellword=function(s)if match(s,SHELLMETACHARS)then
+return quoted(s)end
+return s
+end,mkenv=function(...)local tables,found=reject(pack(...),nil),{}return setmetatable({},{__index=function(_,varname)if found[varname]==nil then
+found[varname]=firstof(tables,function(t)return t[varname]end)end
+return found[varname]end,})end,}
+end
+bundled['luke']=function()
+local _cli=require'luke.cli'local _compile=require'luke.compile'local _configure=require'luke.configure'local _environment=require'luke.environment'local _lukefile=require'luke.lukefile'local _prepare=require'luke.prepare'local _release=require'luke.release'local _std=require'std.functional.init'local _ENV=require'std.normalize'{'os.exit','string.format',commandline=_cli.commandline,build_c_module=_compile.build_c_module,build_program=_compile.build_program,c_modules=_compile.c_modules,c_program=_compile.c_program,install_modules=_compile.install_modules,install_scripts=_compile.install_scripts,make_executable=_compile.make_executable,run=_compile.run,script_target=_compile.script_target,sequence=_compile.sequence,config_compiler=_configure.config_compiler,config_ldoc=_configure.config_ldoc,CONFIGENV=_environment.CONFIGENV,DEFAULTENV=_environment.DEFAULTENV,SHELLENV=_environment.SHELLENV,interpolate=_environment.interpolate,mkenv=_environment.mkenv,bind=_std.bind,choose=_std.choose,compact=_std.compact,each=_std.each,filter=_std.filter,flatten=_std.flatten,isempty=_std.isempty,isstring=_std.isstring,map=_std.map,fill_template=_lukefile.fill_template,run_configs=_lukefile.run_configs,run_templates=_lukefile.run_templates,script_sections=_lukefile.script_sections,prepare=_prepare.prepare,release=_release.release,}local function run_ldocs(L,env,ldocs)return run(L,env,compact(flatten(pack('$LDOC -c',ldocs.sources,'.'))))end
+local function script_rules(L,entry)return script_sections(L.luke)[entry.section][entry.name]end
+local function build_script(L,env,substitute,entry)local rules=script_rules(L,entry)local target=script_target(entry.name,rules,L.luke.variables.objdir,entry.section=='install')return sequence{function()if isstring(rules)then
+fill_template(L,substitute,rules)return 0
+end
+local sources=map(rules.sources,function(source)return fill_template(L,substitute,source)end)return build_program(L,env,L.luke,rules,target,sources)end,function()return choose(entry.section=='files',0,bind(make_executable,{L,env,target}))end,}end
+local function configured(L,env)local conf=mkenv(CONFIGENV,env)if not isempty(L.luke.ldocs or{})then
+conf=config_ldoc(L,conf)env=mkenv(env,{LDOC=conf.LDOC})end
+local c_names=c_modules(L.luke.modules or{})local c_programs=filter(L.scripts.build,function(entry)return c_program(script_rules(L,entry))end)if not isempty(c_names)or not isempty(c_programs)then
+conf=config_compiler(L,conf)env=mkenv(env,{CC=conf.CC})end
+L.luke=run_configs(L,conf,L.luke)env=mkenv(L.clidefs,L.luke.variables,env)return env,mkenv(L.clidefs,L.luke.substitute,SHELLENV),c_names
+end
+local function build_modules(L,env,substitute,c_names)if isempty(L.luke.modules or{})and isempty(L.luke.ldocs or{})then
+return 0
+end
+L.luke=run_templates(L,substitute,L.luke)return sequence(compact(flatten(pack(map(c_names,function(name)return bind(build_c_module,{L,env,L.luke,name})end),choose(not isempty(L.luke.ldocs or{}),function()return bind(run_ldocs,{L,env,L.luke.ldocs})end)))))end
+local function build_scripts(L,env,substitute)return sequence(map(L.scripts.build,function(entry)return bind(build_script,{L,env,substitute,entry})end))end
+local function build(L,env)local env,substitute,c_names=configured(L,env)return sequence{bind(build_modules,{L,env,substitute,c_names}),bind(build_scripts,{L,env,substitute}),}end
+local function build_ldocs(L,env)if isempty(L.luke.ldocs or{})then
+return 0
+end
+local env,substitute=configured(L,env)L.luke=run_templates(L,substitute,L.luke)return run_ldocs(L,env,L.luke.ldocs)end
+local function print_values(L,env)local probed=run_configs(L,mkenv(CONFIGENV,env),{variables=L.luke.variables})env=mkenv(L.clidefs,probed.variables,env)each(L.valreqs,function(name)print(interpolate(env,format("%s='$%s'",name,name)))end)exit(0)end
+local function make(recipe,request)local L=prepare(recipe,request)local env=mkenv(L.clidefs,L.luke.variables,DEFAULTENV,SHELLENV)if not isempty(L.valreqs)then
+print_values(L,env)end
+if L.release~=nil then
+return release(L,env,bind(build,{L,env}),bind(build_ldocs,{L,env}))end
+return sequence{function()local wanted=not isempty(L.luke.modules or{})or not isempty(L.scripts.build)or
+not isempty(L.luke.ldocs or{})return choose(wanted,bind(build,{L,env}),0)end,bind(install_modules,{L,env,L.luke,L.install}),bind(install_scripts,{L,env,L.luke,L.scripts.install}),}end
+return{main=function(args)return make(commandline(args))end,make=make,}
+end
+bundled['luke.lukefile']=function()
+local _configure=require'luke.configure'local _environment=require'luke.environment'local _ordered=require'std.prototype.orderedmap'local _platforms=require'luke.platforms'local _schema=require'luke.schema'local _std=require'std.functional.init'local _context=require'std.prototype.contextmanager'local _ENV=require'std.normalize'{'io.lines','string.format','string.match','string.sub',configure=_configure.configure,isprobe=_configure.isprobe,probes=_configure.probes,expand=_environment.expand,bind=_std.bind,case=_std.case,compact=_std.compact,cond=_std.cond,each=_std.each,either=_std.either,except=_std.except,filter=_std.filter,flatmap=_std.flatmap,flatten=_std.flatten,id=_std.id,indexof=_std.indexof,isempty=_std.isempty,istable=_std.istable,iter=_std.iter,keys=_std.keys,map=_std.map,mapvalues=_std.mapvalues,merged=_std.merged,sorted=_std.sorted,OrderedMap=_ordered.prototype,elems=_ordered.elems,ordered=_ordered,narrow_platforms=_platforms.narrow_platforms,ORDERED=_schema.ORDERED,bad=_schema.bad,copies=_schema.copies,defines=_schema.defines,dependencies=_schema.dependencies,fields=_schema.fields,files=_schema.files,index=_schema.index,keypaths=_schema.keypaths,listof=_schema.listof,luke_format=_schema.luke_format,mkcheck=_schema.mkcheck,ordered_map=_schema.ordered_map,pairof=_schema.pairof,pathname=_schema.pathname,rules=_schema.rules,scripts=_schema.scripts,File=_context.File,slurp=_context.slurp,with=_context.with,}local str,t=mkcheck'string',mkcheck'table'local RELEASEKEYS={add=listof(pathname),check_dependencies=mkcheck'boolean',news=pathname,prebuild=mkcheck'boolean',replacements=ordered_map(pairof(ordered_map(pairof(str)),pathname)),}local release_fields=fields(merged(RELEASEKEYS,{rockspec=listof(pathname)}),copies)local rock_fields=fields(RELEASEKEYS,copies)local function isrockspec(k)return type(k)=='string'and match(k,'%.rockspec$')~=nil
+end
+local RELEASE=setmetatable({schema=release_fields.schema},{__call=function(_,x,path)if t(x,path)==nil then
+return nil
+end
+local own,rocks={},{}for k,v in next,x do
+if type(k)=='number'then
+if not isrockspec(str(v,index(path,k)))then
+bad(index(path,k),'development rockspec name expected, got %s',v)end
+rocks[v]={}elseif isrockspec(k)then
+rocks[k]=rock_fields(v,index(path,k))else
+own[k]=v
+end
+end
+if next(rocks)==nil then
+return release_fields(x,path)elseif next(own)~=nil then
+bad(path,'a release table with rockspecs has no other keys: put them in an entry of one')end
+return rocks
+end})local LUKEFILE=fields({luke_format=luke_format,package=str,version=str,defines=defines,external_dependencies=dependencies,incdirs=listof(pathname),ldocs=rules,libdirs=listof(pathname),libraries=listof(id),modules=ordered_map(pairof(rules)),substitute=t,variables=t,bin=scripts,files=files,install=fields{bin=scripts,},release=RELEASE,},true)local function collect_configs(luke,modulename,sectionname)return flatmap(keys(luke),function(k)local v=luke[k]return cond({istable(v)and(k=='modules'or k=='external_dependencies'),function()return flatmap(iter(elems(v)),function(name,rules)return collect_configs(rules,name,k)end)end},{istable(v)and ORDERED[k],function()return flatmap(iter(elems(v)),function(name,value)return cond({isprobe(value),{{t=v,k=name,module=modulename,section=sectionname}}},{istable(value),function()return collect_configs(value,modulename,sectionname)end})end)end},{isprobe(v),{{t=luke,k=k,module=modulename,section=sectionname}}},{istable(v),function()return collect_configs(v,modulename,sectionname)end})end)end
+local function deepcopy(tree)local function copy(v)return istable(v)and deepcopy(v)or v
+end
+local r={}for k,v in next,tree do
+if istable(v)and ORDERED[k]then
+r[k]=ordered.mapvalues(v,copy)else
+r[k]=copy(v)end
+end
+return r
+end
+local function weight(config)local probe=config.t[config.k]return indexof(ordered.keys(probes),function(kind)return probe[kind]~=nil
+end)end
+local function config_cmp(a,b)return weight(a)<weight(b)end
+local function inside(srcdir,path)if srcdir==nil or sub(path,1,1)=='/'then
+return path
+end
+return srcdir..'/'..path
+end
+local function fill_templates(L,env,src,dest)with(File(inside(L.srcdir,dest),'w'),function(cm)each(lines(inside(L.srcdir,src)),function(line)cm:write(expand(env,line)..'\n')end)end)end
+local function rewrite_template_files(L,env,source)return case(source,{{'(.+)%.in',function(r)if not L.filled[r]then
+L.filled[r]=true
+L.write('creating '..r..'\n')if not L.dryrun then
+fill_templates(L,env,r..'.in',r)end
+end
+return r
+end},default=source,})end
+local function dependency_variables(name)local rootdir='$'..name..'_DIR'return{[name..'_DIR']='/usr',[name..'_BINDIR']=rootdir..'/bin',[name..'_INCDIR']=rootdir..'/include',[name..'_LIBDIR']=rootdir..'/lib',}end
+local function collect_variables(luke)return merged(unpack(flatmap(keys(luke),function(k)local v=luke[k]return cond({k=='external_dependencies',function()return map(ordered.keys(v),dependency_variables)end},{istable(v),function()return{collect_variables(v)}end})end)))end
+local PLURALS={include='includes',prog='progs',library='libraries'}local function pluralize(config)local r=except(config,function(k)return PLURALS[k]~=nil
+end)each(keys(PLURALS),function(singular)if config[singular]~=nil then
+local plural=PLURALS[singular]r[plural]=compact(flatten(pack(config[singular],config[plural])))end
+end)return r
+end
+local function normalize_configs(config)return cond({not istable(config),function()return config
+end},{not isprobe(config),function()return mapvalues(config,normalize_configs)end},{true,function()return pluralize(config)end})end
+local function needs_library(config)return istable(config)and not isempty(config)and config.library~=''end
+local function extend(existing,items)return either(compact(flatten(pack(existing,items))),nil)end
+local function unwrap_external_dependencies(luke)local dependencies=luke.external_dependencies
+if istable(dependencies)then
+local prefixes=filter(ordered.keys(dependencies),function(prefix)return needs_library(dependencies[prefix])end)luke.incdirs=extend(luke.incdirs,map(prefixes,bind(format,{'$%s_INCDIR'})))luke.libdirs=extend(luke.libdirs,map(prefixes,bind(format,{'$%s_LIBDIR'})))luke.libraries=extend(luke.libraries,map(prefixes,function(prefix)return dependencies[prefix].library
+end))luke.external_dependencies=nil
+end
+return luke
+end
+local function normalize(r)luke_format(r.luke_format,'luke_format')return LUKEFILE(normalize_configs(narrow_platforms(r,ORDERED)),'')end
+return{loadluke=function(filename)local content,err=slurp(File(filename))if content==nil then
+return nil,err
+end
+local r={}local chunk,err=load(content,filename,'t',r)if chunk==nil then
+return nil,"Error loading file: "..err
+end
+local ok,err=pcall(chunk)if not ok then
+return nil,"Error running file: "..err
+end
+return normalize(r)end,normalize=normalize,collect_variables=collect_variables,branches=function(release)return filter(keys(release or{}),function(k)return RELEASE.schema[k]==nil and not isrockspec(k)end)end,keypaths=function()return keypaths(LUKEFILE)end,SCRIPT_SECTIONS={'bin','install','files'},script_sections=function(luke)return{bin=luke.bin or OrderedMap{},files=luke.files or OrderedMap{},install=(luke.install or{}).bin or OrderedMap{},}end,fill_template=rewrite_template_files,run_configs=function(L,env,luke)local r=deepcopy(luke)each(sorted(collect_configs(r),config_cmp),function(config)local prefix=case(config.section,{external_dependencies=function()return config.module end,})config.t[config.k]=configure(L,env,config.t[config.k],prefix)end)return unwrap_external_dependencies(r)end,run_templates=function(L,env,luke)local rewrite=bind(rewrite_template_files,{L,env})local function rewritten(rules)return merged(rules,{sources=map(rules.sources,rewrite)})end
+local r=merged(luke)if r.modules then
+r.modules=ordered.mapvalues(r.modules,rewritten)end
+if r.ldocs then
+r.ldocs=rewritten(r.ldocs)end
+return r
+end,}
+end
+bundled['luke.platforms']=function()
+local _set=require'std.prototype.set'local _std=require'std.functional.init'local _ENV=require'std.normalize'{'io.popen','string.match','string.sub',any=_std.any,bind=_std.bind,default=_std.default,each=_std.each,either=_std.either,except=_std.except,filter=_std.filter,firstof=_std.firstof,flatten=_std.flatten,foldl=_std.foldl,isempty=_std.isempty,islistkey=_std.islistkey,istable=_std.istable,keys=_std.keys,map=_std.map,reject=_std.reject,reversed=_std.reversed,values=_std.values,Set=_set.prototype,}local CANON={['AIX']=pack('aix','unix'),['FreeBSD']=pack('freebsd','bsd','unix'),['OpenBSD']=pack('openbsd','bsd','unix'),['NetBSD']=pack('netbsd','bsd','unix'),['Darwin']=pack('macosx','bsd','unix'),['Linux']=pack('linux','unix'),['SunOS']=pack('solaris','unix'),['^CYGWIN']=pack('cygwin','unix'),['^MSYS']=pack('msys','cygwin','unix'),['^Windows']=pack('win32','windows'),['^MINGW']=pack('mingw32','win32','windows'),['^procnto']=pack('qnx'),['QNX']=pack('qnx'),['Haiku']=pack('haiku','unix'),}local ALLPLATFORMS=Set(flatten(values(CANON)))local function by_name(canon,uname)return canon[uname]end
+local function ispatternkey(k)return sub(k,1,1)=='^'end
+local function by_pattern(canon,uname)return firstof(filter(keys(canon),ispatternkey),function(k)return match(uname,k)and canon[k]end)end
+local function by_default()return pack('unix')end
+local toplatforms=any(by_name,by_pattern,by_default)local supported=toplatforms(CANON,popen('uname -s'):read'*l')local function isplatform(x)return ALLPLATFORMS[x]~=nil
+end
+local function selected(platforms,supported,isplatform)local matches=reject(map(supported,function(name)return platforms[name]end),nil)local defaults=reject({except(platforms,isplatform)},isempty)return either(matches,defaults)end
+local function layers(t,using,predicate)local supported,isplatform=default(using,supported),default(predicate,isplatform)local own=except(t,'platforms')return{own,unpack(reversed(selected(t.platforms or{},supported,isplatform)))}end
+local function append_entries(r,layer,narrow)each(layer,function(v)r[len(r)+1]=narrow(v)end)end
+local function overlay_fields(r,layer,narrow)each(reject(keys(layer),bind(islistkey,{layer})),function(k)r[k]=narrow(layer[k],k)end)end
+local function narrow_for(t,supported,isplatform,opaque)local function narrow(v,k)if opaque[k]or not istable(v)then
+return v
+end
+return narrow_for(v,supported,isplatform,opaque)end
+local tables=map(layers(t,supported,isplatform),function(layer)if layer.platforms then
+return narrow(layer)end
+return layer
+end)return foldl(tables,{},function(r,layer)append_entries(r,layer,narrow)overlay_fields(r,layer,narrow)end)end
+local function filter_platforms(t,using,predicate,opaque)return narrow_for(t,default(using,supported),default(predicate,isplatform),default(opaque,{}))end
+local function narrow_platforms(t,opaque)return narrow_for(t,supported,isplatform,opaque)end
+return{filter_platforms=filter_platforms,isplatform=isplatform,layers=layers,narrow_platforms=narrow_platforms,platforms=supported,toplatforms=toplatforms,}
+end
+bundled['luke.prepare']=function()
+local _base=require'luke._base'local _compile=require'luke.compile'local _environment=require'luke.environment'local _lukefile=require'luke.lukefile'local _ordered=require'std.prototype.orderedmap'local _platforms=require'luke.platforms'local _std=require'std.functional.init'local _context=require'std.prototype.contextmanager'local _ENV=require'std.normalize'{'io.stderr','io.stdout','string.gmatch','string.gsub','string.match','table.concat',diagnose=_base.diagnose,spawn=_compile.spawn,DEFAULTENV=_environment.DEFAULTENV,shellword=_environment.shellword,OrderedMap=_ordered.prototype,ordered=_ordered,SCRIPT_SECTIONS=_lukefile.SCRIPT_SECTIONS,collect_variables=_lukefile.collect_variables,script_sections=_lukefile.script_sections,platforms=_platforms.platforms,choose=_std.choose,contains=_std.contains,each=_std.each,flatmap=_std.flatmap,flatten=_std.flatten,isempty=_std.isempty,map=_std.map,merged=_std.merged,nop=_std.nop,reject=_std.reject,some=_std.some,Pipe=_context.Pipe,slurp=_context.slurp,}local function display(...)return stdout:write(concat{...})end
+local function dump(...)local s=concat(map(pack(...),function(x)return type(x)=='string'and x or str(x)end))if len(s)>0 then
+each(gmatch(match(s,'^(.-)\n*$')..'\n','(.-)\n'),function(line)stderr:write('   DEBUG: '..line..'\n')end)end
+end
+local function interpolate_to_substitute(s)return(gsub(s,'%$([%w_]+)','@%1@'))end
+local function gitref(srcdir)local out=slurp(Pipe('git -C '..shellword(srcdir)..' rev-parse --short HEAD 2>/dev/null'))return match(out or'','^(%x+)\n?$')or''end
+local function abs_top_srcdir()return(gsub(slurp(Pipe('pwd'))or'','\n$',''))end
+local function selected_targets(targets,rulesets)if isempty(targets)or contains(targets,'all')then
+return reject(flatten(pack(targets,map(rulesets,ordered.keys))),'all')end
+local unknown=reject(targets,function(target)return target=='install'or some(rulesets,function(rules)return rules[target]~=nil
+end)end)diagnose(isempty(unknown),"no rule to make target '%s'",unknown[1])return targets
+end
+local function script_entries(sections,named)return flatmap(SCRIPT_SECTIONS,function(section)return map(ordered.keys(ordered.pluck(sections[section],named)),function(name)return{name=name,section=section}end)end)end
+local function installs(luke,installbin,build,named,targets)if not contains(targets,'install')then
+return OrderedMap{},{}end
+local everything=isempty(named)return everything and luke.modules or build,choose(everything,ordered.keys(installbin),ordered.keys(ordered.pluck(installbin,named)))end
+local function mkrequest(options)local o=merged({clidefs={},debug=false,dryrun=false,quiet=false,targets={},valreqs={},verbose=false,},options)return merged(o,{log=choose(o.debug,function()return dump end,function()return nop end),source=o.source or o.fname or'lukefile',spawn=choose(o.dryrun,function()return function()return 0,'',''end
+end,function()if o.srcdir==nil then
+return spawn
+end
+return function(env,...)return spawn(env,'cd',shellword(o.srcdir),'&&',...)end
+end),verbose=choose(o.verbose,function()return display end,function()return nop end),write=choose(o.quiet,function()return nop end,function()return display end),})end
+local function nothing_to_build(recipe)local sections=script_sections(recipe)return not some(pack(recipe.modules,recipe.ldocs,sections.bin,sections.files,sections.install),function(rules)return not isempty(rules or{})end)end
+local function prepare(recipe,request)local source=request.source
+diagnose(request.release~=nil or not nothing_to_build(recipe),"nothing to build in '%s': it has no modules, scripts, files or ldocs",source)each({'package','version'},function(key)diagnose(recipe[key]~=nil,"no %s in '%s'",key,source)end)local luke,release=merged(recipe),request.release
+local sections=script_sections(luke)local installbin=sections.install
+luke.modules=luke.modules or OrderedMap{}local rulesets={luke.modules,sections.bin,sections.files,installbin}local targets=selected_targets(choose(release,{},request.targets),rulesets)local named=reject(targets,'install')local build=ordered.pluck(luke.modules,named)local install,install_scripts=installs(luke,installbin,build,named,targets)local scripts={build=script_entries(sections,named),install=install_scripts}luke.modules=build
+local srcdir=request.srcdir or abs_top_srcdir()local ref=gitref(srcdir)luke.substitute=merged({abs_top_srcdir=srcdir,gitref=ref,LUA_VERSION=DEFAULTENV.LUA_VERSION,package=interpolate_to_substitute(luke.package),version=interpolate_to_substitute(luke.version),},luke.substitute)luke.variables=merged({LUA_DIR='/usr',LUA_BINDIR='$LUA_DIR/bin',LUA_INCDIR='$LUA_DIR/include/lua$LUA_VERSION',LUA_LIBDIR='$LUA_DIR/lib',abs_top_srcdir=srcdir,gitref=ref,objdir=platforms[1],package=luke.package,version=luke.version,},collect_variables(luke),luke.variables)return{clidefs=request.clidefs,debug=request.debug,dryrun=request.dryrun,filled={},install=install,log=request.log,luke=luke,quiet=request.quiet,release=release,scripts=scripts,spawn=request.spawn,srcdir=srcdir,valreqs=request.valreqs,verbose=request.verbose,write=request.write,}end
+return{mkrequest=mkrequest,prepare=prepare,}
+end
+bundled['luke.release']=function()
+local _base=require'luke._base'local _compile=require'luke.compile'local _configure=require'luke.configure'local _environment=require'luke.environment'local _lukefile=require'luke.lukefile'local _std=require'std.functional.init'local _context=require'std.prototype.contextmanager'local _ordered=require'std.prototype.orderedmap'local _path=require'type.path'local _ENV=require'std.normalize'{'io.stderr','os.tmpname','string.find','string.format','string.gmatch','string.gsub','string.match','string.sub','table.concat',rm='os.remove',fatal=_base.fatal,run=_compile.run,script_target=_compile.script_target,spawn=_compile.spawn,configure=_configure.configure,SHELLENV=_environment.SHELLENV,expand=_environment.expand,interpolate=_environment.interpolate,mkenv=_environment.mkenv,shellword=_environment.shellword,bind=_std.bind,call=_std.call,choose=_std.choose,compact=_std.compact,contains=_std.contains,each=_std.each,filter=_std.filter,firstof=_std.firstof,flatmap=_std.flatmap,flatten=_std.flatten,foldl=_std.foldl,id=_std.id,isempty=_std.isempty,iter=_std.iter,isnonzero=_std.isnonzero,isstring=_std.isstring,istable=_std.istable,keys=_std.keys,map=_std.map,merged=_std.merged,reject=_std.reject,sorted=_std.sorted,tabulate=_std.tabulate,values=_std.values,OrderedMap=_ordered.prototype,elems=_ordered.elems,ordered=_ordered,branches=_lukefile.branches,File=_context.File,slurp=_context.slurp,with=_context.with,basename=_path.basename,dirname=_path.dirname,exists=_path.exists,date=os.date,}local PLACEHOLDER='\n(## [^\n]*%?%.%?[^\n]*\n)'local MODREV="^(local _MODREV, _SPECREV = ')[^']*(')"local DEVROCKSPEC='^(.-%-)dev(%-%d+%.rockspec)$'local function names(rock,version)local tag=(rock~=nil and rock..'-'or'')..'v'..version
+return tag,'release-'..tag
+end
+local function rockname(rockspec)local name=basename(rockspec)return match(name,'^(.-)%-dev%-%d+%.rockspec$')or(gsub(name,'%.rockspec$',''))end
+local function rockspecs(rules)return isstring(rules.rockspec)and{rules.rockspec}or rules.rockspec or{}end
+local function main_rockspec(rockspecs,package)for i=1,len(rockspecs)do
+if sub(basename(rockspecs[i]),1,len(package))==package then
+return rockspecs[i]end
+end
+return rockspecs[1]end
+local function release_tables(release)local r
+for k,v in next,release do
+if isstring(k)and match(k,'%.rockspec$')then
+r=r or{}r[rockname(k)]=merged(v,{rockspec=k})end
+end
+return r
+end
+local function git(env,...)local status,err,out=spawn(env,'git',...)if status==0 then
+return(gsub(out,'\n$',''))end
+end
+local function dependencies_installed(env,rockspec)local status,err,out=spawn(env,env.LUAROCKS or'luarocks','--lua-version=$LUA_VERSION','make --only-deps --only-server=',shellword(rockspec))if status~=0 then
+stderr:write(match(out or'','^(Missing dependencies.-)\n\n')or err or'','\n')end
+return status==0
+end
+local function has_placeholder(text)local header,body=match('\n'..text,'\n(## [^\n]*\n)(.*)')if header==nil or match('\n'..header,PLACEHOLDER)==nil then
+return false
+end
+return match(match(body,'^(.-)\n## ')or body,'%S')~=nil
+end
+local function add_release_header(text,version,date)local header=format('## Noteworthy changes in release %s (%s) [stable]',version,date)return(gsub(text,PLACEHOLDER..'\n*','\n%1\n\n'..header..'\n\n',1))end
+local function release_news(text,version)local header='\n(## Noteworthy changes in release '..gsub(version,'%p','%%%0')..' %(.*)'local news=match('\n'..text,header)if news~=nil then
+return(gsub(match(news,'^(.-)\n## ')or news,'%s*$',''))end
+end
+local function rockspec_fields(text)local r={}local chunk=text and load(text,'rockspec','t',r)if chunk==nil or not pcall(chunk)then
+return{}end
+return r
+end
+local function announcement(package,version,news,rockspec,rocks)local fields=rockspec_fields(rockspec)local description=istable(fields.description)and fields.description or{}package=isstring(fields.package)and fields.package or package
+local lines=compact(flatten(pack(isstring(description.summary)and{description.summary,''}or{},format('I am happy to announce release %s of %s.',version,package),'',isstring(description.homepage)and{format("%s's home page is at %s",package,description.homepage),''}or{},news and{news,''}or{},rockspec and{'Install it with LuaRocks, using:','',map(rocks or{package},function(rock)return format('    luarocks install %s %s',rock,version)end)}or{})))return package,match(concat(lines,'\n'),'^(.-)%s*$')..'\n'end
+local function remove_placeholder(text)return(gsub(text,PLACEHOLDER..'\n?','\n',1))end
+local function tag(L,env,name,notes)local filename=tmpname()with(File(filename,'w'),function(h)h:write(notes)end)local status=run(L,env,{'git tag -a --cleanup=verbatim',name,'-F',filename})rm(filename)return status
+end
+local function edit(L,path,fn,dest)dest=dest or path
+L.write((dest==path and'updating 'or'creating ')..dest,'\n')if not L.dryrun then
+local content=fn(slurp(File(path)))with(File(dest,'w'),function(h)h:write(content)end)end
+return 0
+end
+local function replace(text,substitute,replacements)return foldl(iter(elems(replacements)),text,function(r,find,replacement)return(gsub(r,(gsub(find,'%p','%%%0')),(gsub(expand(substitute,replacement),'%%','%%%%'))))end)end
+local function rockspec_name(rockspec,version)return(gsub(rockspec,DEVROCKSPEC,'%1'..version..'%2'))end
+local function code_start(text)local pos=1
+while true do
+local _,last=find(text,'^[ \t]*\r?\n',pos)if last==nil and match(text,'^[ \t]*%-%-%[=*%[',pos)==nil then
+_,last=find(text,'^[ \t]*%-%-[^\n]*\n',pos)end
+if last==nil then
+return pos
+end
+pos=last+1
+end
+end
+local function modrev_line(text)return match(sub(text,code_start(text)),MODREV)end
+local function set_modrev(text,version)local start=code_start(text)return sub(text,1,start-1)..(gsub(sub(text,start),MODREV,'%1'..version..'%2',1))end
+local function copy_command(source,worktree,path,optional)local dest=worktree..'/'..path
+local from,to=shellword(source),shellword(dest)local copy=format("git -C %s rm -r --quiet --ignore-unmatch -- %s ':(exclude)*.in'"..' && if test -d %s; then $MAKEDIRS %s && cp -R %s/. %s; else $MAKEDIRS %s && cp %s %s; fi',shellword(worktree),shellword(path),from,to,from,to,shellword(dirname(dest)),from,to)return choose(optional,format('if test -e %s; then %s; fi',from,copy),copy)end
+local function publish_steps(L,env,substitute,worktree,branch)return compact(flatten(pack(map(iter(elems(branch.copies)),function(path,copy)local source,optional=copy.source,copy.optional
+local dest=worktree..'/'..path
+local template=match(source,'%.in$')~=nil
+return compact(flatten(pack(choose(optional or not template,function()return bind(run,{L,env,{copy_command(source,worktree,path,optional)}})end),choose(template,function()return bind(edit,{L,choose(optional,dest,source),bind(expand,{substitute}),(gsub(dest,'%.in$',''))})end))))end),branch.command and bind(run,{L,env,{'cd',worktree,'&&',branch.command}}))))end
+local function repository_checks(env,tag,branch,main)local name=choose(main~=nil,main,'a branch')local checkout=format('git checkout --force %s',name)return{{'the working tree is clean',function()return git(env,'status --porcelain')==''end,checkout},{format('%s is checked out',name),function()return main~=nil and git(env,'symbolic-ref --short HEAD')==main
+end,checkout},{'origin can be fetched',function()return git(env,'fetch --quiet origin')~=nil
+end},{format('%s is up to date with origin',name),function()return git(env,'rev-parse refs/heads/'..main)==git(env,'rev-parse origin/'..main)end,format('git reset --hard origin/%s',name)},{format('branch %s is unused',branch),function()return git(env,'rev-parse --verify --quiet refs/heads/'..branch)==nil
+end,'git branch -D '..branch},{format('tag %s is unused',tag),function()return git(env,'rev-parse --verify --quiet refs/tags/'..tag)==nil
+end,'git tag -d '..tag},}end
+local function news_checks(release,version)return choose(release.news~=nil,function()local news=slurp(File(release.news))return{{format('%s has news under a placeholder header',release.news),function()return news~=nil and has_placeholder(news)end},{format('%s has no %s release yet',release.news,version),function()return news~=nil and find(news,'release '..version..' (',1,true)==nil
+end},}end,{})end
+local function replacement_checks(release,substitute)return flatmap(iter(elems(release.replacements or OrderedMap{})),function(path,replacements)local checks={{format('%s exists',path),function()return exists(path)end},}local finds=ordered.keys(replacements)for i=1,finds.n do
+local text,earlier=finds[i],ordered.pluck(replacements,{unpack(finds,1,i-1)})checks[#checks+1]={format("%s contains '%s'",path,text),function()local content=slurp(File(path))return content~=nil and find(replace(content,substitute,earlier),text,1,true)~=nil
+end}end
+return checks
+end)end
+local function branch_checks(env,release)return flatmap(branches(release),function(pages)local copies=release[pages].copies
+local templates=map(filter(ordered.keys(copies),function(path)return copies[path].optional and match(path,'%.in$')~=nil
+end),function(template)return{format('%s or the release has %s',pages,template),function()return exists(template)or git(env,format('cat-file -e origin/%s:%s',pages,template))~=nil
+end}end)return{{format('%s is not ahead of origin',pages),function()local ref,origin=git(env,'rev-parse refs/heads/'..pages),git(env,'rev-parse origin/'..pages)return origin~=nil and(ref==nil or ref==origin
+or git(env,'merge-base --is-ancestor',ref,origin)~=nil)end,format('git branch -f %s origin/%s',pages,pages)},{format('%s can be checked out in a new worktree',pages),function()local worktrees=git(env,'worktree list --porcelain')return worktrees~=nil
+and find('\n'..worktrees..'\n','\nbranch refs/heads/'..pages..'\n',1,true)==nil
+end},unpack(templates),}end)end
+local function rockspec_checks(env,release)return flatmap(rockspecs(release),function(name)local rockspec=slurp(File(name))return reject(pack({format('%s is a development rockspec',name),function()return match(name,DEVROCKSPEC)~=nil
+end},{format('%s sets _MODREV on its first line',name),function()return rockspec~=nil and modrev_line(rockspec)~=nil
+end},choose(release.check_dependencies,{format('the dependencies of %s are installed',name),function()return dependencies_installed(env,name)end})),nil)end)end
+local function ldoc_checks(env,ldocs)return choose(isempty(ldocs or{}),{},function()return{{'an LDocs generator is installed',function()return spawn(env,'command -v',shellword(match(env.LDOC or'ldoc','^%S+')))==0
+end}}end)end
+local function preconditions(env,release,tag,branch,version,main,substitute,ldocs)return flatmap(pack(repository_checks(env,tag,branch,main),news_checks(release,version),replacement_checks(release,substitute),branch_checks(env,release),rockspec_checks(env,release),ldoc_checks(env,ldocs)),id)end
+local function undo_commands(checks)return foldl(filter(checks,function(check)local _,predicate,undo=unpack(check)return undo~=nil and not predicate()end),{},function(r,check)choose(not contains(r,check[3]),function()r[#r+1]=check[3]end)end)end
+local function generated(luke)local templates=map(iter(elems(luke.modules or OrderedMap{})),function(_,rules)return map(filter(rules.sources or{},function(source)return match(source,'%.in$')~=nil
+end),function(source)return(gsub(source,'%.in$',''))end)end)return flatten(pack(templates,map(iter(elems(luke.files or OrderedMap{})),function(name,rules)return script_target(name,rules)end)))end
+local function ignoring(env,paths)local files={}local listed=git(env,'ls-files --others --ignored --exclude-standard --',unpack(map(paths,shellword)))for file in gmatch(listed or'','[^\n]+')do
+files[#files+1]=shellword(file)end
+local r={}if not isempty(files)then
+local verbose=git(env,'check-ignore --no-index --verbose --',unpack(files))for source,n in gmatch(verbose or'','([^\n]-):(%d+):[^\n]*')do
+if match(source,'^[^/]')and match(source,'^%.git/')==nil and match(source,'%.gitignore$')then
+r[source]=r[source]or{}r[source][tonumber(n)]=true
+end
+end
+end
+return r
+end
+local function unignore(L,env,paths)repeat
+local lines=ignoring(env,paths)local sources=keys(lines)each(sources,function(source)edit(L,source,function(text)local n=0
+return concat(filter(gmatch(text,'[^\n]*\n?'),function(line)n=n+1
+return line~=''and not lines[source][n]end))end)end)until L.dryrun or isempty(sources)return 0
+end
+local function failed_check(L,checks)return firstof(checks,function(check)local description,predicate=unpack(check)L.verbose('checking whether ',description,'... ')local ok=predicate()L.verbose(ok and'yes\n'or'no\n')if not ok then
+return description
+end
+end)end
+local function make_rock(L,env,rockspec,version)local settings=map(filter(keys(L.clidefs or{}),function(name)return match(name,'^%u[%w_]*$')~=nil and name~='GH'and name~='LUAROCKS'end),function(name)return shellword(format('%s=%s',name,L.clidefs[name]))end)return bind(run,{L,env,flatten(pack(format('%s make --no-install',env.LUAROCKS or'luarocks'),shellword(rockspec),settings,version and shellword('VERSION='..version)))})end
+local function release_steps(L,env,build,docs,plan)local version,rules=plan.version,plan.rules
+local news,pages,worktrees=rules.news,plan.pages,plan.worktrees
+local tagname,branch=plan.tag,plan.branch
+return compact(flatten(pack(rules.prebuild and map(rockspecs(rules),function(rockspec)return make_rock(L,env,rockspec,version)end)or nil,news and{bind(edit,{L,news,bind(add_release_header,{[2]=version,[3]=plan.today})}),bind(run,{L,env,{'git commit',format("-m 'maint: update NEWS.md for %s.'",version),news}}),},bind(run,{L,env,{'git checkout -b',branch}}),news and bind(edit,{L,news,remove_placeholder}),map(iter(elems(rules.replacements or OrderedMap{})),function(path,replacements)return bind(edit,{L,path,bind(replace,{[2]=plan.substitute,[3]=replacements})})end),isempty(rockspecs(rules))and build or nil,map(rockspecs(rules),function(rockspec)return{bind(edit,{L,rockspec,bind(set_modrev,{[2]=version}),rockspec_name(rockspec,version)}),bind(run,{L,env,{'git rm --quiet',rockspec}}),}end),not isempty(rockspecs(rules))and{map(rockspecs(rules),function(rockspec)return make_rock(L,env,rockspec_name(rockspec,version))end),docs,}or nil,not isempty(plan.added)and{bind(unignore,{L,env,plan.added}),bind(run,{L,env,{'git add -f',unpack(plan.added)}}),}or nil,bind(run,{L,env,{format("git commit -a -m 'Release %s.'",tagname)}}),bind(tag,{L,env,tagname,plan.notes}),map(pages,function(branch)local worktree=worktrees[branch]return{git(env,'rev-parse refs/heads/'..branch)~=git(env,'rev-parse origin/'..branch)and bind(run,{L,env,{'git branch --quiet --force',branch,'origin/'..branch}})or{},bind(run,{L,env,{'git worktree add --quiet',worktree,branch}}),publish_steps(L,env,plan.substitute,worktree,rules[branch]),bind(run,{L,env,{'git -C',worktree,"add -A && git -C",worktree,format("commit -m '%s: update to $package %s.'",branch,version)}}),bind(run,{L,env,{'git worktree remove',worktree}}),}end),bind(run,{L,env,{'git checkout --quiet',plan.main}}))))end
+local function ready_message(L,env,plan,package)local version,main,released=plan.version,plan.main,plan.released
+local pushed=compact(flatten(pack(main,plan.branch,plan.tag,plan.pages)))L.write(format('\nRelease %s is ready.  To publish it:\n\n   git push origin %s\n',plan.tag,concat(pushed,' ')))local GH=env.GH or configure(L,env,{checkprog='GitHub CLI',progs={'gh','true'}})if GH~='true'then
+L.write(format("   %s release create %s --verify-tag --latest --title '[ANN] %s v%s released' --notes-from-tag\n",GH,plan.tag,package,version))end
+if not isempty(released)then
+L.write(format('   git checkout %s\n%s   git checkout %s\n',plan.branch,concat(map(released,function(rockspec)return format('   luarocks upload %s\n',rockspec)end)),main))end
+end
+local function failed_message(L,checks,tag)local undo=undo_commands(checks)choose(not isempty(undo),function()L.write(format('\nRelease %s failed.  To undo it before trying again:\n\n%s',tag,concat(map(undo,function(command)return'   '..command..'\n'end))))end)end
+return{copy_command=copy_command,release=function(L,env,build,docs)local version,main=L.release,git(env,'symbolic-ref --short HEAD')local substitute=mkenv({version=version},L.clidefs,L.luke.substitute,SHELLENV)local package=interpolate(env,L.luke.package)local rock=(L.clidefs or{}).rock or package
+local release=L.luke.release or{}local rules=(release_tables(release)or{[package]=release})[rock]if rules==nil then
+fatal("cannot release %s: no rock '%s' in the release table of the lukefile",version,rock)return 1
+end
+local tag,branch=names(choose(rock~=package,rock),version)local checks=preconditions(env,rules,tag,branch,version,main,substitute,L.luke.ldocs)local failed=failed_check(L,checks)if failed~=nil then
+fatal('cannot release %s: expected that %s',version,failed)return 1
+end
+local news,rocks=rules.news,rockspecs(rules)local released=map(rocks,function(rockspec)return rockspec_name(rockspec,version)end)local main_rock=main_rockspec(rocks,rock)local today=date'%Y-%m-%d'local _,notes=announcement(rock,version,news and release_news(add_release_header(slurp(File(news))or'',version,today),version),main_rock and slurp(File(main_rock)),len(rocks)>1 and map(rocks,rockname)or nil)local pages=branches(rules)local worktrees=tabulate(pages,function(branch)local worktree=tmpname()rm(worktree)return branch,worktree
+end)local plan={version=version,tag=tag,branch=branch,main=main,rules=rules,today=today,notes=notes,added=compact(flatten(pack(rules.add,generated(L.luke),released))),released=released,pages=pages,worktrees=worktrees,substitute=substitute,}local status=firstof(release_steps(L,env,build,docs or build,plan),isnonzero,call)or 0
+choose(status~=0,function()each(filter(sorted(values(worktrees)),exists),function(worktree)run(L,env,{'git worktree remove --force',worktree})end)end)if status==0 then
+ready_message(L,env,plan,rock)else
+failed_message(L,checks,plan.tag)end
+return status
+end,}
+end
+bundled['luke.rockspec']=function()
+local _lukefile=require'luke.lukefile'local _prepare=require'luke.prepare'local _std=require'std.functional.init'local _ENV=require'std.normalize'{'string.gsub',destructure=next,bind=_std.bind,choose=_std.choose,contains=_std.contains,except=_std.except,flatmap=_std.flatmap,flatten=_std.flatten,keys=_std.keys,map=_std.map,merged=_std.merged,sorted=_std.sorted,tabulate=_std.tabulate,normalize=_lukefile.normalize,mkrequest=_prepare.mkrequest,}local LUAROCKS={'copy_directories','install','type'}local SAME={'CC','CFLAGS','LIBFLAG','LIB_EXTENSION','LUA','LUA_DIR','LUA_INCDIR','LUA_LIBDIR','LUA_VERSION','OBJ_EXTENSION',}local INSTALLS={INST_BINDIR='BINDIR',INST_LIBDIR='LIBDIR',INST_LUADIR='LUADIR',}local function dependency_variables(name)return pack(name..'_BINDIR',name..'_DIR',name..'_INCDIR',name..'_LIBDIR')end
+local function modrev(version)return(gsub(version,'%-%d+$',''))end
+local function with_library(native)return function(pair)local name,dependency=destructure(pair)local probe=type(dependency)=='table'and dependency.library
+return choose(type(probe)=='table'and probe.library==nil and native[name]~=nil,function()return{[name]=merged(dependency,{library=merged(probe,{library=native[name].library}),})}end,pair)end
+end
+local function recipe_of(rockspec)local build=rockspec.build
+return normalize(merged(except(build,bind(contains,{LUAROCKS})),{luke_format=0,package=rockspec.package,version=(rockspec.variables or{}).VERSION or build.version or modrev(rockspec.version),external_dependencies=choose(build.external_dependencies,function(dependencies)return except(map(dependencies,with_library(rockspec.external_dependencies or{})),'n')end),}))end
+local function settings_of(variables,externals)return merged(tabulate(flatten(pack(SAME,flatmap(sorted(externals),dependency_variables))),function(name)return name,variables[name]end),tabulate(keys(INSTALLS),function(name)return name,variables[INSTALLS[name]]end))end
+return{fromrockspec=function(rockspec,no_install,srcdir)return recipe_of(rockspec),mkrequest{clidefs=settings_of(rockspec.variables,keys(rockspec.external_dependencies or{})),source=rockspec.package..'-'..rockspec.version..'.rockspec',srcdir=srcdir,targets=choose(no_install,pack('all'),pack('all','install')),}end,}
+end
+bundled['luke.schema']=function()
+local _base=require'luke._base'local _configure=require'luke.configure'local _ordered=require'std.prototype.orderedmap'local _platforms=require'luke.platforms'local _set=require'std.prototype.set'local _std=require'std.functional.init'local _path=require'type.path'local _ENV=require'std.normalize'{'string.format','string.gmatch','string.gsub','string.match','table.concat',int='math.tointeger',fatal=_base.fatal,isprobe=_configure.isprobe,probes=_configure.probes,destructure=next,bind=_std.bind,case=_std.case,choose=_std.choose,cond=_std.cond,each=_std.each,except=_std.except,filter=_std.filter,flatten=_std.flatten,foldl=_std.foldl,id=_std.id,isempty=_std.isempty,islistkey=_std.islistkey,iter=_std.iter,isstring=_std.isstring,istable=_std.istable,keys=_std.keys,map=_std.map,merged=_std.merged,nop=_std.nop,reject=_std.reject,sorted=_std.sorted,OrderedMap=_ordered.prototype,elems=_ordered.elems,ordered_keys=_ordered.keys,ordered_merge=_ordered.merged,Set=_set.prototype,isplatform=_platforms.isplatform,layers=_platforms.layers,narrow_platforms=_platforms.narrow_platforms,basename=_path.basename,}local FORMAT=0
+local MACRO='^[%a_][%w_]*$'local ORDERED=Set{'bin','defines','external_dependencies','files','modules'}local function bad(path,...)fatal('bad %s: %s',path,format(...))end
+local function index(path,k)if isstring(k)and match(k,'^[%a_][%w_]*$')then
+return path==''and k or path..'.'..k
+end
+return format(isstring(k)and"%s['%s']"or'%s[%s]',path,str(k))end
+local function claim(r,name,value,path)choose(r[name]~=nil,bind(bad,{path,"more than one entry for '%s'",name}))r[name]=value
+end
+local function mkcheck(kind)return function(x,path)if x~=nil and type(x)~=kind then
+bad(path,'%s expected, got %s',kind,type(x))end
+return x
+end
+end
+local checkstring,checktable=mkcheck'string',mkcheck'table'local function listed(x)return choose(isstring(x),function()return{x}end,function()return x
+end)end
+local function listof(normalize)return function(x,path)x=listed(x)checktable(x,path)if x~=nil then
+local r={}for i=1,len(x)do
+r[i]=normalize(x[i],index(path,i))end
+return r
+end
+end
+end
+local function mapof(normalize,names)return function(x,path)checktable(x,path)if x~=nil then
+local r={}for k,v in next,x do
+if names~=nil then
+names(k,index(path,k))end
+r[k]=normalize(v,index(path,k))end
+return r
+end
+end
+end
+local function fields(schema,others)local rest=choose(others==true,function()return id end,function()return others end)return setmetatable({schema=schema},{__call=function(_,x,path)return checktable(x,path)and foldl(keys(x),{},function(r,k)local normalize=schema[k]or rest or bind(bad,{path,"unsupported key '%s'",str(k)})r[k]=normalize(x[k],index(path,k))end)end})end
+local function keypaths(normalize,path)return sorted(flatten(map(keys(normalize.schema),function(k)local nested,p=normalize.schema[k],index(path or'',k)return choose(istable(nested),function()return{p,keypaths(nested,p)}end,p)end)))end
+local function pathname(x,path)choose(checkstring(x,path)=='',bind(bad,{path,'empty path'}))local r=x and match(x,'^/?')..concat(reject(gmatch(x,'[^/]+'),'.'),'/')return choose(r=='','.',r)end
+local function luke_format(x,path)choose(x==nil,bind(bad,{path,'missing; this luke reads format %d, which replaces the lukefiles of luke 0.4 and earlier',FORMAT}))choose(int(mkcheck'number'(x,path))==nil or x<0,bind(bad,{path,'non-negative integer expected, got %s',str(x)}))choose(x~=FORMAT,function()bad(path,'lukefile format %d needs %s luke; this one reads format %d',x,choose(x>FORMAT,'a newer','an older'),FORMAT)end)return x
+end
+local function string_or_table(x,path,branches)return case(type(x),merged(branches,{default=function(kind)bad(path,'string or table expected, got %s',kind)end,}))end
+local function definition(x,path)return string_or_table(x,path,{['string']=function()local name,eq,value=match(x,'^([%a_][%w_]*)(=?)(.*)$')choose(name==nil or eq==''and value~='',bind(bad,{path,"bad macro definition '%s'",x}))return{[name]=choose(eq=='',1,value)}end,['table']=function()local names=keys(x)choose(names.n~=1,bind(bad,{path,'one definition expected, got %d',names.n}))local name=names[1]choose(isstring(name)and probes[name]~=nil,bind(bad,{path,'probe needs a macro name, such as {HAVE_X = {%s = ...}}',str(name)}))choose(not isstring(name)or match(name,MACRO)==nil,bind(bad,{path,"bad macro name '%s'",str(name)}))local value=x[name]choose(not(isstring(value)or type(value)=='number'or isprobe(value)),bind(bad,{index(path,name),'string, number or probe expected, got %s',type(value)}))return{[name]=value}end,})end
+local function pairof(normalize,rename)return function(x,path)local names=keys(checktable(x,path)or{})choose(names.n~=1,bind(bad,{path,'one entry expected, got %d',names.n}))local name=names[1]choose(not isstring(name),bind(bad,{path,'name expected, got %s',type(name)}))return{[(rename or id)(name,path)]=normalize(x[name],index(path,name))}end
+end
+local function ordered_map(entry)local function narrowed(x,path)return entry(choose(istable(x),function()return narrow_platforms(x,ORDERED)end,function()return x
+end),path)end
+local function layer_entries(layer,path)each(filter(keys(layer),function(k)return k~='platforms'and not islistkey(layer,k)end),function(k)bad(index(path,k),'list entry expected, such as {%s = ...}',index('',k))end)local r=listof(narrowed)(layer,path)local seen={}each(r,function(pair)claim(seen,(destructure(pair)),true,path)end)return r
+end
+local function check_layers(x,path)layer_entries(checktable(x,path),path)local at=index(path,'platforms')local platforms=checktable(x.platforms,at)choose(platforms~=nil,function()each(filter(keys(platforms),isplatform),function(name)check_layers(platforms[name],index(at,name))end)check_layers(except(platforms,isplatform),at)end)end
+local function resolve(x,path)return ordered_merge(unpack(map(layers(x),function(layer)return choose(layer.platforms~=nil,function()return resolve(layer,path)end,function()return OrderedMap(layer_entries(layer,path))end)end)))end
+return function(x,path)local t=listed(x)choose(t~=nil,bind(check_layers,{t,path}))return t and resolve(t,path)end
+end
+local defines=ordered_map(definition)local function dependency_name(name,path)choose(match(name,MACRO)==nil,bind(bad,{path,"bad dependency name '%s'",name}))return name
+end
+local dependencies=ordered_map(pairof(checktable,dependency_name))local function rules(x,path)local r=string_or_table(x,path,{['nil']=nop,['string']=function()return{sources={x}}end,['table']=function()return cond({len(x)>0,{sources=x}},{true,x})end,})return r and merged(r,{defines=defines(r.defines,index(path,'defines')),sources=listof(pathname)(r.sources,index(path,'sources')),incdirs=listof(pathname)(r.incdirs,index(path,'incdirs')),libdirs=listof(pathname)(r.libdirs,index(path,'libdirs')),})end
+local function program(x,path)local r=rules(x,path)if isempty(r.sources or{})then
+bad(path,'no sources')end
+checkstring(r.command,index(path,'command'))mapof(checkstring,checkstring)(r.env,index(path,'env'))return r
+end
+local function script(x,path)return string_or_table(x,path,{['string']=function()return pathname(x,path)end,['table']=function()return program(x,path)end,})end
+local function mkscripts(mkname)local pair=pairof(script,pathname)return ordered_map(function(x,path)return string_or_table(x,path,{['string']=function()local source=pathname(x,path)return{[mkname(source)]=source}end,['table']=function()choose(x.sources~=nil,bind(bad,{path,'programs need a name, such as {prog = {sources = ...}}'}))return pair(x,path)end,})end)end
+local function filled(path)return(gsub(path,'%.in$',''))end
+local scripts=mkscripts(function(source)return filled(basename(source))end)local files=mkscripts(filled)local function fills_too(dest,source)return match(dest,'%.in$')~=nil and match(source,'%.in$')~=nil
+end
+local copy_pair=pairof(function(x,path)return{optional=false,source=pathname(x,path)}end,pathname)local function copy_entry(x,path)return string_or_table(x,path,{['string']=function()local source=pathname(x,path)return{[source]={optional=true,source=source}}end,['table']=function()return copy_pair(x,path)end,})end
+local function copies(x,path)if checktable(x,path)==nil then
+return nil
+end
+local r=ordered_map(copy_entry)(except(x,'command'),path)local written=Set(ordered_keys(r))each(iter(elems(r)),function(dest,entry)choose(fills_too(dest,entry.source),function()claim(written,filled(dest),true,path)end)end)return{copies=r,command=checkstring(x.command,index(path,'command'))}end
+return{ORDERED=ORDERED,bad=bad,index=index,copies=copies,defines=defines,dependencies=dependencies,fields=fields,files=files,keypaths=keypaths,listof=listof,luke_format=luke_format,mapof=mapof,mkcheck=mkcheck,ordered_map=ordered_map,pairof=pairof,pathname=pathname,rules=rules,scripts=scripts,}
+end
+bundled['luke.version']=function()
+return{VERSION='0.3.1',BUNDLED={"std.functional dev-1","std.normalize dev-1","std.prototype dev-1"},versiontext=[[
+luke (Luke) 0.3.1
+Written by Gary V. Vaughan <gary@gnu.org>, 2014
+
+Copyright (C) 2026, Gary V. Vaughan
+Luke comes with ABSOLUTELY NO WARRANTY.
+You may redistribute copies of Luke under the terms of the MIT license;
+it may be used for any purpose at absolutely no cost, without permission.
+See <https://mit-license.org> for details.
+]],}
+end
+bundled['type.path']=function()
+local _ENV=require'std.normalize'{'io.close','io.open','package.dirsep','string.gsub',}local BASENAMEPAT='.*'..dirsep
+local DIRNAMEPAT=dirsep..'[^'..dirsep..']*$'return{basename=function(path)return(gsub(path,BASENAMEPAT,''))end,dirname=function(path)return(gsub(path,DIRNAMEPAT,'',1))end,exists=function(path)local fh=open(path)if fh==nil then
+return false
+end
+close(fh)return true
+end,}
+end
+bundled['std.functional._base']=function()
+local _ENV=require'std.normalize'{'string.format','table.concat','table.keys','table.sort',}local argscheck
+do
+local ok,typecheck=pcall(require,'typecheck')if ok then
+argscheck=typecheck.argscheck
+else
+argscheck=function(decl,fn)return fn
+end
+end
+end
+local function shallow_copy(t)local r={}for k,v in next,t do
+r[k]=v
+end
+return r
+end
+local function toqstring(x)if type(x)~='string'then
+return tostring(x)end
+return format('%q',x)end
+local function keycmp(a,b)if type(a)=='number'then
+return type(b)~='number'or a<b
+else
+return type(b)~='number'and tostring(a)<tostring(b)end
+end
+local function sortedkeys(t,cmp)local r=keys(t)sort(r,cmp)return r
+end
+local function serialize(x,roots)roots=roots or{}local function stop_roots(x)return roots[x]or serialize(x,shallow_copy(roots))end
+if type(x)~='table'or getmetamethod(x,'__tostring')then
+return toqstring(x)else
+local buf={'{'}roots[x]=toqstring(x)local kp
+local ks=sortedkeys(x,keycmp)for i=1,#ks do
+local k=ks[i]if kp~=nil then
+buf[#buf+1]=','end
+buf[#buf+1]=stop_roots(kp)..'='..stop_roots(x[k])kp=k
+end
+buf[#buf+1]='}'return concat(buf)end
+end
+return{argscheck=argscheck,serialize=serialize,toqstring=toqstring,}
+end
+bundled['std.functional.init']=function()
+local _ENV=require'std.normalize'{'coroutine.wrap','coroutine.yield','math.ceil','math.tointeger','std.functional._base.argscheck','std.functional._base.serialize','string.format','table.concat','table.remove','table.sort',iotype='io.type',}local function walk(seq,visit)if type(seq)=='function'then
+local function loop(...)if...~=nil then
+if visit(...)then
+return true
+end
+return loop(seq())end
+end
+return loop(seq())end
+for i=1,seq.n or len(seq)do
+if visit(seq[i])then
+return true
+end
+end
+end
+local function topredicate(x)if type(x)=='function'then
+return x
+end
+return function(y)return y==x
+end
+end
+local function default(x,d)if x==nil then
+return d
+end
+return x
+end
+local function given(d,...)if select('#',...)==0 then
+return d
+end
+return(...)end
+local function any(...)local fns=pack(...)return function(...)local argt={n=0}for i=1,fns.n do
+argt=pack(fns[i](...))if argt[1]~=nil then
+return unpack(argt,1,argt.n)end
+end
+return unpack(argt,1,argt.n)end
+end
+local ceil=ceil
+local function bind(fn,bound)return function(...)local argt,unbound={},pack(...)local n=bound.n or 0
+for k,v in next,bound do
+if type(k)=='number'and ceil(k)==k then
+argt[k]=v
+n=k>n and k or n
+end
+end
+local i=1
+for j=1,unbound.n do
+while argt[i]~=nil do
+i=i+1
+end
+argt[i],i=unbound[j],i+1
+end
+if n>=i then
+return fn(unpack(argt,1,n))end
+return fn(unpack(argt,1,i-1))end
+end
+local function call(fn,...)return fn(...)end
+local function apply(fn,argu)return fn(unpack(argu,1,argu.n or len(argu)))end
+local function force(branch,...)if callable(branch)then
+return branch(...)end
+return branch
+end
+local function case(with,branches)if branches[with]~=nil then
+return force(branches[with],with)end
+if type(with)=='string'then
+for i=1,len(branches)do
+local clause=branches[i]if type(clause)=='table'and type(clause[1])=='string'then
+local captures=pack(with:match('^'..clause[1]..'$'))if captures[1]~=nil then
+return force(clause[2],unpack(captures,1,captures.n))end
+end
+end
+end
+return force(branches.default,with)end
+local function collect(seq)local r,n={},0
+walk(seq,function(item)n=n+1
+r[n]=item
+end)r.n=n
+return r
+end
+local function compact(seq)local r,n={},0
+walk(seq,function(item)if item~=nil then
+n=n+1
+r[n]=item
+end
+end)r.n=n
+return r
+end
+local function compose(...)local fns=pack(...)return function(...)local argt=pack(...)for i=1,fns.n do
+argt=pack(fns[i](unpack(argt,1,argt.n)))end
+return unpack(argt,1,argt.n)end
+end
+local function choose(test,consequent,alternative)local leg=alternative
+if test then
+leg=consequent
+end
+return force(leg,test)end
+local function cond(...)local clauses=pack(...)for i=1,clauses.n do
+local test,branch=unpack(clauses[i],1,2)if test then
+return force(branch,test)end
+end
+end
+local function contains(seq,x)return walk(seq,topredicate(x))==true
+end
+local function curry(fn,n)if n<=1 then
+return fn
+else
+return function(x)return curry(bind(fn,{x}),n-1)end
+end
+end
+local function keeper(passes)return function(seq,pred)pred=topredicate(pred)local r,n={},0
+walk(seq,function(...)if choose(pred(...),passes,not passes)then
+n=n+1
+r[n]=(...)end
+end)r.n=n
+return r
+end
+end
+local filter,reject=keeper(true),keeper(false)local function flatten(t)local r,n={},0
+local function visit(x)if type(x)=='table'then
+walk(x,visit)else
+n=n+1
+r[n]=x
+end
+end
+walk(t,visit)r.n=n
+return r
+end
+local function foldl(seq,acc,fn)if fn==nil then
+fn,acc=acc,{}end
+walk(seq,function(...)local r=fn(acc,...)if r~=nil then
+acc=r
+end
+end)return acc
+end
+local function partition(seq,pred)pred=topredicate(pred)local pass,fail,np,nf={},{},0,0
+walk(seq,function(...)if pred(...)then
+np=np+1
+pass[np]=(...)else
+nf=nf+1
+fail[nf]=(...)end
+end)pass.n,fail.n=np,nf
+return pass,fail
+end
+local function reversed(seq)local items=collect(seq)local n=items.n
+local r={n=n}for i=1,n do
+r[n-i+1]=items[i]end
+return r
+end
+local function foldr(seq,acc,fn)if fn==nil then
+fn,acc=acc,{}end
+local t=collect(seq)for i=t.n,1,-1 do
+local r=fn(t[i],acc)if r~=nil then
+acc=r
+end
+end
+return acc
+end
+local function id(...)return...end
+local function converge(x,limit,fn)if fn==nil then
+limit,fn=1000,limit
+end
+for _=1,limit do
+local r=fn(x)if r==x then
+return x
+end
+x=r
+end
+error(format('no convergence after %d calls',limit),2)end
+local function indexof(seq,...)local pred=topredicate(given(id,...))local i,found=0,nil
+walk(seq,function(...)i=i+1
+if pred(...)then
+found=i
+return true
+end
+end)return found
+end
+local function flatmap(seq,fn)local r,n={},0
+walk(seq,function(...)local items=fn(...)if items~=nil then
+walk(items,function(item)n=n+1
+r[n]=item
+end)end
+end)r.n=n
+return r
+end
+local function sorted(seq,cmp)cmp=default(cmp,function(a,b)return a<b
+end)local items=collect(seq)local decorated={}for i=1,items.n do
+decorated[i]={items[i],i}end
+sort(decorated,function(a,b)if cmp(a[1],b[1])then
+return true
+elseif cmp(b[1],a[1])then
+return false
+end
+return a[2]<b[2]end)local r={n=items.n}for i=1,items.n do
+r[i]=decorated[i][1]end
+return r
+end
+local function each(seq,fn)walk(seq,function(...)fn(...)end)end
+local function firstof(seq,pred,fn)if fn==nil then
+pred,fn=id,pred
+end
+pred=topredicate(pred)local found
+local function test(...)if pred(...)then
+found=...return true
+end
+end
+walk(seq,function(...)return test(fn(...))end)return found
+end
+local function detect(seq,...)return firstof(seq,given(id,...),id)end
+local function iter(f,s,c)local function step(...)c=...return...end
+return function()return step(f(s,c))end
+end
+local function multiserialize(...)local seq=pack(...)local buf={}for i=1,seq.n do
+buf[i]=serialize(seq[i])end
+return concat(buf,',')end
+local function memoize(fn,mnemonic)mnemonic=mnemonic or multiserialize
+return setmetatable({},{__call=function(self,...)local k=mnemonic(...)local t=self[k]if t==nil then
+t=pack(fn(...))self[k]=t
+end
+return unpack(t,1,t.n)end})end
+local lambda=memoize(function(s)local expr
+local args,body=s:match'^%s*|%s*([^|]*)|%s*(.+)%s*$'if args and body then
+expr='return function('..args..') return '..body..' end'end
+if not expr then
+body=s:match'^%s*(_.*)%s*$'or s:match'^=%s*(.+)%s*$'if body then
+expr=[[
+            return function(...)
+               local _1,_2,_3,_4,_5,_6,_7,_8,_9 = ...
+	       local _ = _1
+	       return ]]..body..[[
+            end
+         ]]end
+end
+local ok,fn
+if expr then
+ok,fn=pcall(load(expr))end
+if not ok then
+return nil,"invalid lambda string '"..s.."'"end
+return setmetatable({},{_type='Lambda',_fn=fn,__call=function(self,...)return fn(...)end,__tostring=function(self)return s end,})end,id)local function map(seq,fn)local r,n={},0
+walk(seq,function(...)n=n+1
+r[n]=(fn(...))end)r.n=n
+return r
+end
+local function mapvalues(t,fn)local r={}for k,v in next,t do
+r[k]=fn(v)end
+return r
+end
+local function merged(...)local r,argu={},pack(...)for i=1,argu.n do
+for k,v in next,argu[i]or{}do
+r[k]=v
+end
+end
+return r
+end
+local function map_with(tt,fn)local r={}for k,v in next,tt do
+r[k]=fn(unpack(v,1,len(v)))end
+return r
+end
+local function predicate(x)local mt=getmetatable(x)if type(mt)=='table'and mt._type=='Lambda'then
+return mt._fn
+elseif type(x)~='function'and callable(x)then
+return function(...)return x(...)end
+end
+return topredicate(x)end
+local function _product(x,l)local r={}for i=1,len(x)do
+for j=1,len(l)do
+r[#r+1]={x[i],unpack(l[j],1,len(l[j]))}end
+end
+r.n=#r
+return r
+end
+local function product(...)local argt={...}if not next(argt)then
+return{n=0}else
+local d=map(remove(argt),lambda'={_1}')return foldr(argt,d,_product)end
+end
+local function shape(t,dims)t=flatten(t)local size=1
+local zero
+for i=1,len(dims)do
+local v=dims[i]if v==0 then
+if zero then
+return nil
+else
+zero=i
+end
+else
+size=size*v
+end
+end
+if zero then
+dims[zero]=ceil(len(t)/size)end
+local function fill(i,d)if d>len(dims)then
+return t[i],i+1
+else
+local r={}for j=1,dims[d]do
+local e
+e,i=fill(i,d+1)r[#r+1]=e
+end
+return r,i
+end
+end
+return(fill(1,1))end
+local function some(seq,...)return walk(seq,topredicate(given(id,...)))==true
+end
+local function tabulate(seq,fn)local r={}walk(seq,function(...)local k,v=fn(...)if k~=nil then
+r[k]=v
+end
+end)return r
+end
+local function isempty(x)if type(x)~='table'then
+return false
+end
+local k=next(x)return k==nil or(k=='n'and x.n==0 and next(x,k)==nil)end
+local function isfile(x)return iotype(x)=='file'end
+local function islistkey(t,k)return type(k)=='number'and tointeger(k)==k and k>=1 and
+k<=(tointeger(t.n)or len(t))end
+local function isnonzero(x)return x~=0
+end
+local function isstring(x)return type(x)=='string'end
+local function istable(x)return type(x)=='table'end
+local function destructure(t)return next(t)end
+local function either(x,default)if x==nil or isempty(x)then
+return default
+end
+return x
+end
+local function except(t,pred)pred=topredicate(pred)local r={}for k,v in next,t do
+if not pred(k)then
+r[k]=v
+end
+end
+return r
+end
+local function pluck(t,keys)local r={}walk(keys,function(k)local v=t[k]if v~=nil then
+r[k]=v
+end
+end)return r
+end
+local function mapkeys(t,fn)local r={}for k,v in next,t do
+local key=fn(k)if key~=nil then
+r[key]=v
+end
+end
+return r
+end
+local function keyorder(a,b)if type(a)=='number'then
+return type(b)~='number'or a<b
+end
+return type(b)~='number'and tostring(a)<tostring(b)end
+local function keys(t)local r,n={},0
+for k in next,t do
+n=n+1
+r[n]=k
+end
+sort(r,keyorder)r.n=n
+return r
+end
+local function values(t)local r,n={},0
+for _,k in ipairs(keys(t))do
+n=n+1
+r[n]=t[k]end
+r.n=n
+return r
+end
+local function invert(t)return tabulate(iter(next,t),function(k,v)return v,k
+end)end
+local function zip(tt)local r={}for outerk,inner in next,tt do
+for k,v in next,inner do
+r[k]=r[k]or{}r[k][outerk]=v
+end
+end
+return r
+end
+local function zip_with(tt,fn)return map_with(zip(tt),fn)end
+local function X(decl,fn)return argscheck('std.functional.'..decl,fn)end
+return{collect=X('collect(table|function)',collect),compact=X('compact(table|function)',compact),each=X('each(table|function, callable)',each),filter=X('filter(table|function, ?any)',filter),flatmap=X('flatmap(table|function, callable)',flatmap),flatten=X('flatten(table)',flatten),foldl=X('foldl(table|function, [any], callable)',foldl),foldr=X('foldr(table|function, [any], callable)',foldr),iter=X('iter(callable, <?any...>)',iter),map=X('map(table|function, callable)',map),map_with=X('map_with(table of tables, callable)',map_with),partition=X('partition(table|function, ?any)',partition),product=X('product(list...)',product),reject=X('reject(table|function, ?any)',reject),reversed=X('reversed(table|function)',reversed),shape=X('shape(table, table)',shape),sorted=X('sorted(table|function, <?callable>)',sorted),zip=X('zip(table of tables)',zip),zip_with=X('zip_with(table of tables, callable)',zip_with),contains=X('contains(table|function, ?any)',contains),detect=X('detect(table|function, <?any>)',detect),firstof=X('firstof(table|function, [?any], callable)',firstof),indexof=X('indexof(table|function, <?any>)',indexof),isempty=X('isempty(?any)',isempty),isfile=X('isfile(<?any...>)',isfile),islistkey=X('islistkey(table, ?any)',islistkey),isnonzero=X('isnonzero(<?any...>)',isnonzero),isstring=X('isstring(<?any...>)',isstring),istable=X('istable(<?any...>)',istable),predicate=X('predicate(?any)',predicate),some=X('some(table|function, <?any>)',some),destructure=X('destructure(table)',destructure),except=X('except(table, ?any)',except),invert=X('invert(table)',invert),keys=X('keys(table)',keys),mapkeys=X('mapkeys(table, callable)',mapkeys),mapvalues=X('mapvalues(table, callable)',mapvalues),merged=X('merged(<?table...>)',merged),pluck=X('pluck(table, table|function)',pluck),tabulate=X('tabulate(table|function, callable)',tabulate),values=X('values(table)',values),any=X('any(callable...)',any),apply=X('apply(callable, table)',apply),bind=X('bind(callable, table)',bind),call=X('call(callable, <?any...>)',call),callable=X('callable(<?any>)',callable),compose=X('compose(callable...)',compose),converge=X('converge(?any, [int], callable)',converge),curry=X('curry(callable, int)',curry),force=X('force(?any, <?any...>)',force),id=id,iscallable=X('iscallable(<?any>)',iscallable),lambda=X('lambda(string)',lambda),memoize=X('memoize(callable, <?callable>)',memoize),nop=function()end,case=X('case(?any, table)',case),choose=X('choose(?any, ?any, <?any>)',choose),cond=X('cond(<table...>)',cond),default=X('default(?any, <?any>)',default),either=X('either(?any, <?any>)',either),}
+end
+bundled['std.normalize']=function()
+local core=require'std.normalize._core'local strict=core.strictness()local typecheck=(function()local format=string.format
+local ok,r=pcall(require,'typecheck')if ok then
+return r
+end
+return{ARGCHECK_FRAME=0,argscheck=function(decl,inner)return inner or setmetatable({},{__concat=function(_,inner)return inner
+end,})end,argerror=function(name,i,extramsg,level)level=level or 1
+local s=format("bad argument #%d to '%s'",i,name)if extramsg~=nil then
+s=s..' ('..extramsg..')'end
+error(s,level>0 and level+2 or 0)end,}end)()local _ENV=strict(_G)local ARGCHECK_FRAME=typecheck.ARGCHECK_FRAME
+local argerror=typecheck.argerror
+local argscheck=typecheck.argscheck
+local concat=table.concat
+local config=package.config
+local exit=os.exit
+local format=string.format
+local gmatch=string.gmatch
+local gsub=string.gsub
+local loadstring=rawget(_G,'loadstring')or load
+local match=string.match
+local open=io.open
+local remove=table.remove
+local searchpath=package.searchpath or false
+local sort=table.sort
+local unpack=table.unpack or unpack
+local upper=string.upper
+local callable=core.callable
+local getmetafield=core.getmetafield
+local getmetamethod=core.getmetamethod
+local iscallable=core.iscallable
+local len=core.len
+local pack=core.pack
+local pairs=core.pairs
+local rawlen=core.rawlen
+local tointeger=core.tointeger
+local fenv=core.with_frames(ARGCHECK_FRAME)local normalize_getfenv=fenv.getfenv
+local normalize_setfenv=fenv.setfenv
+local dirsep,pathsep,pathmark,execdir,igmark=match(config,'^([^\n]+)\n([^\n]+)\n([^\n]+)\n([^\n]+)\n([^\n]+)')local _exit=exit
+local function exit(...)local n,status=select('#',...),...if tointeger(n)==0 or status==true then
+_exit(0)elseif status==false then
+_exit(1)end
+_exit(status)end
+local function ipairs(l)if getmetamethod(l,'__len')then
+local n=len(l)return function(l,i)i=i+1
+if i<=n then
+return i,l[i]end
+end,l,0
+end
+return function(l,i)i=i+1
+if l[i]~=nil then
+return i,l[i]end
+end,l,0
+end
+local load=(function(ok)if not ok then
+return function(...)if type(...)=='string'then
+return loadstring(...)end
+return _G.load(...)end
+end
+return _G.load
+end)(pcall(load,'_=1'))local load_takes_env=(function()local fn=load('return x','=probe','t',{x=true})return fn~=nil and fn()==true
+end)()local function normalize_load(chunk,chunkname,mode,...)local m=getmetamethod(chunk,'__call')if m then
+chunk=m
+elseif getmetamethod(chunk,'__tostring')then
+chunk=tostring(chunk)end
+if getmetamethod(chunkname,'__tostring')then
+chunkname=tostring(chunkname)end
+if select('#',...)==0 or load_takes_env then
+return load(chunk,chunkname,mode,...)end
+local fn,err=load(chunk,chunkname)if fn~=nil then
+normalize_setfenv(fn,(...))end
+return fn,err
+end
+local function maxn(t)local n=0
+for k in next,t do
+if type(k)=='number'and k>n then
+n=k
+end
+end
+return n
+end
+local function merge(t,r)r=r or{}for k,v in next,t do
+r[k]=r[k]or v
+end
+return r
+end
+local function keys(t)local r={}for k in pairs(t)do
+r[#r+1]=k
+end
+return r
+end
+local pathmatch_patt='[^'..pathsep..']+'local searchpath=searchpath or function(name,path,sep,rep)name=gsub(name,sep or'%.',rep or dirsep)local errbuf={}for template in gmatch(path,pathmatch_patt)do
+local filename=gsub(template,pathmark,name)local fh=open(filename,'r')if fh then
+fh:close()return filename
+end
+errbuf[#errbuf+1]="\tno file '"..filename.."'"end
+return nil,concat(errbuf,'\n')end
+local shallow_copy=merge
+local function render(x,vfns,roots)if vfns.term(x)then
+return vfns.elem(x)end
+roots=roots or{}local function stop_roots(x)return roots[x]or render(x,vfns,shallow_copy(roots))end
+local buf,pair,sep={vfns.open(x)},vfns.pair,vfns.sep
+roots[x]=vfns.elem(x)local seqp,kp,vp
+local keylist=vfns.sort(keys(x))for i,k in ipairs(keylist)do
+local v=x[k]buf[#buf+1]=sep(x,kp,vp,k,v,seqp)if k==1 then
+seqp=true
+else
+seqp=seqp and type(kp)=='number'and k==kp+1
+end
+buf[#buf+1]=pair(x,kp,vp,k,v,stop_roots(k),stop_roots(v),seqp)kp,vp=k,v
+end
+buf[#buf+1]=sep(x,kp,vp)buf[#buf+1]=vfns.close(x)return concat(buf)end
+local function always(x)return function(...)return x end
+end
+local function keysort(a,b)if type(a)=='number'then
+return type(b)~='number'or a<b
+else
+return type(b)~='number'and tostring(a)<tostring(b)end
+end
+local strvtable={open=always'{',close=always'}',elem=setmetatable({['\a']=[[\a]],['\b']=[[\b]],['\t']=[[\t]],['\n']=[[\n]],['\v']=[[\v]],['\f']=[[\f]],['\r']=[[\r]],['\\']=[[\\]],},{__call=function(map,x)return(gsub(tostring(x),'[\a\b\t\n\v\f\r]',function(c)return map[c]end))end,}),pair=function(x,kp,vp,k,v,kstr,vstr,seqp)if seqp then
+return vstr
+end
+return kstr..'='..vstr
+end,sep=function(x,kp,vp,k,v,seqp)if kp==nil or k==nil then
+return''elseif seqp and type(kp)=='number'and k~=kp+1 then
+return'; 'end
+return', 'end,sort=function(keys)sort(keys,keysort)return keys
+end,term=function(x)return type(x)~='table'or getmetamethod(x,'__tostring')end,}local function str(x)return render(x,strvtable)end
+local function math_type(x)if type(x)~='number'then
+return nil
+end
+return tointeger(x)and'integer'or'float'end
+local _unpack=unpack
+local function unpack(t,i,j)return _unpack(t,tointeger(i)or 1,tointeger(j)or len(t))end
+local normalize_format=(function(f)if pcall(f,'%s',nil)then
+return f
+end
+return function(fmt,...)local argu,i={n=select('#',...),...},0
+for conversion in gmatch(fmt,'%%[-+ #0]*%d*%.?%d*([%a%%])')do
+if conversion~='%'then
+i=i+1
+if conversion=='s'then
+argu[i]=tostring(argu[i])end
+end
+end
+return f(fmt,unpack(argu,1,argu.n))end
+end)(format)do
+local have_xpcall_args=false
+local function catch(arg)have_xpcall_args=arg end
+xpcall(catch,function()end,true)if not have_xpcall_args then
+local _xpcall=xpcall
+xpcall=function(fn,errh,...)local argu=pack(...)return _xpcall(function()return fn(unpack(argu,1,argu.n))end,errh)end
+end
+end
+local F={_VERSION=_G._VERSION,arg=_G.arg,argerror=argerror,assert=_G.assert,callable=argscheck'callable(<?any>)'..callable,collectgarbage=_G.collectgarbage,dofile=_G.dofile,error=_G.error,getfenv=argscheck'getfenv([callable|integer])'..normalize_getfenv,getmetafield=argscheck'getmetafield(?any, string)'..getmetafield,getmetamethod=argscheck'getmetamethod(?any, string)'..getmetamethod,getmetatable=_G.getmetatable,ipairs=argscheck'ipairs(table)'..ipairs,iscallable=argscheck'iscallable(<?any>)'..iscallable,len=argscheck'len(string|table)'..len,load=argscheck'load(callable|string|table, <?string|table>, <?string>, <?any>)'..normalize_load,loadfile=_G.loadfile,next=_G.next,pack=pack,pairs=argscheck'pairs(table)'..pairs,pcall=_G.pcall,print=_G.print,rawequal=_G.rawequal,rawget=_G.rawget,rawlen=argscheck'rawlen(string|table)'..rawlen,rawset=_G.rawset,select=_G.select,setfenv=argscheck'setfenv(integer|callable, table)'..normalize_setfenv,setmetatable=_G.setmetatable,str=str,tonumber=_G.tonumber,tostring=_G.tostring,type=_G.type,unpack=argscheck'unpack(table, [?integer], [integer])'..unpack,xpcall=argscheck'xpcall(callable, callable, [?any...])'..xpcall,}local G={coroutine={create=_G.coroutine.create,resume=_G.coroutine.resume,running=_G.coroutine.running,status=_G.coroutine.status,wrap=_G.coroutine.wrap,yield=_G.coroutine.yield,},debug={debug=_G.debug.debug,gethook=_G.debug.gethook,getinfo=_G.debug.getinfo,getlocal=_G.debug.getlocal,getmetatable=_G.debug.getmetatable,getregistry=_G.debug.getregistry,getupvalue=_G.debug.getupvalue,getuservalue=_G.debug.getuservalue,sethook=_G.debug.sethook,setmetatable=_G.debug.setmetatable,setupvalue=_G.debug.setupvalue,setuservalue=_G.debug.setuservalue,traceback=_G.debug.traceback,upvalueid=_G.debug.upvalueid,upvaluejoin=_G.debug.upvaluejoin,},io={close=_G.io.close,flush=_G.io.flush,input=_G.io.input,lines=_G.io.lines,open=_G.io.open,output=_G.io.output,popen=_G.io.popen,read=_G.io.read,stderr=_G.io.stderr,stdin=_G.io.stdin,stdout=_G.io.stdout,tmpfile=_G.io.tmpfile,type=_G.io.type,write=_G.io.write,},math={abs=_G.math.abs,acos=_G.math.acos,asin=_G.math.asin,atan=_G.math.atan,ceil=_G.math.ceil,cos=_G.math.cos,deg=_G.math.deg,exp=_G.math.exp,floor=_G.math.floor,fmod=_G.math.fmod,huge=_G.math.huge,log=_G.math.log,max=_G.math.max,min=_G.math.min,modf=_G.math.modf,pi=_G.math.pi,rad=_G.math.rad,random=_G.math.random,randomseed=_G.math.randomseed,sin=_G.math.sin,sqrt=_G.math.sqrt,tan=_G.math.tan,tointeger=argscheck'math.tointeger(?any)'..tointeger,type=argscheck'math.type(?any)'..math_type,},os={clock=_G.os.clock,date=_G.os.date,difftime=_G.os.difftime,execute=_G.os.execute,exit=argscheck'os.exit([boolean|integer])'..exit,getenv=_G.os.getenv,remove=_G.os.remove,rename=_G.os.rename,setlocale=_G.os.setlocale,time=_G.os.time,tmpname=_G.os.tmpname,},package={dirsep=dirsep,execdir=execdir,igmark=igmark,pathmark=pathmark,pathsep=pathsep,searchers=not _G.package.searchers and _G.package.loaders or nil,searchpath=argscheck('package.searchpath(string, string, [?string], [string])')..searchpath,},string={byte=_G.string.byte,char=_G.string.char,dump=_G.string.dump,find=_G.string.find,format=normalize_format,gmatch=_G.string.gmatch,gsub=_G.string.gsub,lower=_G.string.lower,match=_G.string.match,rep=_G.string.rep,render=argscheck'string.render(?any, table, [table])'..render,reverse=_G.string.reverse,sub=_G.string.sub,upper=_G.string.upper,},table={concat=_G.table.concat,insert=_G.table.insert,maxn=argscheck'table.maxn(table)'..maxn,keys=argscheck'table.keys(table)'..keys,merge=argscheck'table.merge(table, [table])'..merge,remove=_G.table.remove,sort=_G.table.sort,},}F._G=G
+local function chainpairs(core)return function(t)local own=true
+return function(_,k)local v
+if own then
+k,v=next(t,k)if k~=nil then
+return k,v
+end
+own=false
+end
+repeat
+k,v=next(core,k)until k==nil or rawget(t,k)==nil
+return k,v
+end,t,nil
+end
+end
+local core_package=_G.package
+setmetatable(G.package,{__index=core_package,__newindex=core_package,__pairs=chainpairs(core_package),})local normalized={_G=G,coroutine=G.coroutine,debug=G.debug,io=G.io,math=G.math,os=G.os,package=G.package,string=G.string,table=G.table,}rawset(G.package,'loaded',setmetatable({},{__index=function(_,k)local v=normalized[k]if v==nil then
+v=core_package.loaded[k]end
+return v
+end,__newindex=core_package.loaded,__pairs=function(t)return function(_,k)local v
+k,v=next(core_package.loaded,k)if k~=nil and normalized[k]~=nil then
+v=normalized[k]end
+return k,v
+end,t,nil
+end,}))F.require=function(modname)return G.package.loaded[modname]or _G.require(modname)end
+for k,v in next,F do
+G[k]=G[k]or v
+end
+local function split(s,matching)local r={}gsub(s,matching,function(segment)r[#r+1]=segment
+end)return r
+end
+local function mksubtables(env,keylist)while#keylist>1 do
+local subkey=remove(keylist,1)env[subkey]=env[subkey]or{}env=env[subkey]end
+keylist=remove(keylist,1)return env,keylist
+end
+local function slice(t,i,j)return concat({unpack(t,i,j)},'.')end
+local function stringimport(spec,level)local v=split(spec,'[^%.]+')local vlen,err=#v,{}for i=vlen,1,-1 do
+local module,j=slice(v,1,i),i+1
+local ok,pkg=pcall(G.require,module)if not ok then
+err[#err+1]=pkg
+else
+while pkg~=nil and j<=vlen do
+local subkey=v[j]pkg,j=pkg[subkey],j+1
+end
+if pkg==nil then
+err[#err+1]=format("\tno entry for '%s' in module '%s'",slice(v,i+1,vlen),module)else
+return pkg
+end
+end
+end
+error(concat(err,'\n'),level+1)end
+local function import(env,name,value,level)local i=tointeger(name)if i and type(value)=='string'then
+name=match(value,'[^%.]+$')if name==nil then
+error("could not infer name from module '"..value.."' at #"..i,level+1)end
+end
+local dst,k=mksubtables(env,split(name,'[^%.]+'))if type(value)=='string'and(i or upper(name)~=name)then
+value=stringimport(value,level+1)end
+dst[k]=value
+return env
+end
+local function normalize(userenv,level)local env=shallow_copy(F)for name,value in next,userenv do
+env=import(env,name,value,level+1)end
+return env
+end
+return setmetatable(G,{__call=function(_,env,level)level=1+(level or 1)return(strict(normalize(env,level),level))end,__index=function(self,name)local ok,t=pcall(require,'std.normalize.'..name)if ok then
+rawset(self,name,t)return t
+end
+end,})
+end
+bundled['std.normalize._core']=function()
+local debug_getinfo=debug.getinfo
+local debug_getupvalue=debug.getupvalue
+local debug_setupvalue=debug.setupvalue
+local debug_upvaluejoin=debug.upvaluejoin
+local debug_getfenv=debug.getfenv
+local debug_setfenv=debug.setfenv
+local host_getfenv=rawget(_G,'getfenv')or false
+local host_setfenv=rawget(_G,'setfenv')or false
+local function getmetafield(x,n)local mt=getmetatable(x)if type(mt)=='table'then
+return mt[n]end
+end
+local function callable(x)if type(x)=='function'then
+return x
+end
+if getmetafield(x,'__call')then
+return x
+end
+end
+local function iscallable(x)return callable(x)~=nil
+end
+local function getmetamethod(x,n)return callable(getmetafield(x,n))end
+local function rawlen(x)if type(x)~='table'then
+return#x
+end
+local n=#x
+for i=1,n do
+if x[i]==nil then
+return i-1
+end
+end
+return n
+end
+local function len(x)return(getmetamethod(x,'__len')or rawlen)(x)end
+local tointeger=(function(f)if f==nil then
+local floor=math.floor
+return function(x)if type(x)=='number'and x-floor(x)==0.0 then
+return x
+end
+end
+elseif f'1'~=nil then
+return function(x)if type(x)=='number'then
+return f(x)end
+end
+end
+return f
+end)(math.tointeger)local pack=(function(f)local pack_mt={__len=function(self)return self.n
+end,}local pack_fn=f or function(...)return{n=select('#',...),...}end
+return function(...)return setmetatable(pack_fn(...),pack_mt)end
+end)(table.pack)local pairs=(function(b)if b then
+return function(t)return(getmetamethod(t,'__pairs')or pairs)(t)end
+end
+return _G.pairs
+end)(not not pairs(setmetatable({},{__pairs=function()return false end})))local function unwrap(fn)local call=type(fn)=='table'and rawget(fn,'call')if type(call)=='function'then
+return call
+end
+return getmetafield(fn,'__call')or fn
+end
+local function make_getfenv(extra)if _VERSION=='Lua 5.1'then
+return function(fn)local n=tointeger(fn or 1)if n then
+if n==0 then
+return _G
+end
+if n>0 then
+n=n+1+extra
+if debug_getfenv then
+return(debug_getfenv(debug_getinfo(n,'f').func))end
+end
+return(host_getfenv(n))end
+if type(fn)~='function'then
+fn=unwrap(fn)end
+return(debug_getfenv or host_getfenv)(fn)end
+end
+return function(fn)if fn==0 then
+return _G
+end
+local n=tointeger(fn or 1)if n then
+fn=debug_getinfo(n+1+extra,'f').func
+elseif type(fn)~='function'then
+fn=unwrap(fn)end
+local name,env
+local up=0
+repeat
+up=up+1
+name,env=debug_getupvalue(fn,up)until name=='_ENV'or name==nil
+return env
+end
+end
+local function make_setfenv(extra)if _VERSION=='Lua 5.1'then
+return function(fn,env)local n=tointeger(fn or 1)if n then
+if n==0 then
+error('cannot set the global environment',2)end
+if n>0 then
+n=n+1+extra
+if debug_setfenv then
+local f=debug_getinfo(n,'f').func
+debug_setfenv(f,env)return f
+end
+end
+return(host_setfenv(n,env))end
+if type(fn)~='function'then
+fn=unwrap(fn)end
+return(debug_setfenv or host_setfenv)(fn,env)end
+end
+return function(fn,env)local n=tointeger(fn or 1)if n then
+if n==0 then
+error('cannot set the global environment',2)end
+if n>0 then
+n=n+1+extra
+end
+fn=debug_getinfo(n,'f').func
+elseif type(fn)~='function'then
+fn=unwrap(fn)end
+local up,name=0
+repeat
+up=up+1
+name=debug_getupvalue(fn,up)until name=='_ENV'or name==nil
+if name then
+debug_upvaluejoin(fn,up,function()return name end,1)debug_setupvalue(fn,up,env)end
+return fn
+end
+end
+local DEFAULTS={argcheck=true,strict=true}local hints_cache
+local function hints()if hints_cache==nil then
+local ok,r=pcall(require,'std._debug')if not ok then
+r=setmetatable({argcheck=true,strict=true},{__call=function(self,x)for k,v in pairs(DEFAULTS)do
+self[k]=(x~=false)and v
+end
+return self
+end,})end
+hints_cache=r
+end
+return hints_cache
+end
+local function strictness()local setfenv=rawget(_G,'setfenv')or function()end
+local r=function(env,level)setfenv(1+(level or 1),env)return env
+end
+if hints().strict then
+local ok,m=pcall(require,'std.strict.init')if ok then
+r=m
+end
+end
+return r
+end
+return{callable=callable,getfenv=make_getfenv(0),getmetafield=getmetafield,getmetamethod=getmetamethod,hints=hints,iscallable=iscallable,len=len,pack=pack,pairs=pairs,rawlen=rawlen,setfenv=make_setfenv(0),strictness=strictness,tointeger=tointeger,with_frames=function(extra)return{getfenv=make_getfenv(extra),setfenv=make_setfenv(extra)}end,}
+end
+bundled['std.prototype._base']=function()
+local _ENV=require'std.normalize'{nonempty=next,sub=string.sub,}local argscheck,typecheck
+do
+local ok,r=pcall(require,'typecheck')if ok then
+typecheck=r
+argscheck=typecheck.argscheck
+else
+argscheck=function(decl,fn)return fn
+end
+end
+end
+return{Module=function(t)return setmetatable(t,{_type='Module',__call=function(self,...)return self.prototype(...)end,})end,argscheck=argscheck,typecheck=typecheck,mapfields=function(obj,src,map)local mt=getmetatable(obj)or{}if map==nil or nonempty(map)then
+map=map or{}for k,v in next,src do
+local key,dst=map[k]or k,obj
+local kind=type(key)if kind=='string'and sub(key,1,1)=='_'then
+mt[key]=v
+elseif nonempty(map)and kind=='number'and len(dst)+1<key then
+break
+else
+dst[key]=v
+end
+end
+end
+if nonempty(mt)then
+setmetatable(obj,mt)end
+return obj
+end,}
+end
+bundled['std.prototype.container']=function()
+local argcheck,argerror,extramsg_toomany
+do
+local typecheck=require'std.prototype._base'.typecheck
+local ok,_debug=pcall(require,'std._debug')if typecheck and not(ok and _debug.argcheck==false)then
+argcheck=typecheck.argcheck
+argerror=typecheck.argerror
+extramsg_toomany=typecheck.extramsg_toomany
+end
+end
+local _ENV=require'std.normalize'{Module=require'std.prototype._base'.Module,argscheck=require'std.prototype._base'.argscheck,concat=table.concat,mapfields=require'std.prototype._base'.mapfields,nonempty=next,sort=table.sort,}local function keysort(a,b)if type(a)=='number'then
+return type(b)~='number'or a<b
+else
+return type(b)~='number'and tostring(a)<tostring(b)end
+end
+local function shallow_copy(t)local r={}for k,v in next,t do
+r[k]=v
+end
+return r
+end
+local function instantiate(proto,t)local obj={}for k,v in next,proto do
+obj[k]=v
+end
+for k,v in next,t or{}do
+obj[k]=v
+end
+return obj
+end
+local prototype={_type='Container',__call=function(self,...)local mt=getmetatable(self)local obj_mt=mt
+local obj={}for k,v in next,self do
+obj[k]=v
+end
+if type(mt._init)=='function'then
+obj=mt._init(obj,...)else
+obj=(self.mapfields or mapfields)(obj,(...),mt._init)end
+if nonempty(getmetatable(obj)or{})then
+obj_mt=instantiate(mt,getmetatable(obj))if type(obj_mt.__index)=='table'and
+type((mt or{}).__index)=='table'then
+obj_mt.__index=instantiate(mt.__index,obj_mt.__index)end
+end
+return setmetatable(obj,obj_mt)end,__pairs=function(self)local keys,i={},0
+for k in next,self do
+keys[#keys+1]=k
+end
+sort(keys,keysort)return function(t)i=i+1
+local k=keys[i]if k~=nil then
+return k,t[k]end
+end,self
+end,__tostring=function(self)return concat{getmetatable(self)._type,' ',str(shallow_copy(self)),}end,}if argcheck then
+local __call=prototype.__call
+prototype.__call=function(self,...)local mt=getmetatable(self)if type(mt._init)~='function'then
+local name,n=mt._type,select('#',...)if n==0 then
+argerror(name,1,'table expected, got no value',2)end
+argcheck(name,1,'table',(...))if n>1 then
+argerror(name,2,extramsg_toomany('argument',1,n),2)end
+end
+return __call(self,...)end
+end
+local function X(decl,fn)return argscheck('prototype.container.'..decl,fn)end
+return Module{prototype=setmetatable({},prototype),mapfields=X('mapfields(table, table|object, [?table])',mapfields),}
+end
+bundled['std.prototype.contextmanager']=function()
+local _ENV=require'std.normalize'{'io.close','io.open','io.popen','os.remove','os.tmpname',iotype='io.type',Module=require'std.prototype._base'.Module,Object=require'std.prototype.object'.prototype,argscheck=require'std.prototype._base'.argscheck,}local ContextManager
+local function passthrough(self,key)local context=rawget(self,'context')local method=context~=nil and context[key]if iscallable(method)then
+return function(_,...)return method(context,...)end
+end
+end
+local function closefile(cm)return iotype(cm.context)=='file'and close(cm.context)end
+local function manage(release,acquirer,...)local context,err=acquirer(...)if not context then
+return nil,err
+end
+return setmetatable({context=context,release=release,n=select('#',...),...},getmetatable(ContextManager))end
+local function with(...)local argu=pack(...)local block=argu[argu.n]argu[argu.n],argu.n=nil,argu.n-1
+local result=pack(pcall(block,unpack(argu,1,argu.n)))local failure
+for i=argu.n,1,-1 do
+local cm=argu[i]if cm~=nil then
+local ok,err=pcall(cm.release,cm)if not ok and failure==nil then
+failure={err}end
+end
+end
+if not result[1]then
+error(result[2],0)elseif failure~=nil then
+error(failure[1],0)end
+return unpack(result,2,result.n)end
+local function slurp(cm,...)if not cm then
+return cm,...end
+return with(cm,function(h)return h:read'*a'end)end
+local function X(decl,fn)return argscheck('std.prototype.contextmanager.'..decl,fn)end
+ContextManager=Object{_type='ContextManager',__index=passthrough,__call=function(_,release,acquirer,...)return manage(release,acquirer,...)end,}return Module{prototype=ContextManager,File=X('File(string, [?string])',function(fname,mode)local cm,err=manage(closefile,open,fname,mode)if cm~=nil then
+cm.filename=fname
+end
+return cm,err
+end),Pipe=X('Pipe(string, [?string])',function(cmd,mode)local cm,err=manage(closefile,popen,cmd,mode)if cm~=nil then
+cm.command=cmd
+end
+return cm,err
+end),TmpFile=X('TmpFile([?string], [?string])',function(fname,mode)fname=fname or tmpname()local cm,err=manage(function(self)if closefile(self)then
+return remove(self.filename)end
+return false
+end,open,fname,mode or'w')if cm~=nil then
+cm.filename=fname
+end
+return cm,err
+end),slurp=slurp,with=with,}
+end
+bundled['std.prototype.object']=function()
+local _ENV=require'std.normalize'{Container=require'std.prototype.container'.prototype,Module=require'std.prototype._base'.Module,argscheck=require'std.prototype._base'.argscheck,mapfields=require'std.prototype._base'.mapfields,}local function X(decl,fn)return argscheck('std.prototype.object.'..decl,fn)end
+local Object=Container{_type='Object',__index={clone=getmetamethod(Container,'__call'),mapfields=X('mapfields(table, table|object, [?table])',mapfields),},}return Module{prototype=Object,type=function(x)return(getmetatable(x)or{})._type
+end,}
+end
+bundled['std.prototype.orderedmap']=function()
+local _ENV=require'std.normalize'{Container=require'std.prototype.container'.prototype,Module=require'std.prototype._base'.Module,argscheck=require'std.prototype._base'.argscheck,concat=table.concat,nonempty=next,format=string.format,remove=table.remove,sub=string.sub,}local OrderedMap
+local function unlist(mt,i)local keys,pos=mt._keys,mt._pos
+pos[keys[i]]=nil
+remove(keys,i)for j=i,#keys do
+pos[keys[j]]=j
+end
+end
+local function get(om,key)return rawget(om,key)end
+local function set(om,key,value)if key==nil then
+error('OrderedMap key expected, got nil',3)end
+local mt=getmetatable(om)if value==nil then
+if rawget(om,key)~=nil then
+rawset(om,key,nil)unlist(mt,mt._pos[key])end
+else
+if rawget(om,key)==nil then
+if mt._pos[key]~=nil then
+unlist(mt,mt._pos[key])end
+mt._keys[#mt._keys+1]=key
+mt._pos[key]=#mt._keys
+end
+rawset(om,key,value)end
+return om
+end
+local function elems(om)local keys,i=getmetatable(om)._keys,0
+return function()while true do
+i=i+1
+local key=keys[i]if key==nil then
+return nil
+end
+local value=rawget(om,key)if value~=nil then
+return key,value
+end
+end
+end,om
+end
+local function size(om)local n=0
+for _ in elems(om)do
+n=n+1
+end
+return n
+end
+local function keys(om)local r,n={},0
+for key in elems(om)do
+n=n+1
+r[n]=key
+end
+r.n=n
+return r
+end
+local function values(om)local r,n={},0
+for _,value in elems(om)do
+n=n+1
+r[n]=value
+end
+r.n=n
+return r
+end
+local function entries(om)local r,n={},0
+for key,value in elems(om)do
+n=n+1
+r[n]={[key]=value}end
+r.n=n
+return r
+end
+local function merged(...)local r=OrderedMap{}for i=1,select('#',...)do
+local om=select(i,...)if om~=nil then
+for key,value in elems(om)do
+set(r,key,value)end
+end
+end
+return r
+end
+local function pluck(om,wanted)local want={}for i=1,wanted.n or len(wanted)do
+if wanted[i]~=nil then
+want[wanted[i]]=true
+end
+end
+local r=OrderedMap{}for key,value in elems(om)do
+if want[key]then
+set(r,key,value)end
+end
+return r
+end
+local function mapvalues(om,fn)local r=OrderedMap{}for key,value in elems(om)do
+set(r,key,fn(value,key))end
+return r
+end
+local function X(decl,fn)return argscheck('std.prototype.orderedmap.'..decl,fn)end
+local function addentries(om,t)local mt=getmetatable(om)for k,v in next,t do
+if type(k)=='string'and sub(k,1,1)=='_'then
+mt[k]=v
+elseif type(k)~='number'and k~='n'then
+error(format("OrderedMap entry expected, got field '%s'",str(k)),4)end
+end
+for i=1,len(t)do
+local entry=t[i]local key,value=next(type(entry)=='table'and entry or{})if key==nil or next(entry,key)~=nil then
+error(format('OrderedMap entry #%d must be a table of one pair',i),4)end
+set(om,key,value)end
+return om
+end
+local function derive(self,...)local mt,obj,nmt=getmetatable(self),{},{}for k,v in next,mt do
+nmt[k]=v
+end
+nmt._keys,nmt._pos={},{}setmetatable(obj,nmt)for key,value in elems(self)do
+set(obj,key,value)end
+if type(mt._init)=='function'then
+return mt._init(obj,...)or obj
+end
+local t,n=...,select('#',...)if n==0 then
+argerror(mt._type,1,'table expected, got no value',2)elseif type(t)~='table'then
+argerror(mt._type,1,'table expected, got '..type(t),2)elseif n>1 then
+argerror(mt._type,2,'no more than 1 argument expected, got '..n,2)end
+return addentries(obj,t)end
+OrderedMap=Container{_type='OrderedMap',_keys={},_pos={},__call=derive,__newindex=function(om,key,value)set(om,key,value)end,__pairs=elems,__tostring=function(self)local pieces={}for key,value in elems(self)do
+pieces[#pieces+1]=str(key)..'='..str(value)end
+return getmetatable(self)._type..' {'..concat(pieces,', ')..'}'end,}return Module{prototype=OrderedMap,delete=X('delete(OrderedMap, any)',function(om,key)return set(om,key,nil)end),entries=X('entries(OrderedMap)',entries),elems=X('elems(OrderedMap)',elems),get=X('get(OrderedMap, any)',get),keys=X('keys(OrderedMap)',keys),merged=X('merged(<?OrderedMap...>)',merged),mapvalues=X('mapvalues(OrderedMap, callable)',mapvalues),pluck=X('pluck(OrderedMap, table)',pluck),set=X('set(OrderedMap, any, ?any)',set),size=X('size(OrderedMap)',size),values=X('values(OrderedMap)',values),}
+end
+bundled['std.prototype.set']=function()
+local _ENV=require'std.normalize'{Container=require'std.prototype.container'.prototype,Module=require'std.prototype._base'.Module,argscheck=require'std.prototype._base'.argscheck,concat=table.concat,nonempty=next,sort=table.sort,sub=string.sub,}local Set
+local function insert(set,e)return rawset(set,e,true)end
+local function member(set,e)return rawget(set,e)==true
+end
+local difference,symmetric_difference,intersection,union,subset,proper_subset,equal
+function difference(set1,set2)local r=Set{}for e in next,set1 do
+if not member(set2,e)then
+insert(r,e)end
+end
+return r
+end
+function symmetric_difference(set1,set2)return difference(union(set1,set2),intersection(set2,set1))end
+function intersection(set1,set2)local r=Set{}for e in next,set1 do
+if member(set2,e)then
+insert(r,e)end
+end
+return r
+end
+function union(set1,set2)local r=set1{}for e in next,set2 do
+insert(r,e)end
+return r
+end
+function subset(set1,set2)for e in next,set1 do
+if not member(set2,e)then
+return false
+end
+end
+return true
+end
+function proper_subset(set1,set2)return subset(set1,set2)and not subset(set2,set1)end
+function equal(set1,set2)return subset(set1,set2)and subset(set2,set1)end
+local function X(decl,fn)return argscheck('std.prototype.set.'..decl,fn)end
+Set=Container{_type='Set',_init=function(new,t)local mt={}for k,v in pairs(t)do
+local type_k=type(k)if type_k=='number'then
+insert(new,v)elseif type_k=='string'and sub(k,1,1)=='_'then
+mt[k]=v
+end
+end
+return nonempty(mt)and setmetatable(new,mt)or new
+end,__add=union,__sub=difference,__mul=intersection,__div=symmetric_difference,__le=subset,__lt=proper_subset,__tostring=function(self)local keys={}for k in pairs(self)do
+keys[#keys+1]=str(k)end
+sort(keys)return getmetatable(self)._type..' {'..concat(keys,', ')..'}'end,}return Module{prototype=Set,delete=X('delete(Set, any)',function(set,e)return rawset(set,e,nil)end),difference=X('difference(Set, Set)',difference),elems=X('elems(Set)',pairs),equal=X('equal(Set, Set)',equal),insert=X('insert(Set, any)',insert),intersection=X('intersection(Set, Set)',intersection),member=X('member(Set, any)',member),proper_subset=X('proper_subset(Set, Set)',proper_subset),subset=X('subset(Set, Set)',subset),symmetric_difference=X('symmetric_difference(Set, Set)',symmetric_difference),union=X('union(Set, Set)',union),}
+end
+if _VERSION=='Lua 5.1'then for _,f in next,bundled do setfenv(f,env)end end
+return require'luarocks.build.luke'
