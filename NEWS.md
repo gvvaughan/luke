@@ -56,6 +56,12 @@
 
 ### Bugs fixed:
 
+  - `luarocks.build.luke` builds a rock in the directory that LuaRocks
+    unpacked it in, so that when LuaRocks has no LuaFileSystem and stays
+    inside the initial directory it was executed from, we no longer
+    assume that when installing dependencies that templates are in the
+    current directory.
+
   - luke runs on the `std.normalize` and `std.functional` that it
     bundle, instead of a `luke.normalize` and copies of functions of its
     own, so it behaves like every other project that uses them

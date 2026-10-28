@@ -42,6 +42,15 @@ local function staged(rockspec)
    return r
 end
 
+-- The absolute path of the directory that LuaRocks is building in, if it
+-- is not the current directory of this process.  Without LuaFileSystem,
+-- LuaRocks changes directory only for the commands that it runs, so the
+-- files that luke itself reads and writes are found from there.
+local function srcdir()
+   local fs = host_package.loaded['luarocks.fs']
+   return fs and fs.current_dir()
+end
+
 -- The Lua path that smush finds modules in: the `LUA_PATH` of the
 -- environment, where it has a `;;`, and else the one of this Lua.
 local function luapath()
@@ -127,7 +136,7 @@ function luke.run(rockspec, no_install)
       end
    end
    local status, err = require 'luke._base'.protected(function()
-      local recipe, request = require 'luke.rockspec'.fromrockspec(staged(rockspec), no_install)
+      local recipe, request = require 'luke.rockspec'.fromrockspec(staged(rockspec), no_install, srcdir())
       if names ~= nil then
          -- For `@bundled@` in a template, such as a version file, to say
          -- which rocks the file that it is part of has bundled.

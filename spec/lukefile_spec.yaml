@@ -89,6 +89,20 @@ specify luke.lukefile:
   - it returns any other source as it is:
       lukefile, L = setup()
       expect(lukefile.fill_template(L, env, 'a.lua')).to_be 'a.lua'
+  - it fills a template in the source directory of the request: |
+      dir = os.tmpname()
+      os.remove(dir)
+      assert(os.execute("mkdir -p '" .. dir .. "/lib'"))
+      h = assert(io.open(dir .. '/lib/a.lua.in', 'w'))
+      h:write "return '@CC@'\n"
+      h:close()
+      lukefile, L = setup()
+      L.dryrun, L.srcdir = false, dir
+      lukefile.fill_template(L, E.mkenv({CC = 'cc'}, E.DEFAULTENV), 'lib/a.lua.in')
+      h = assert(io.open(dir .. '/lib/a.lua'))
+      expect(h:read '*a').to_be "return 'cc'\n"
+      h:close()
+      os.execute("rm -rf '" .. dir .. "'")
 
 - describe collect_variables:
   - it names where each external dependency is, and its directories:

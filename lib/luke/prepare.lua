@@ -30,6 +30,7 @@ local _ENV = require 'std.normalize' {
    diagnose = _base.diagnose,
    spawn = _compile.spawn,
    DEFAULTENV = _environment.DEFAULTENV,
+   shellword = _environment.shellword,
    OrderedMap = _ordered.prototype,
    ordered = _ordered,
    SCRIPT_SECTIONS = _lukefile.SCRIPT_SECTIONS,
@@ -76,10 +77,10 @@ local function interpolate_to_substitute(s)
 end
 
 
--- The abbreviated hash of the commit checked out in the current
--- directory, or '' outside a git working tree.
-local function gitref()
-   local out = slurp(Pipe('git rev-parse --short HEAD 2>/dev/null'))
+-- The abbreviated hash of the commit checked out in *srcdir*, or '' outside
+-- a git working tree.
+local function gitref(srcdir)
+   local out = slurp(Pipe('git -C ' .. shellword(srcdir) .. ' rev-parse --short HEAD 2>/dev/null'))
    return match(out or '', '^(%x+)\n?$') or ''
 end
 
@@ -145,7 +146,11 @@ end
 --  * `release`, the version to release, and `valreqs`, names of variables
 --    to print, which only the command line gives;
 --  * `fname`, the lukefile that the recipe is read from, which is what to
---    call the recipe in diagnoses, unless there is a `source`.
+--    call the recipe in diagnoses, unless there is a `source`;
+--  * `srcdir`, the absolute path of the source tree, if it is not the
+--    current directory of the process, as it is not when LuaRocks has no
+--    LuaFileSystem, and so changes directory only for the commands that it
+--    runs.
 local function mkrequest(options)
    local o = merged({
       clidefs = {},
@@ -164,7 +169,14 @@ local function mkrequest(options)
          return function()
             return 0, '', ''
          end
-      end, function() return spawn end),
+      end, function()
+         if o.srcdir == nil then
+            return spawn
+         end
+         return function(env, ...)
+            return spawn(env, 'cd', shellword(o.srcdir), '&&', ...)
+         end
+      end),
       verbose = choose(o.verbose, function() return display end, function() return nop end),
       write   = choose(o.quiet, function() return nop end, function() return display end),
    })
@@ -204,7 +216,8 @@ local function prepare(recipe, request)
    local scripts = {build = script_entries(sections, named), install = install_scripts}
    luke.modules = build
 
-   local ref, srcdir = gitref(), abs_top_srcdir()
+   local srcdir = request.srcdir or abs_top_srcdir()
+   local ref = gitref(srcdir)
 
    luke.substitute = merged({
       abs_top_srcdir = srcdir,
@@ -238,6 +251,7 @@ local function prepare(recipe, request)
       release = release,
       scripts = scripts,
       spawn   = request.spawn,
+      srcdir  = srcdir,
       valreqs = request.valreqs,
       verbose = request.verbose,
       write   = request.write,

@@ -15,6 +15,7 @@ local _ENV = require 'std.normalize' {
    'io.lines',
    'string.format',
    'string.match',
+   'string.sub',
    configure = _configure.configure,
    isprobe = _configure.isprobe,
    probes = _configure.probes,
@@ -222,9 +223,18 @@ local function config_cmp(a, b)
 end
 
 
-local function fill_templates(env, src, dest)
-   with(File(dest, 'w'), function(cm)
-      each(lines(src), function(line)
+-- *path* in *srcdir*, unless it is absolute, or there is no *srcdir*.
+local function inside(srcdir, path)
+   if srcdir == nil or sub(path, 1, 1) == '/' then
+      return path
+   end
+   return srcdir .. '/' .. path
+end
+
+
+local function fill_templates(L, env, src, dest)
+   with(File(inside(L.srcdir, dest), 'w'), function(cm)
+      each(lines(inside(L.srcdir, src)), function(line)
          cm:write(expand(env, line) .. '\n')
       end)
    end)
@@ -240,7 +250,7 @@ local function rewrite_template_files(L, env, source)
             L.filled[r] = true
             L.write('creating ' .. r .. '\n')
             if not L.dryrun then
-               fill_templates(env, r .. '.in', r)
+               fill_templates(L, env, r .. '.in', r)
             end
          end
          return r

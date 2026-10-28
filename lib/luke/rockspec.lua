@@ -125,10 +125,11 @@ return {
    -- The recipe and the request that *rockspec* gives luke to make, which
    -- is to build, and unless LuaRocks asked for only a build, *no_install*,
    -- to install.
-   fromrockspec = function(rockspec, no_install)
+   fromrockspec = function(rockspec, no_install, srcdir)
       return recipe_of(rockspec), mkrequest {
          clidefs = settings_of(rockspec.variables, keys(rockspec.external_dependencies or {})),
          source  = rockspec.package .. '-' .. rockspec.version .. '.rockspec',
+         srcdir  = srcdir,
          targets = choose(no_install, pack('all'), pack('all', 'install')),
       }
    end,

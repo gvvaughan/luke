@@ -102,6 +102,9 @@ specify luke.rockspec:
     - it only makes it, when LuaRocks asked for no install: |
         _, request = fromrockspec(rockspec(), true)
         expect(request.targets).to_equal(list('all'))
+    - it builds in the directory that LuaRocks says: |
+        _, request = fromrockspec(rockspec(), false, '/unpacked/rock')
+        expect(request.srcdir).to_be '/unpacked/rock'
     - it names the rock for diagnoses: |
         _, request = fromrockspec(rockspec())
         expect(request.source).to_be 'example-1.2-3.rockspec'

@@ -52,6 +52,9 @@ specify luke.prepare:
       expect(mkrequest {fname = 'other.lua', source = 'a rockspec'}.source).to_be 'a rockspec'
   - it spawns commands:
       expect(mkrequest {}.spawn).to_be(require 'luke.compile'.spawn)
+  - it spawns commands in the source directory, when it is not the current one: |
+      r = mkrequest {srcdir = '/'}
+      expect(list(r.spawn({}, 'pwd'))).to_equal(list(0, '', '/\n'))
   - it only pretends to spawn commands when it is a dry run:
       r = mkrequest {dryrun = true}
       expect(list(r.spawn({}, 'exit 1'))).to_equal(list(0, '', ''))
@@ -76,6 +79,13 @@ specify luke.prepare:
       expect(L.luke.substitute.LUA_VERSION).to_match '^%d%.%d$'
       expect(L.luke.variables.package).to_be 'example'
       expect(L.luke.variables.objdir).to_be(require 'luke.platforms'.platforms[1])
+  - it takes the source directory from the request, when it has one: |
+      L = prepare.prepare(recipe(), mkrequest {srcdir = '/some/where'})
+      expect(L.srcdir).to_be '/some/where'
+      expect(L.luke.variables.abs_top_srcdir).to_be '/some/where'
+  - it makes the current directory the source directory otherwise: |
+      L = prepare.prepare(recipe(), mkrequest {})
+      expect(L.srcdir).to_match '^/'
   - it prefers the substitutions of the recipe to the ones that luke makes up: |
       L = prepare.prepare(recipe {substitute = {gitref = 'mine'}}, mkrequest {})
       expect(L.luke.substitute.gitref).to_be 'mine'
