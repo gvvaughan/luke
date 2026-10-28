@@ -43,9 +43,10 @@ repository:
     luarocks install luke
     cp "$(luarocks show --rock-dir luke)/bin/luke" build-aux/luke
 
-Luke builds that file from its own sources, with its own `lukefile`.
-If you change those sources, run `./luke` in the Luke source tree to
-regenerate `build-aux/luke`.
+LuaRocks builds that file from Luke's own sources, with the
+`luarocks-build-luke` build backend.  If you change those sources, run
+`luarocks make --no-install luke-dev-1.rockspec` in the Luke source
+tree to regenerate `build-aux/luke`.
 
 
 ## 2. Command Line
@@ -84,6 +85,7 @@ The options are:
 
     --help        print help, then exit
     --version     print version number, then exit
+    --bundled     print the rocks bundled in luke, then exit
     --dry-run     print the commands, without running them
     --file=FILE   use FILE instead of lukefile
     --value=NAME  print the value of variable NAME, then exit
@@ -117,8 +119,8 @@ rockspec.  A minimal one for a pure Lua project is:
 
 `package` and `version` name the project, and are available to
 templates as `@package@` and `@version@` (see
-[Templates](#43-templates)).  `luke_format`, `package`, `version` and a
-`modules` table are required.
+[Templates](#43-templates)).  `luke_format`, `package`, `version` and
+something to build, in `modules`, `bin`, `files` or `ldocs`, are required.
 
 `luke_format`, like a rockspec's `rockspec_format`, names the syntax
 the lukefile is written in.  It is a whole number, which goes up by
@@ -223,7 +225,7 @@ builds its own `build-aux/luke`:
 {% highlight lua %}
     bin = {
        {['build-aux/luke'] = {
-          command = '$LUA build-aux/smush $sources > $target',
+          command = '$SMUSH --main=luke $sources > $target',
           env     = {LUA_PATH = '$abs_top_srcdir/lib/?.lua;;'},
           sources = {'lib/luke/init.lua', 'lib/luke/version.lua.in'},
        }},
@@ -310,7 +312,9 @@ finds:
 ### 3.6. LDocs
 
 An `ldocs` entry names an [LDoc] configuration file, which may be a
-template, and Luke runs it after building every module:
+template, and Luke runs it after building every module.  A lukefile that
+has `ldocs` but no modules, such as one that is only for `luke release`
+when LuaRocks builds the project, builds just the documentation:
 
 {% highlight lua %}
     ldocs = 'build-aux/config.ld.in'
@@ -357,13 +361,13 @@ runs Luke (see [Rockspecs](#7-rockspecs)), are:
 |-----------------|---------------------------------------------|
 | `PREFIX`        | `/usr/local`                                |
 | `INST_BINDIR`   | `$PREFIX/bin`                               |
-| `INST_LIBDIR`   | `$PREFIX/lib/lua/$LUAVERSION`               |
-| `INST_LUADIR`   | `$PREFIX/share/lua/$LUAVERSION`             |
+| `INST_LIBDIR`   | `$PREFIX/lib/lua/$LUA_VERSION`              |
+| `INST_LUADIR`   | `$PREFIX/share/lua/$LUA_VERSION`            |
 | `LUA`           | `lua`                                       |
-| `LUAVERSION`    | the version of the Lua running Luke         |
+| `LUA_VERSION`   | the version of the Lua running Luke         |
 | `LUA_DIR`       | `/usr`                                      |
 | `LUA_BINDIR`    | `$LUA_DIR/bin`                              |
-| `LUA_INCDIR`    | `$LUA_DIR/include/lua$LUAVERSION`           |
+| `LUA_INCDIR`    | `$LUA_DIR/include/lua$LUA_VERSION`          |
 | `LUA_LIBDIR`    | `$LUA_DIR/lib`                              |
 | `CC`            | the first of `cc`, `gcc` or `clang` found   |
 | `CFLAGS`        | `-O2`                                       |
@@ -383,6 +387,8 @@ The compile command also uses `CPPFLAGS`, `LDFLAGS`, `LIBS` and
 Luke also sets:
 
  * `package` and `version`, from `lukefile`;
+ * `LUA_VERSION`, the version of the Lua running Luke, which is also a
+   variable with that default (`LUAVERSION` is an older name for it);
  * `gitref`, the abbreviated hash of the commit checked out in the
    current directory, or the empty string outside a git working tree;
  * `abs_top_srcdir`, the absolute path of the current directory.
@@ -537,8 +543,36 @@ Because of that ordering, this module:
 
 ## 7. Rockspecs
 
-To build with Luke from a rockspec, use the `command` backend, and pass
-along the settings LuaRocks has chosen.  [luaposix] does it like this:
+The `luarocks-build-luke` rock is a LuaRocks build backend that builds a
+rock from a lukefile's syntax in the `build` table of its rockspec, and
+installs it, with the settings that LuaRocks has chosen.  LuaRocks
+installs the backend for a rockspec with `build = {type = 'luke'}`.  A
+rock that says what to build there needs no lukefile, or `build-aux/luke`,
+to be built, only to be released:
+
+{% highlight lua %}
+    build_dependencies = {'luarocks-build-luke >= 0.2'}
+
+    build = {
+       type = 'luke',
+       modules = {
+          {['demo']      = 'lib/demo/init.lua'},
+          {['demo.util'] = 'lib/demo/util.lua'},
+       },
+    }
+{% endhighlight %}
+
+`copy_directories`, `install` and `type` are LuaRocks's own; the rest of
+`build` is what a lukefile says.  That includes `version`, if you want
+templates and defines to see a version other than that of the rock, such
+as `$USER/$gitref` for a development build.  A `VERSION` that is
+given to LuaRocks, as in `luarocks make VERSION=1.0`, takes the place of
+both, which is how `luke release` builds a development rockspec with the
+version to release.
+
+Otherwise, to build with Luke from a rockspec, use the `command` backend,
+and pass along the settings LuaRocks has chosen.  [luaposix] does it
+like this:
 
 {% highlight lua %}
     build = {
@@ -579,6 +613,32 @@ rockspec format 3.0, gives development builds an `ldoc` to run:
     end
 {% endhighlight %}
 
+A rule that bundles modules from other rocks, such as `std.normalize`
+for [Smush], names them among its `sources`, and builds with whichever
+file the Lua path finds for them.  LuaRocks only checks that each build
+dependency is installed somewhere, so when luarocks-build-luke builds
+the rock it also looks at the file that the Lua path finds for each of
+those modules, and exits with an error if the rock that has it is older
+than the version that `build_dependencies` asks for.  Files of a rock
+that are named by path are not checked, nor are modules that no rock
+has, such as a checkout on the Lua path, and nor are rocks that
+`build_dependencies` does not name.
+
+The same rocks are available to the templates of the rule, as `@bundled@`:
+the name and version of each rock that has one of the bundled modules, as
+the items of a Lua table, so that a program can say what is in it:
+
+{% highlight lua %}
+    -- lib/prog/version.lua.in
+    return {
+       VERSION = '@version@',
+       BUNDLED = {@bundled@},
+    }
+{% endhighlight %}
+
+which becomes `BUNDLED = {"luamacro 2.5.1-2", "std.normalize 5-1"}`, or an
+empty table when luke is not run by LuaRocks, or no rock has a module.
+
 For now, that repeats some of the `lukefile` in the rockspec.  One day,
 Luke may read the extra syntax it needs directly from your rockspec,
 so that a separate `lukefile` is no longer necessary.
@@ -586,7 +646,7 @@ so that a separate `lukefile` is no longer necessary.
 
 ## 8. Releases
 
-`luke release version=X.Y` cuts release X.Y (or X.Y.Z) in your git
+`luke release version=X.Y` cuts release X.Y (or X or X.Y.Z) in your git
 working tree, as set out in the lukefile `release` table.  Luke's own
 is:
 
@@ -621,29 +681,44 @@ Luke checks, before changing anything, that:
  * the working tree is clean, and a branch is checked out, such as
    `master`, `main` or a maintenance branch, and is up to date with
    origin, which Luke fetches;
- * there is no `release-vX.Y` branch or `vX.Y` tag yet;
+ * there is no `release-vX.Y` branch or `vX.Y` tag yet (for a rock other
+   than the `package`, `release-NAME-vX.Y` and `NAME-vX.Y`);
  * the first `##` header in `news` is a placeholder for the next
    release, with `?.?` in place of its version, and has news under it;
  * `news` has no release X.Y yet;
  * `rockspec` is a development rockspec, named like `luke-dev-1.rockspec`,
-   whose first line sets `_MODREV`:
+   whose first line sets `_MODREV`, after any comments and blank lines:
 
 {% highlight lua %}
     local _MODREV, _SPECREV = 'dev', '-1'
 {% endhighlight %}
 
+ * with `check_dependencies = true`, LuaRocks (`LUAROCKS`, or else
+   `luarocks`) has every dependency of `rockspec` installed for the Lua
+   that runs Luke; Luke lists any that are missing, and installs none;
  * each file in `replacements` exists, and has each text it replaces,
    after the replacements written before it (see
    [Replacements](#84-replacements));
  * each branch that the release copies files to, such as `gh-pages`, is
-   up to date with origin, and is not checked out in another worktree,
-   as Luke updates it in a worktree of its own; and each template
-   copied there from the same path is in the release or on that branch
-   (see [Publishing to Branches](#83-publishing-to-branches)).
+   on origin, and has no commits that origin lacks, as Luke sets it to
+   origin's before publishing, which creates it in a fresh clone and
+   fast-forwards it when it is behind; is not checked out in another
+   worktree, as Luke updates it in a worktree of its own; and each
+   template copied there from the same path is in the release or on
+   that branch (see [Publishing to Branches](#83-publishing-to-branches)).
 
 `--verbose` shows each check as Luke makes it.
 
 ### 8.2. Steps
+
+With `prebuild = true`, Luke starts by running `luarocks make --no-install
+VERSION=X.Y` on each development `rockspec`, before it changes anything,
+which builds the files that the release commits, with the release version,
+from the same `build` table that a development build uses.  A rock that
+installs those files as they are, from a release rockspec with no build of
+its own, needs this: otherwise the release would commit what the last
+development build left behind, with its stamp.  If that build fails,
+Luke stops before it makes a branch.
 
 Then Luke:
 
@@ -658,10 +733,18 @@ Then Luke:
 
 2. checks out a new `release-vX.Y` branch, removes the placeholder
    from `news` there, and makes the `replacements`;
-3. builds everything with `version=X.Y`;
-4. writes the release rockspec, such as `luke-X.Y-1.rockspec`, with
+3. writes the release rockspec, such as `luke-X.Y-1.rockspec`, with
    `_MODREV` set to X.Y, in place of `rockspec`;
-5. commits every path in the `add` list, every module filled from a
+4. builds the release as LuaRocks builds it, by running `luarocks make
+   --no-install` on each release rockspec, so that what the release
+   commits is made by its own rockspec, with the release version, and
+   passes along the uppercase `NAME=VALUE` settings from the command
+   line, such as `YAML_DIR`, but not `GH` or `LUAROCKS`, which are
+   Luke's; and then builds the LDocs, which a rock does not build.  A
+   release table without a rockspec builds as the lukefile says,
+   with `version=X.Y`;
+5. commits every path in the `add` list, such as the files that the
+   rockspec makes, every module filled from a
    [template](#43-templates), every [generated
    file](#34-generated-files) and the release rockspec, even if git
    ignores them, so that the release can be used, or its files copied
@@ -728,6 +811,19 @@ there, keeping only the templates already on `gh-pages`:
     }
 {% endhighlight %}
 
+A branch table can also have a `command`, which Luke runs on that
+branch after copying everything, before committing, such as to remove
+files that a copied directory should not publish.  [luaposix] keeps the
+sources of its examples off `gh-pages`, publishing only their LDoc
+pages, like this:
+
+{% highlight lua %}
+    ['gh-pages'] = {
+       {['.'] = 'doc/'},
+       command = 'rm -f examples/*.lua',
+    }
+{% endhighlight %}
+
 ### 8.4. Replacements
 
 A `replacements` list edits files on the release branch alone, such as
@@ -749,6 +845,67 @@ what an earlier replacement wrote.  A replacement is a
 [template](#43-templates), with `@version@` set to X.Y.  The release
 commits the edited files with everything else, and the branch checked
 out keeps them as they were.
+
+### 8.5. Releasing More Than One Rock
+
+A repository can release more than one rock, in either of two ways.
+
+To release them together, at one version, with one tag, list their
+development rockspecs in `rockspec`:
+
+{% highlight lua %}
+    release = {
+       news     = 'NEWS.md',
+       rockspec = {'mylib-dev-1.rockspec', 'mylib-extra-dev-1.rockspec'},
+    }
+{% endhighlight %}
+
+Luke checks, writes and commits each, and prints a `luarocks upload` for
+each.  The rockspec whose name starts with the lukefile `package` gives
+the `description` of the announcement, or else the first does, and the
+announcement says how to install every rock.
+
+To release them separately, each with versions of its own, make each
+development rockspec the key of a table of the keys above, other than
+`rockspec`, or write its name alone when it has none, and write nothing
+else in `release`.  Luke's own is:
+
+{% highlight lua %}
+    release = {
+       'luarocks-build-luke-dev-1.rockspec',
+       ['luke-dev-1.rockspec'] = {
+          news         = 'NEWS.md',
+          replacements = {
+             {['README.md'] = {
+                {['?branch=master'] = '?branch=release-v@version@'},
+             }},
+          },
+          ['gh-pages'] = {
+             {['index.md'] = 'doc/luke.md'},
+             '_config.yml.in',
+          },
+       },
+    }
+{% endhighlight %}
+
+`luke release version=X.Y` releases the rock that the lukefile `package`
+names, as `luke-dev-1.rockspec` is of `luke`, and `luke release
+rock=luarocks-build-luke version=X.Y` another, by the rules in its table
+alone.  Luke stops if there is no such rock.
+
+So that the releases of one repository do not meet, the tag and the branch
+of every rock but the `package` name it: `luarocks-build-luke-vX.Y` and
+`release-luarocks-build-luke-vX.Y`, where the `package` has `vX.Y` and
+`release-vX.Y`.  The source of the release rockspec of such a rock must say
+the same, as the archive that GitHub makes of a tag has a directory named
+for it:
+
+{% highlight lua %}
+    source = {
+       url = 'https://github.com/gvvaughan/luke/archive/' .. package .. '-v' .. _MODREV .. '.zip',
+       dir = 'luke-' .. package .. '-v' .. _MODREV,
+    }
+{% endhighlight %}
 
 
 ## 9. Lukefile Reference
@@ -781,11 +938,14 @@ and `./` is `.`, the directory itself.  It leaves `..` alone.
 | `ldocs`                 | an LDoc configuration file                                   | [3.6](#36-ldocs) |
 | `variables`             | variable names, each mapped to a value                       | [4.1](#41-variables) |
 | `substitute`            | template names, each mapped to a value                       | [4.3](#43-templates) |
-| `release`               | a table with `news`, `rockspec`, `add`, `replacements` and branches | [8](#8-releases) |
+| `release`               | a table with `news`, `rockspec`, `check_dependencies`, `add`, `replacements` and branches, or one for each rock | [8](#8-releases) |
 | `release.news`          | the NEWS file                                                | [8.1](#81-checks), [8.2](#82-steps) |
-| `release.rockspec`      | the development rockspec                                     | [8.1](#81-checks), [8.2](#82-steps) |
+| `release.rockspec`      | the development rockspec, or a list of them to release together | [8.1](#81-checks), [8.2](#82-steps) |
+| `release.check_dependencies` | `true` to check that LuaRocks has the rockspec's dependencies | [8.1](#81-checks) |
+| `release.prebuild`      | `true` to build the development rockspec at the release version first | [8.2](#82-steps) |
 | `release.replacements`  | {% raw %}`{path = {{text = replacement}, ...}}`{% endraw %} entries, in order     | [8.4](#84-replacements) |
 | `release.add`           | a list of paths to commit to the release                     | [8.2](#82-steps) |
+| `release[NAME-dev-1.rockspec]` | a table of the keys above but `rockspec`, or a bare name, for a rock released on its own | [8.5](#85-releasing-more-than-one-rock) |
 | `release[branch]`       | `{path = source}` entries, or paths on their own, in order   | [8.3](#83-publishing-to-branches) |
 
 
@@ -802,6 +962,7 @@ requests are especially welcome.
 [luajit]:   https://luajit.org
 [luaposix]: https://github.com/luaposix/luaposix
 [luarocks]: https://luarocks.org
+[smush]:    https://github.com/gvvaughan/smush
 [specl]:    https://github.com/gvvaughan/specl
 [luke]:     https://github.com/gvvaughan/luke
 [lyaml]:    https://github.com/gvvaughan/lyaml
