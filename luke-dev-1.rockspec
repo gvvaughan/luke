@@ -82,7 +82,7 @@ if _MODREV == 'dev' then
       'smush >= 0.1',
       'std.functional >= 2.1',
       'std.normalize >= 4.1',
-      'std.prototype >= 2',
+      'std.prototype >= 2.1',
    }
 
    -- A build without help2man keeps the man page that a release commits.
