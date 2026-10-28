@@ -14,7 +14,10 @@ version  = '$USER/$gitref'
 -- `luke release rock=luarocks-build-luke version=X.Y` releases the backend,
 -- with the tag luarocks-build-luke-vX.Y.
 release = {
-   'luarocks-build-luke-dev-1.rockspec',
+   ['luarocks-build-luke-dev-1.rockspec'] = {
+      add      = {'build-aux/luarocks-build-luke.lua'},
+      prebuild = true,
+   },
    ['luke-dev-1.rockspec'] = {
       news         = 'NEWS.md',
       prebuild     = true,

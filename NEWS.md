@@ -4,6 +4,10 @@
 
 ### New features:
 
+  - The `luarocks-build-luke` rock installs the `build-aux/luarocks-build-luke.lua`
+    that its release commits, built at the release version, in the same way,
+    and its `luke.version` says which rocks it bundles.
+
   - The `luke` rock installs the `build-aux/luke` that its release commits,
     built at the release version, and not one that LuaRocks builds on the
     machine of whoever installs it, so it needs no smush, `std.normalize` or
