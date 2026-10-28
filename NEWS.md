@@ -2,6 +2,9 @@
 
 ## Noteworthy changes in release ?.? (????-??-??) [?]
 
+
+## Noteworthy changes in release 0.8 (2026-10-28) [stable]
+
 ### New features:
 
   - The `luarocks-build-luke` rock installs the `build-aux/luarocks-build-luke.lua`
