@@ -590,19 +590,15 @@ end
 -- branch, the `rules` of the lukefile `release` table, the date `today`,
 -- what to `add` and the `released` rockspec, the `pages` branches and
 -- the `worktrees` for them, and the `substitute` environment.
--- The step that has LuaRocks build *rockspec* where it is, but not
--- install it, with the settings from the command line that are variables
--- for LuaRocks, such as YAML_DIR, which are the uppercase names, except
--- for the programs that `luke release` itself uses.  That makes what the
--- release commits, stamped with the release version, as the rock does.
-local function make_rock(L, env, rockspec)
+local function make_rock(L, env, rockspec, version)
    local settings = map(filter(keys(L.clidefs or {}), function(name)
       return match(name, '^%u[%w_]*$') ~= nil and name ~= 'GH' and name ~= 'LUAROCKS'
    end), function(name)
       return shellword(format('%s=%s', name, L.clidefs[name]))
    end)
    return bind(run, {L, env, flatten(pack(
-      format('%s make --no-install', env.LUAROCKS or 'luarocks'), shellword(rockspec), settings
+      format('%s make --no-install', env.LUAROCKS or 'luarocks'), shellword(rockspec), settings,
+      version and shellword('VERSION=' .. version)
    ))})
 end
 
@@ -614,6 +610,11 @@ local function release_steps(L, env, build, docs, plan)
    -- TODO: before branching, rename any PACKAGE-git-1.rockspec to
    -- PACKAGE-dev-1.rockspec, setting its _MODREV from 'git' to 'dev'.
    return compact(flatten(pack(
+      -- Build the files that the release commits from the development
+      -- rockspec.
+      rules.prebuild and map(rockspecs(rules), function(rockspec)
+         return make_rock(L, env, rockspec, version)
+      end) or nil,
       news and {
          bind(edit, {L, news, bind(add_release_header, {[2]=version, [3]=plan.today})}),
          bind(run, {L, env, {'git commit', format("-m 'maint: update NEWS.md for %s.'", version), news}}),

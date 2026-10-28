@@ -823,6 +823,35 @@ specify luke.release:
         release = setup(passing())
         expect(release(mkL {rockspec = ROCKSPEC}, env, build)).to_be(0)
         expect(slurp(RELEASED)).to_be "-- Copyright (C) 2026\n\nlocal _MODREV, _SPECREV = '1.0', '-1'\n\npackage = 'demo'\n"
+    - it builds the development rockspec at the release version first with prebuild: |
+        spawned = passing()
+        spawned['luarocks make --no-install ' .. ROCKSPEC .. ' VERSION=1.0'] = list(0, '', '')
+        release = setup(spawned)
+        L = mkL {rockspec = ROCKSPEC, prebuild = true}
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[1]).to_be('luarocks make --no-install ' .. ROCKSPEC .. ' VERSION=1.0')
+        expect(L.write[2]).to_match '^git checkout %-b '
+    - it passes the settings for LuaRocks, and then VERSION, to the first build: |
+        spawned = passing()
+        spawned['luarocks make --no-install ' .. ROCKSPEC .. ' YAML_DIR=/opt VERSION=1.0'] = list(0, '', '')
+        spawned['luarocks make --no-install ' .. RELEASED .. ' YAML_DIR=/opt'] = list(0, '', '')
+        release = setup(spawned)
+        L = mkL {rockspec = ROCKSPEC, prebuild = true}
+        L.clidefs = {YAML_DIR = '/opt'}
+        expect(release(L, env, build)).to_be(0)
+        expect(L.write[1]).to_be('luarocks make --no-install ' .. ROCKSPEC .. ' YAML_DIR=/opt VERSION=1.0')
+    - it does not build the development rockspec without prebuild: |
+        release = setup(passing())
+        L = mkL {rockspec = ROCKSPEC}
+        expect(release(L, env, build)).to_be(0)
+        expect(table.concat(L.write, '\n')).not_to_contain 'VERSION=1.0'
+    - it stops before it makes a branch when the first build fails: |
+        spawned = passing()
+        spawned['luarocks make --no-install ' .. ROCKSPEC .. ' VERSION=1.0'] = list(1, '', 'build failed\n')
+        release = setup(spawned)
+        L = mkL {rockspec = ROCKSPEC, prebuild = true}
+        expect(release(L, env, build)).not_to_be(0)
+        expect(table.concat(L.write, '\n')).not_to_contain 'git checkout -b'
     - it replaces the development rockspec, and adds generated files: |
         release = setup(passing())
         L = mkL {rockspec = ROCKSPEC, add = {'lib/demo.lua'}}

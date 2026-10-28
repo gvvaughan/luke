@@ -191,6 +191,17 @@ specify luke:
       p = luke('--file=' .. fname)
       expect(p).to_exit(1)
       expect(p).to_contain_error "bad release.replacements[1]['README.md'][1]['?branch=master']: string expected, got number"
+  - it diagnoses a release prebuild that is not a boolean: |
+      spit(fname, [[
+         luke_format = 0
+         package = 'example'
+         version = '1.0'
+         modules = {{example = 'example.lua'}}
+         release = {prebuild = 'yes'}
+      ]])
+      p = luke('--file=' .. fname)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error "bad release.prebuild: boolean expected, got string"
   - it diagnoses a release check_dependencies that is not a boolean: |
       spit(fname, [[
          luke_format = 0

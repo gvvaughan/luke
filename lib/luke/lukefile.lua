@@ -77,7 +77,9 @@ local str, t = mkcheck 'string', mkcheck 'table'
 
 -- How `luke release` updates NEWS, writes the release rockspec, edits
 -- files for the release branch, commits generated files, and whether
--- it first checks that the rockspec's dependencies are installed; any
+-- it first checks that the rockspec's dependencies are installed, and
+-- whether it first builds the development rockspec at the release
+-- version, to make the files that it commits; any
 -- other key names a branch, such as `gh-pages`, mapped to the release
 -- files to copy there.  The `rockspec` can be a list, to release more
 -- than one rock together, at one version.
@@ -89,6 +91,7 @@ local RELEASEKEYS = {
    add                = listof(pathname),
    check_dependencies = mkcheck 'boolean',
    news               = pathname,
+   prebuild           = mkcheck 'boolean',
    replacements       = ordered_map(pairof(ordered_map(pairof(str)), pathname)),
 }
 local release_fields = fields(merged(RELEASEKEYS, {rockspec = listof(pathname)}), copies)

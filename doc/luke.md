@@ -711,6 +711,15 @@ Luke checks, before changing anything, that:
 
 ### 8.2. Steps
 
+With `prebuild = true`, Luke starts by running `luarocks make --no-install
+VERSION=X.Y` on each development `rockspec`, before it changes anything,
+which builds the files that the release commits, with the release version,
+from the same `build` table that a development build uses.  A rock that
+installs those files as they are, from a release rockspec with no build of
+its own, needs this: otherwise the release would commit what the last
+development build left behind, with its stamp.  If that build fails,
+Luke stops before it makes a branch.
+
 Then Luke:
 
 1. adds a header for X.Y, with today's date, between the placeholder
@@ -933,6 +942,7 @@ and `./` is `.`, the directory itself.  It leaves `..` alone.
 | `release.news`          | the NEWS file                                                | [8.1](#81-checks), [8.2](#82-steps) |
 | `release.rockspec`      | the development rockspec, or a list of them to release together | [8.1](#81-checks), [8.2](#82-steps) |
 | `release.check_dependencies` | `true` to check that LuaRocks has the rockspec's dependencies | [8.1](#81-checks) |
+| `release.prebuild`      | `true` to build the development rockspec at the release version first | [8.2](#82-steps) |
 | `release.replacements`  | {% raw %}`{path = {{text = replacement}, ...}}`{% endraw %} entries, in order     | [8.4](#84-replacements) |
 | `release.add`           | a list of paths to commit to the release                     | [8.2](#82-steps) |
 | `release[NAME-dev-1.rockspec]` | a table of the keys above but `rockspec`, or a bare name, for a rock released on its own | [8.5](#85-releasing-more-than-one-rock) |

@@ -4,6 +4,12 @@
 
 ### New features:
 
+  - `prebuild = true` in the lukefile `release` table makes `luke release`
+    build each development rockspec with `luarocks make --no-install
+    VERSION=X.Y` before it makes the release branch, so the files that
+    the release commits are made with the release version, and not left
+    over from a development build, and a failed build leaves no branch.
+
   - `luarocks make VERSION=1.0` builds a rock with luarocks-build-luke at
     version 1.0, whatever version its rockspec or `build.version` say, so
     that a development rockspec can build the files of a release.
