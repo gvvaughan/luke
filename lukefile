@@ -17,6 +17,7 @@ release = {
    'luarocks-build-luke-dev-1.rockspec',
    ['luke-dev-1.rockspec'] = {
       news         = 'NEWS.md',
+      prebuild     = true,
       add          = {'build-aux/luke', 'doc/luke.1', 'lib/luke/version.lua'},
       replacements = {
          {['README.md'] = {

@@ -4,6 +4,12 @@
 
 ### New features:
 
+  - The `luke` rock installs the `build-aux/luke` that its release commits,
+    built at the release version, and not one that LuaRocks builds on the
+    machine of whoever installs it, so it needs no smush, `std.normalize` or
+    `std.functional` to install, and says the number of the release.  A
+    development build still builds it, from the rockspec.
+
   - `prebuild = true` in the lukefile `release` table makes `luke release`
     build each development rockspec with `luarocks make --no-install
     VERSION=X.Y` before it makes the release branch, so the files that
