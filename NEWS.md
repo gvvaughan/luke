@@ -61,6 +61,9 @@
     own, so it behaves like every other project that uses them
     does, importing only the names it uses.
 
+  - `./luke` in the source tree starts again, now that `version.lua.in`
+    has an `@bundled@` for it to fill: it bundles no rocks.
+
 
 ## Noteworthy changes in release 0.7 (2026-10-25) [stable]
 
