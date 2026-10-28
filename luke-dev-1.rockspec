@@ -114,10 +114,17 @@ if _MODREV == 'dev' then
    build.copy_directories = nil
 end
 
+-- The specs run the source in lib, not the build-aux/luke that a release
+-- commits, so they need the libraries that it bundles, and the rock that
+-- builds the smushed programs that some of them run, whether or not a
+-- development build needs them.
 test_dependencies = {
    'ansicolors',
    'luacov',
    'specl >= 17',
+   'std.functional >= 2.1',
+   'std.normalize >= 4.1',
+   'std.prototype >= 2.1',
 }
 
 test = {
