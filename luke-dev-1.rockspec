@@ -119,7 +119,6 @@ end
 -- builds the smushed programs that some of them run, whether or not a
 -- development build needs them.
 test_dependencies = {
-   'ansicolors',
    'luacov',
    'specl >= 17',
    'std.functional >= 2.1',
