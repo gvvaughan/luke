@@ -4,6 +4,11 @@
 
 ### New features:
 
+  - `luke release` finds `_MODREV` in a rockspec after leading `--`
+    comments and blank lines, such as a copyright notice, and not only
+    on its first line.  A block comment, `--[[`, before it is not
+    skipped.
+
   - `luarocks-build-luke` checks the modules that a `bin` or `files`
     rule bundles from the Lua path, by name, in its `sources`, as
     smush does: if the rock that has the file that the path finds is

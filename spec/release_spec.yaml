@@ -453,6 +453,14 @@ specify luke.release:
         rockspec "package = 'demo'\nversion = 'dev-1'\n"
         release = setup(passing())
         expect(release(mkL {rockspec = ROCKSPEC}, env, build)).to_be(1)
+    - it diagnoses a rockspec with _MODREV after a block comment: |
+        rockspec "--[[ local _MODREV, _SPECREV = 'dev', '-1'\n]]\nversion = 'dev-1'\n"
+        release = setup(passing())
+        expect(release(mkL {rockspec = ROCKSPEC}, env, build)).to_be(1)
+    - it accepts comments and blank lines before _MODREV: |
+        rockspec "-- Copyright [2026]\n\n  -- [x]\nlocal _MODREV, _SPECREV = 'dev', '-1'\n\npackage = 'demo'\n"
+        release = setup(passing())
+        expect(release(mkL {rockspec = ROCKSPEC}, env, build)).to_be(0)
 
     - context with check_dependencies:
       - before: |
@@ -810,6 +818,11 @@ specify luke.release:
         release = setup(passing())
         expect(release(mkL {rockspec = ROCKSPEC}, env, build)).to_be(0)
         expect(slurp(RELEASED)).to_be "local _MODREV, _SPECREV = '1.0', '-1'\n\npackage = 'demo'\n"
+    - it keeps the comments before _MODREV in the release rockspec: |
+        rockspec "-- Copyright (C) 2026\n\nlocal _MODREV, _SPECREV = 'dev', '-1'\n\npackage = 'demo'\n"
+        release = setup(passing())
+        expect(release(mkL {rockspec = ROCKSPEC}, env, build)).to_be(0)
+        expect(slurp(RELEASED)).to_be "-- Copyright (C) 2026\n\nlocal _MODREV, _SPECREV = '1.0', '-1'\n\npackage = 'demo'\n"
     - it replaces the development rockspec, and adds generated files: |
         release = setup(passing())
         L = mkL {rockspec = ROCKSPEC, add = {'lib/demo.lua'}}

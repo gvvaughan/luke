@@ -684,7 +684,7 @@ Luke checks, before changing anything, that:
    release, with `?.?` in place of its version, and has news under it;
  * `news` has no release X.Y yet;
  * `rockspec` is a development rockspec, named like `luke-dev-1.rockspec`,
-   whose first line sets `_MODREV`:
+   whose first line sets `_MODREV`, after any comments and blank lines:
 
 {% highlight lua %}
     local _MODREV, _SPECREV = 'dev', '-1'

@@ -75,7 +75,8 @@ local _ENV = require 'std.normalize' {
 -- The header for the next release's news, at the top of NEWS.
 local PLACEHOLDER = '\n(## [^\n]*%?%.%?[^\n]*\n)'
 
--- The first line of a rockspec, which sets the version it builds.
+-- The first line of a rockspec that is not blank or a `--` comment, which
+-- sets the version it builds.
 local MODREV = "^(local _MODREV, _SPECREV = ')[^']*(')"
 
 -- The name of a development rockspec, around its version.
@@ -268,9 +269,36 @@ local function rockspec_name(rockspec, version)
 end
 
 
+-- Where the first line of rockspec *text* that is not blank or a `--`
+-- comment starts, so that a copyright notice can come before it.  A
+-- block comment, `--[[`, is not one: it can have anything in it.
+local function code_start(text)
+   local pos = 1
+   while true do
+      local _, last = find(text, '^[ \t]*\r?\n', pos)
+      if last == nil and match(text, '^[ \t]*%-%-%[=*%[', pos) == nil then
+         _, last = find(text, '^[ \t]*%-%-[^\n]*\n', pos)
+      end
+      if last == nil then
+         return pos
+      end
+      pos = last + 1
+   end
+end
+
+
+-- The start of the line of rockspec *text* that sets _MODREV, if that
+-- is the first line that is not a comment.
+local function modrev_line(text)
+   return match(sub(text, code_start(text)), MODREV)
+end
+
+
 -- Rockspec *text*, set to build *version*.
 local function set_modrev(text, version)
-   return (gsub(text, MODREV, '%1' .. version .. '%2', 1))
+   local start = code_start(text)
+   return sub(text, 1, start - 1) ..
+      (gsub(sub(text, start), MODREV, '%1' .. version .. '%2', 1))
 end
 
 
@@ -427,7 +455,7 @@ local function rockspec_checks(env, release)
             return match(name, DEVROCKSPEC) ~= nil
          end},
          {format('%s sets _MODREV on its first line', name), function()
-            return rockspec ~= nil and match(rockspec, MODREV) ~= nil
+            return rockspec ~= nil and modrev_line(rockspec) ~= nil
          end},
          choose(release.check_dependencies, {format('the dependencies of %s are installed', name), function()
             return dependencies_installed(env, name)
