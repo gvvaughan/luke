@@ -85,8 +85,8 @@ if _MODREV == 'dev' then
    -- The backend is one file with these bundled in, so a development build
    -- needs them only to build it.
    build_dependencies = {
-      'luarocks-build-luke >= 0.3.2',
-      'smush >= 0.1',
+      'luarocks-build-luke >= 0.3.1',
+      'smush >= 0.2',
       'std.functional >= 2.1',
       'std.normalize >= 4.1',
       'std.prototype >= 2.1',
