@@ -624,21 +624,6 @@ that are named by path are not checked, nor are modules that no rock
 has, such as a checkout on the Lua path, and nor are rocks that
 `build_dependencies` does not name.
 
-The same rocks are available to the templates of the rule, as `@bundled@`:
-the name and version of each rock that has one of the bundled modules, as
-the items of a Lua table, so that a program can say what is in it:
-
-{% highlight lua %}
-    -- lib/prog/version.lua.in
-    return {
-       VERSION = '@version@',
-       BUNDLED = {@bundled@},
-    }
-{% endhighlight %}
-
-which becomes `BUNDLED = {"luamacro 2.5.1-2", "std.normalize 5-1"}`, or an
-empty table when luke is not run by LuaRocks, or no rock has a module.
-
 For now, that repeats some of the `lukefile` in the rockspec.  One day,
 Luke may read the extra syntax it needs directly from your rockspec,
 so that a separate `lukefile` is no longer necessary.

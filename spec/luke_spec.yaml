@@ -38,14 +38,21 @@ specify luke:
          '^luke %(Luke%) [^/%s]*/%x%x%x%x%x%x%x+\n',
          '^luke %(Luke%) %d+%.%d+[%.%d]*\n',
       }
-  - it lists the rocks that are bundled in it with --bundled, if there are any: |
+  - it shows what smush says is bundled in it with --bundled: |
       p = capture(function()
-         package.preload['luke.version'] = function()
-            return {versiontext = 'luke (Luke) 1\n', BUNDLED = {'a 1-1', 'b 2-1'}}
+         package.preload['smush.bundled'] = function()
+            return {showbundled = function() io.write 'smush 1 bundled:\na 1-1\n' end}
          end
          return require 'luke'.main {'--bundled'}
       end)
-      expect(p).to_succeed_while_matching '^a 1%-1\nb 2%-1\n$'
+      expect(p).to_succeed_while_matching '^smush 1 bundled:\na 1%-1\n$'
+  - it says that it is not a bundled program with --bundled, if smush did not bundle it: |
+      p = capture(function()
+         package.preload['smush.bundled'] = nil
+         return require 'luke'.main {'--bundled'}
+      end)
+      expect(p).to_exit(1)
+      expect(p).to_contain_error 'luke: not a bundled program!'
   - it prints help: |
       expect(luke '--help').to_succeed_while_containing 'Usage: luke'
   - it diagnoses unknown options: |

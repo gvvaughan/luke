@@ -14,7 +14,6 @@ local _ENV = require 'std.normalize' {
    'os.exit',
    'string.gsub',
    'string.match',
-   'table.concat',
    diagnose = _base.diagnose,
    fatal = _base.fatal,
    message = _base.message,
@@ -35,11 +34,16 @@ local function version()
 end
 
 
+-- What smush says is bundled in luke, from the module that it writes into
+-- every bundle.  Luke from a source tree is not one.
 local function bundled()
-   local rocks = _version.BUNDLED or {}
-   if #rocks > 0 then
-      print(concat(rocks, '\n'))
+   local ok, smushed = pcall(require, 'smush.bundled')
+   if not ok then
+      stderr:write 'luke: not a bundled program!\n'
+      stderr:write 'Use build-aux/luke, which smush bundles, to list what is in it.\n'
+      exit(1)
    end
+   smushed.showbundled()
    exit(0)
 end
 

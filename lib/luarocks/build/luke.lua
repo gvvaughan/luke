@@ -137,12 +137,6 @@ function luke.run(rockspec, no_install)
    end
    local status, err = require 'luke._base'.protected(function()
       local recipe, request = require 'luke.rockspec'.fromrockspec(staged(rockspec), no_install, srcdir())
-      if names ~= nil then
-         -- For `@bundled@` in a template, such as a version file, to say
-         -- which rocks the file that it is part of has bundled.
-         local bundled = require 'luke.bundled'
-         request.clidefs.bundled = bundled.listing(bundled.rocks(names, find))
-      end
       return require 'luke'.make(recipe, request)
    end)
    if status == nil then

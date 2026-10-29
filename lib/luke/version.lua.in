@@ -5,7 +5,6 @@
 
 return {
    VERSION = '@version@',
-   BUNDLED = {@bundled@},
    versiontext = [[
 luke (Luke) @version@
 Written by Gary V. Vaughan <gary@gnu.org>, 2014

@@ -23,7 +23,7 @@ package.preload['luke.version'] = function()
 
    local filename = libdir .. '/luke/version.lua.in'
    local h = assert(io.open(filename))
-   local s = h:read '*a':gsub('@version@', version):gsub('@bundled@', '')
+   local s = h:read '*a':gsub('@version@', version)
    h:close()
    return assert((rawget(_G, 'loadstring') or load)(s, '@' .. filename))()
 end

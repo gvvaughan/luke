@@ -20,7 +20,6 @@
 local _ENV = require 'std.normalize' {
    'string.format',
    'string.match',
-   'table.concat',
    'table.sort',
 }
 
@@ -87,38 +86,8 @@ local function outdated(names, provider, satisfies)
 end
 
 
--- The rocks that provide some of *names*, as a sorted list of `rock version`,
--- with each rock once, found by *provider* as for `outdated`.  A module
--- that no rock has, such as one in a checkout on the Lua path, gives none.
-local function rocks(names, provider)
-   local list, seen = {}, {}
-   for i = 1, #names do
-      local rock, version = provider(names[i])
-      if rock ~= nil and not seen[rock] then
-         seen[rock] = true
-         list[#list + 1] = rock .. ' ' .. version
-      end
-   end
-   sort(list)
-   return list
-end
-
-
--- The items of *list*, quoted and separated by commas, to fill the
--- braces of a Lua table in a template.
-local function listing(list)
-   local items = {}
-   for i = 1, #list do
-      items[i] = format('%q', list[i])
-   end
-   return concat(items, ', ')
-end
-
-
 return {
    isname   = isname,
-   listing  = listing,
    modules  = modules,
    outdated = outdated,
-   rocks    = rocks,
 }

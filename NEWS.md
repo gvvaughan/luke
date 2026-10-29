@@ -2,6 +2,16 @@
 
 ## Noteworthy changes in release ?.? (????-??-??) [?]
 
+### Incompatible changes
+
+  - `@bundled@` in a template, and `BUNDLED` in the version file of luke,
+    are gone: `luarocks-build-luke` no longer works out which rocks a rule
+    bundles to fill them in.  Smush 0.4 and later writes a module
+    `smush.bundled` into the bundle that says what is in it, and `luke
+    --bundled` shows that.  A luke that smush did not bundle says that it
+    is not a bundled program.  The check that a bundled module is not from
+    a rock older than its `build_dependencies` stays.
+
 
 ## Noteworthy changes in release 0.9 (2026-10-29) [stable]
 
