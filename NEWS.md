@@ -2,6 +2,9 @@
 
 ## Noteworthy changes in release ?.? (????-??-??) [?]
 
+
+## Noteworthy changes in release 0.10 (2026-10-29) [stable]
+
 ### Incompatible changes
 
   - `@bundled@` in a template, and `BUNDLED` in the version file of luke,
