@@ -1,7 +1,5 @@
 # Luke NEWS - User visible changes.
 
-## Noteworthy changes in release ?.? (????-??-??) [?]
-
 
 ## Noteworthy changes in release 0.10 (2026-10-29) [stable]
 
