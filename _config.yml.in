@@ -4,7 +4,7 @@ account: gvvaughan
 name:         Luke
 description:  Use the source, Luke!
 forkme:       "https://github.com/gvvaughan/luke"
-release-no:   @version@
+release-no:   "@version@"
 
 url:      "https://gvvaughan.github.io/luke"
 markdown: kramdown
