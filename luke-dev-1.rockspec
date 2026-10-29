@@ -120,7 +120,7 @@ end
 -- development build needs them.
 test_dependencies = {
    'luacov',
-   'specl >= 17',
+   'specl >= 17.1',
    'std.functional >= 2.1',
    'std.normalize >= 4.1',
    'std.prototype >= 2.1',
