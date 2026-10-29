@@ -2,6 +2,9 @@
 
 ## Noteworthy changes in release ?.? (????-??-??) [?]
 
+
+## Noteworthy changes in release 0.9 (2026-10-29) [stable]
+
 ### Bug fixes
 
   - Ensure luarocks doesn't install all the sources that luke doesn't need,
