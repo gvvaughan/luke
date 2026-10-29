@@ -36,6 +36,10 @@ end
 build = {
    type = 'builtin',
 
+   -- The rock installs a program, and not the modules of lib that it is made
+   -- from, which builtin would find in a release for itself.
+   modules = {},
+
    -- A release commits build-aux/luarocks-build-luke.lua to install.
    install = {
       lua = {['luarocks.build.luke'] = 'build-aux/luarocks-build-luke.lua'},

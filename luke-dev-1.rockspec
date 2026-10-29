@@ -35,6 +35,10 @@ end
 build = {
    type = 'builtin',
 
+   -- The rock installs a program, and not the modules of lib that it is made
+   -- from, which builtin would find in a release for itself.
+   modules = {},
+
    -- A release commits build-aux/luke and its man page to install.
    install = {
       bin = {luke = 'build-aux/luke'},

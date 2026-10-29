@@ -2,6 +2,11 @@
 
 ## Noteworthy changes in release ?.? (????-??-??) [?]
 
+### Bug fixes
+
+  - Ensure luarocks doesn't install all the sources that luke doesn't need,
+    because everything is already bundled.
+
 
 ## Noteworthy changes in release 0.8 (2026-10-28) [stable]
 
