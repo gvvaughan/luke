@@ -12,7 +12,6 @@ jobs:
       fail-fast: false
       matrix:
         lua-version: ["5.5", "5.4", "5.3", "5.2", "5.1", "luajit"]
-        debug: ["std._debug", ""]
         strict: ["std.strict", ""]
 
     runs-on: ubuntu-latest
@@ -42,7 +41,6 @@ jobs:
           printf gvvaughan > "$(luarocks show --rock-dir ldoc)/rock_namespace"
           luarocks test --prepare
           luarocks make --only-deps
-          test -n "${{ matrix.debug }}" && luarocks install std._debug || true
           test -n "${{ matrix.strict }}" && luarocks install std.strict || true
 
       - name: build
@@ -55,7 +53,7 @@ jobs:
           eval "$(luarocks path)"
           lua -e "
             for name, want in pairs {
-               ['std._debug'] = '${{ matrix.debug }}' ~= '',
+               ['std._debug'] = false,
                ['std.strict.init'] = '${{ matrix.strict }}' ~= '',
             } do
                local have = pcall(require, name)
