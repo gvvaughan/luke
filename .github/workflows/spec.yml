@@ -13,6 +13,7 @@ jobs:
       matrix:
         lua-version: ["5.5", "5.4", "5.3", "5.2", "5.1", "luajit"]
         strict: ["std.strict", ""]
+        typecheck: ["typecheck", ""]
 
     runs-on: ubuntu-latest
 
@@ -42,6 +43,7 @@ jobs:
           luarocks test --prepare
           luarocks make --only-deps
           test -n "${{ matrix.strict }}" && luarocks install std.strict || true
+          test -n "${{ matrix.typecheck }}" && luarocks install typecheck || true
 
       - name: build
         run: |
@@ -55,6 +57,7 @@ jobs:
             for name, want in pairs {
                ['std._debug'] = false,
                ['std.strict.init'] = '${{ matrix.strict }}' ~= '',
+               ['typecheck'] = '${{ matrix.typecheck }}' ~= '',
             } do
                local have = pcall(require, name)
                print(name, have and 'installed' or 'not installed')
